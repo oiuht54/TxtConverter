@@ -21,7 +21,7 @@
 
 ## 🚀 Как использовать (для пользователей)
 
-1.  Перейдите в раздел **[Releases](https://github.com/ВАШ_НИК/TxtConverter/releases)** на этой странице.
+1.  Перейдите в раздел **[Releases](https://github.com/oiuht54/TxtConverter/releases)** на этой странице.
 2.  Скачайте последнюю версию приложения (обычно в `.zip` архиве).
 3.  Распакуйте архив в любое удобное место.
 4.  Запустите `TxtConverter.exe`.
@@ -39,7 +39,7 @@
 
 1.  **Клонируйте репозиторий:**
     ```sh
-    git clone https://github.com/ВАШ_НИК/TxtConverter.git
+    git clone https://github.com/oiuht54/TxtConverter.git
     cd TxtConverter
     ```
 
