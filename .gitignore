@@ -27,7 +27,7 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
-_ConvertedToTxt
+_ConvertedToTxt/
 
 # Visual Studio 2015/2017/2019/2022 cache/options directory
 .vs/
