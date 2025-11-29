@@ -5,13 +5,13 @@
         WindowStyle="None" ResizeMode="CanResize"
         Width="600" Height="750"
         WindowStartupLocation="CenterOwner"
-        Title="Select Files" Background="{StaticResource Brush_Bg}">
+        Title="Select Files" Background="{StaticResource Brush_WindowBg}">
 
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
     </WindowChrome.WindowChrome>
 
-    <Border BorderBrush="{StaticResource Brush_Border}" BorderThickness="1">
+    <Border BorderBrush="#333333" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -21,20 +21,20 @@
             </Grid.RowDefinitions>
 
             <!-- Title Bar -->
-            <Grid Grid.Row="0" Background="{StaticResource Brush_BgLight}" MouseDown="TitleBar_MouseDown" Height="40">
-                <TextBlock Text="{DynamicResource ui_select_files_btn}" FontWeight="SemiBold" Foreground="{StaticResource Brush_Fg}" Margin="15,0" VerticalAlignment="Center"/>
+            <Grid Grid.Row="0" Background="{StaticResource Brush_WindowBg}" MouseDown="TitleBar_MouseDown" Height="40">
+                <TextBlock Text="{DynamicResource ui_select_files_btn}" FontWeight="Bold" Foreground="#888888" Margin="15,0" VerticalAlignment="Center"/>
                 <Button Style="{StaticResource CloseButton}" HorizontalAlignment="Right" Click="Cancel_Click" Content="X" WindowChrome.IsHitTestVisibleInChrome="True"/>
             </Grid>
 
             <!-- Toolbar -->
-            <Grid Grid.Row="1" Margin="20,15">
+            <Grid Grid.Row="1" Margin="20,10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="200"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="Group By: " VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="Group By: " VerticalAlignment="Center" Margin="0,0,10,0" Foreground="{StaticResource Brush_Fg}"/>
                 <ComboBox x:Name="ViewModeCombo" Grid.Column="1" SelectionChanged="ViewMode_Changed">
                     <ComboBoxItem Content="Type (Extensions)" IsSelected="True"/>
                     <ComboBoxItem Content="Folder Structure"/>
@@ -46,9 +46,9 @@
                 </StackPanel>
             </Grid>
 
-            <!-- TreeView -->
-            <Border Grid.Row="2" Margin="20,0,20,15" BorderBrush="{StaticResource Brush_Border}" BorderThickness="1" Background="{StaticResource Brush_BgLight}" CornerRadius="3">
-                <TreeView x:Name="FileTree" BorderThickness="0" Padding="5">
+            <!-- TreeView Container -->
+            <Border Grid.Row="2" Margin="20,0,20,15" Style="{StaticResource CardBorder}" Padding="0">
+                <TreeView x:Name="FileTree" BorderThickness="0" Padding="5" Background="Transparent">
                     <TreeView.ItemTemplate>
                         <HierarchicalDataTemplate DataType="{x:Type models:FileTreeNode}" ItemsSource="{Binding Children}">
                             <StackPanel Orientation="Horizontal" Margin="0,2">
@@ -62,7 +62,7 @@
 
             <!-- Footer -->
             <Grid Grid.Row="3" Margin="20,0,20,20">
-                <TextBlock x:Name="InfoLabel" Text="Selected: 0" Foreground="{StaticResource Brush_Accent}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock x:Name="InfoLabel" Text="Selected: 0" Foreground="{StaticResource Brush_Accent}" FontWeight="Bold" VerticalAlignment="Center"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="Cancel" Click="Cancel_Click" Margin="0,0,10,0" MinWidth="80"/>
                     <Button Content="Confirm" Style="{StaticResource AccentButton}" Click="Confirm_Click" MinWidth="100"/>

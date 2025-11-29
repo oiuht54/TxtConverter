@@ -4,13 +4,13 @@
         WindowStyle="None" ResizeMode="NoResize"
         Width="350" Height="220"
         WindowStartupLocation="CenterOwner"
-        Title="Settings" Background="{StaticResource Brush_Bg}">
+        Title="Settings" Background="{StaticResource Brush_WindowBg}">
 
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
     </WindowChrome.WindowChrome>
 
-    <Border BorderBrush="{StaticResource Brush_Border}" BorderThickness="1">
+    <Border BorderBrush="#333333" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -18,20 +18,24 @@
             </Grid.RowDefinitions>
 
             <!-- Title Bar -->
-            <Grid Grid.Row="0" Background="{StaticResource Brush_BgLight}" MouseDown="TitleBar_MouseDown" Height="40">
-                <TextBlock Text="{DynamicResource ui_settings}" FontWeight="SemiBold" Foreground="{StaticResource Brush_Fg}" Margin="15,0" VerticalAlignment="Center"/>
+            <Grid Grid.Row="0" Background="{StaticResource Brush_WindowBg}" MouseDown="TitleBar_MouseDown" Height="40">
+                <TextBlock Text="{DynamicResource ui_settings}" FontWeight="Bold" Foreground="#888888" Margin="15,0" VerticalAlignment="Center"/>
                 <Button Style="{StaticResource CloseButton}" HorizontalAlignment="Right" Click="Close_Click" Content="X" WindowChrome.IsHitTestVisibleInChrome="True"/>
             </Grid>
 
             <!-- Content -->
-            <StackPanel Grid.Row="1" Margin="25">
-                <StackPanel Margin="0,0,0,20">
-                    <TextBlock Text="Interface Language:" Margin="0,0,0,8" Foreground="{StaticResource Brush_Accent}"/>
-                    <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged"/>
-                </StackPanel>
+            <Grid Grid.Row="1" Margin="20">
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Margin="0,0,0,20">
+                            <TextBlock Text="Interface Language:" Margin="0,0,0,10" Foreground="{StaticResource Brush_Fg}" FontWeight="SemiBold"/>
+                            <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
 
-                <Button Content="Close" HorizontalAlignment="Right" Width="90" Click="Close_Click" Margin="0,20,0,0"/>
-            </StackPanel>
+                        <Button Content="Close" HorizontalAlignment="Right" Width="90" Click="Close_Click" Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Grid>
     </Border>
 </Window>
