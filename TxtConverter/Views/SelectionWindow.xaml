@@ -3,9 +3,102 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:TxtConverter.Core.Models"
         WindowStyle="None" ResizeMode="CanResize"
-        Width="600" Height="750"
+        Width="800" Height="650"
         WindowStartupLocation="CenterOwner"
         Title="Select Files" Background="{StaticResource Brush_WindowBg}">
+
+    <Window.Resources>
+        <!-- ИКОНКИ (Геометрия) -->
+        <Geometry x:Key="Icon_Folder">M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,4H12L10,2V4Z</Geometry>
+        <Geometry x:Key="Icon_File">M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M15,18V16H6V18H15M18,14V12H6V14H18Z</Geometry>
+
+        <!-- Стиль кнопки сворачивания дерева -->
+        <Style x:Key="ExpandCollapseToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid Width="15" Height="13" Background="Transparent">
+                            <Path x:Name="ExpandPath" HorizontalAlignment="Left" 
+                                  VerticalAlignment="Center" 
+                                  Margin="1,1,1,1"
+                                  Fill="{StaticResource Brush_Fg}"
+                                  Data="M 4 0 L 8 4 L 4 8 Z"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ExpandPath" Property="Data" Value="M 0 4 L 8 4 L 4 8 Z"/>
+                                <Setter TargetName="ExpandPath" Property="Fill" Value="{StaticResource Brush_Accent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль элемента дерева -->
+        <Style TargetType="{x:Type TreeViewItem}">
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="HorizontalContentAlignment" Value="{Binding HorizontalContentAlignment, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"/>
+            <Setter Property="VerticalContentAlignment" Value="{Binding VerticalContentAlignment, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"/>
+            <Setter Property="Padding" Value="2,0,0,0"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush_Fg}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TreeViewItem}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition MinWidth="19" Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Подсветка строки -->
+                            <Border x:Name="Bd" Grid.Column="0" Grid.ColumnSpan="3"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="true"/>
+
+                            <!-- Стрелочка -->
+                            <ToggleButton x:Name="Expander" ClickMode="Press" 
+                                          Style="{StaticResource ExpandCollapseToggleStyle}" 
+                                          IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"/>
+
+                            <!-- Контент -->
+                            <ContentPresenter x:Name="PART_Header" Grid.Column="1" Grid.ColumnSpan="2" 
+                                              ContentSource="Header" 
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" 
+                                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+
+                            <!-- Дочерние элементы -->
+                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="false">
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                            <Trigger Property="HasItems" Value="false">
+                                <Setter TargetName="Expander" Property="Visibility" Value="Hidden"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="true">
+                                <Setter TargetName="Bd" Property="Background" Value="#2A2A2E"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="true">
+                                <Setter TargetName="Bd" Property="Background" Value="#37373D"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
 
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
@@ -15,59 +108,117 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <!-- Toolbar -->
                 <RowDefinition Height="Auto"/>
+                <!-- Tree -->
                 <RowDefinition Height="*"/>
+                <!-- Footer -->
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- Title Bar -->
+            <!-- 1. Header -->
             <Grid Grid.Row="0" Background="{StaticResource Brush_WindowBg}" MouseDown="TitleBar_MouseDown" Height="40">
-                <TextBlock Text="{DynamicResource ui_select_files_btn}" FontWeight="Bold" Foreground="#888888" Margin="15,0" VerticalAlignment="Center"/>
+                <TextBlock Text="File Selection" FontWeight="Bold" Foreground="#888888" Margin="15,0" VerticalAlignment="Center"/>
                 <Button Style="{StaticResource CloseButton}" HorizontalAlignment="Right" Click="Cancel_Click" Content="X" WindowChrome.IsHitTestVisibleInChrome="True"/>
             </Grid>
 
-            <!-- Toolbar -->
-            <Grid Grid.Row="1" Margin="20,10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="200"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="Group By: " VerticalAlignment="Center" Margin="0,0,10,0" Foreground="{StaticResource Brush_Fg}"/>
-                <ComboBox x:Name="ViewModeCombo" Grid.Column="1" SelectionChanged="ViewMode_Changed">
-                    <ComboBoxItem Content="Type (Extensions)" IsSelected="True"/>
-                    <ComboBoxItem Content="Folder Structure"/>
-                </ComboBox>
+            <!-- 2. Toolbar -->
+            <Border Grid.Row="1" Background="#202021" BorderBrush="#333333" BorderThickness="0,1" Padding="15,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="3" Orientation="Horizontal">
-                    <Button Content="Select All" Click="SelectAll_Click" Margin="0,0,10,0"/>
-                    <Button Content="Select None" Click="SelectNone_Click"/>
-                </StackPanel>
-            </Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="View:" VerticalAlignment="Center" Foreground="#AAAAAA" Margin="0,0,10,0"/>
+                        <ComboBox x:Name="ViewModeCombo" SelectionChanged="ViewMode_Changed" Width="140" Height="28">
+                            <ComboBoxItem Content="By Extension"/>
+                            <ComboBoxItem Content="Folder Structure"/>
+                        </ComboBox>
 
-            <!-- TreeView Container -->
-            <Border Grid.Row="2" Margin="20,0,20,15" Style="{StaticResource CardBorder}" Padding="0">
-                <TreeView x:Name="FileTree" BorderThickness="0" Padding="5" Background="Transparent">
+                        <Border Width="1" Background="#444" Margin="15,4"/>
+
+                        <!-- Expand/Collapse Buttons -->
+                        <Button Content="Expand All" Click="ExpandAll_Click" Margin="0,0,5,0" Height="28" Padding="10,0" FontSize="12" Background="#2D2D30"/>
+                        <Button Content="Collapse All" Click="CollapseAll_Click" Height="28" Padding="10,0" FontSize="12" Background="#2D2D30"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Select All" Click="SelectAll_Click" Margin="0,0,5,0" Height="28" Padding="10,0" FontSize="12" Background="#2D2D30"/>
+                        <Button Content="Select None" Click="SelectNone_Click" Height="28" Padding="10,0" FontSize="12" Background="#2D2D30"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 3. TreeView Container -->
+            <Grid Grid.Row="2" Background="#181818">
+                <TreeView x:Name="FileTree" BorderThickness="0" Padding="10" Background="Transparent" 
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <TreeView.ItemTemplate>
                         <HierarchicalDataTemplate DataType="{x:Type models:FileTreeNode}" ItemsSource="{Binding Children}">
-                            <StackPanel Orientation="Horizontal" Margin="0,2">
-                                <CheckBox IsChecked="{Binding IsChecked}" Margin="0,0,8,0" VerticalAlignment="Center" Focusable="False"/>
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Foreground="{StaticResource Brush_Fg}"/>
-                            </StackPanel>
+                            <Grid Margin="0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Checkbox -->
+                                <CheckBox IsChecked="{Binding IsChecked}" VerticalAlignment="Center" Focusable="False" Margin="0,0,6,0"/>
+
+                                <!-- Icon (Folder or File) -->
+                                <Path x:Name="NodeIcon" Grid.Column="1" Width="14" Height="14" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+
+                                <!-- Text -->
+                                <TextBlock x:Name="NodeText" Grid.Column="2" Text="{Binding Name}" VerticalAlignment="Center" FontSize="13"/>
+                            </Grid>
+
+                            <!-- Триггеры для визуального различия Папок и Файлов -->
+                            <HierarchicalDataTemplate.Triggers>
+                                <!-- СТИЛЬ ДЛЯ ПАПКИ (IsFile = False) -->
+                                <DataTrigger Binding="{Binding IsFile}" Value="False">
+                                    <Setter TargetName="NodeIcon" Property="Data" Value="{StaticResource Icon_Folder}"/>
+                                    <Setter TargetName="NodeIcon" Property="Fill" Value="#E0E0E0"/>
+                                    <!-- Светлая иконка -->
+                                    <Setter TargetName="NodeText" Property="Foreground" Value="White"/>
+                                    <Setter TargetName="NodeText" Property="FontWeight" Value="SemiBold"/>
+                                </DataTrigger>
+
+                                <!-- СТИЛЬ ДЛЯ ФАЙЛА (IsFile = True) -->
+                                <DataTrigger Binding="{Binding IsFile}" Value="True">
+                                    <Setter TargetName="NodeIcon" Property="Data" Value="{StaticResource Icon_File}"/>
+                                    <Setter TargetName="NodeIcon" Property="Fill" Value="#888888"/>
+                                    <!-- Темная иконка -->
+                                    <Setter TargetName="NodeText" Property="Foreground" Value="#AAAAAA"/>
+                                    <Setter TargetName="NodeText" Property="FontWeight" Value="Normal"/>
+                                </DataTrigger>
+                            </HierarchicalDataTemplate.Triggers>
                         </HierarchicalDataTemplate>
                     </TreeView.ItemTemplate>
                 </TreeView>
-            </Border>
-
-            <!-- Footer -->
-            <Grid Grid.Row="3" Margin="20,0,20,20">
-                <TextBlock x:Name="InfoLabel" Text="Selected: 0" Foreground="{StaticResource Brush_Accent}" FontWeight="Bold" VerticalAlignment="Center"/>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="Cancel" Click="Cancel_Click" Margin="0,0,10,0" MinWidth="80"/>
-                    <Button Content="Confirm" Style="{StaticResource AccentButton}" Click="Confirm_Click" MinWidth="100"/>
-                </StackPanel>
             </Grid>
+
+            <!-- 4. Footer -->
+            <Border Grid.Row="3" Background="#202021" BorderBrush="#333333" BorderThickness="0,1,0,0" Padding="15">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Files Selected:" Foreground="#AAAAAA" Margin="0,0,5,0"/>
+                        <TextBlock x:Name="InfoLabel" Text="0" Foreground="White" FontWeight="Bold"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="Cancel" Click="Cancel_Click" Margin="0,0,10,0" Width="90" Height="32" Background="Transparent" BorderBrush="#444"/>
+                        <Button Content="Confirm" Style="{StaticResource AccentButton}" Click="Confirm_Click" Width="110" Height="32"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Grid>
     </Border>
 </Window>

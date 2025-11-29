@@ -21,22 +21,23 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-
-        // Принудительно обновляем текст чекбокса при старте, чтобы не было пусто
         UpdateMergedCheckboxLabel();
-
         SetupCompressionCombo();
         SetupPresets();
-
-        // Загружаем настройки ПОСЛЕ инициализации UI
         LoadPreferences();
-
         Log(Loc("log_app_ready"));
     }
 
-    // --- Lifecycle & Settings ---
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        // Автоматическое сканирование при старте, если папка уже выбрана
+        if (!string.IsNullOrWhiteSpace(SourceDirBox.Text) && Directory.Exists(SourceDirBox.Text))
+        {
+            Log("🔄 Auto-scan on startup initiated...");
+            Rescan_Click(this, new RoutedEventArgs());
+        }
+    }
 
-    // ВАЖНО: Переопределяем стандартный метод закрытия окна
     protected override void OnClosing(CancelEventArgs e)
     {
         if (_isProcessing)
@@ -44,36 +45,27 @@ public partial class MainWindow : Window
             e.Cancel = true; // Не даем закрыть, если идет работа
             return;
         }
-
-        // Сохраняем настройки перед смертью окна
         SavePreferences();
-
         base.OnClosing(e);
     }
 
     private void SavePreferences()
     {
         var prefs = PreferenceManager.Instance;
-
-        // Сохраняем путь
         prefs.SetLastSourceDir(SourceDirBox.Text);
 
-        // Сохраняем пресет
         if (PresetCombo.SelectedItem is string preset)
             prefs.SetLastPreset(preset);
 
-        // Сохраняем галочки
         prefs.SetGenerateStructure(StructCb.IsChecked == true);
         prefs.SetCompactMode(CompactCb.IsChecked == true);
         prefs.SetGenerateMerged(MergedCb.IsChecked == true);
 
-        // Сохраняем сжатие
         if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
         {
             prefs.SetCompressionLevel(lvl);
         }
 
-        // Принудительно сбрасываем на диск
         prefs.Save();
     }
 
@@ -81,29 +73,24 @@ public partial class MainWindow : Window
     {
         var prefs = PreferenceManager.Instance;
 
-        // 1. Восстанавливаем папку
         string lastDir = prefs.GetLastSourceDir();
         if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir))
         {
             SourceDirBox.Text = lastDir;
             UpdateMergedCheckboxLabel();
-            // Разблокируем кнопку Rescan, так как папка валидная
             RescanBtn.IsEnabled = true;
         }
 
-        // 2. Восстанавливаем пресет
         string lastPreset = prefs.GetLastPreset();
         if (PresetManager.Instance.HasPreset(lastPreset))
             PresetCombo.SelectedItem = lastPreset;
         else
             PresetCombo.SelectedIndex = 0;
 
-        // 3. Восстанавливаем галочки
         StructCb.IsChecked = prefs.GetGenerateStructure();
         CompactCb.IsChecked = prefs.GetCompactMode();
         MergedCb.IsChecked = prefs.GetGenerateMerged();
 
-        // 4. Восстанавливаем сжатие
         CompressionLevel savedComp = prefs.GetCompressionLevel();
         foreach (ComboBoxItem item in CompressionCombo.Items)
         {
@@ -115,14 +102,11 @@ public partial class MainWindow : Window
         }
     }
 
-    // --- Initialization ---
-
     private void SetupCompressionCombo()
     {
         CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_none"), Tag = CompressionLevel.None });
         CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_smart"), Tag = CompressionLevel.Smart });
         CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_max"), Tag = CompressionLevel.Maximum });
-
         CompressionCombo.SelectedIndex = 1;
     }
 
@@ -133,8 +117,6 @@ public partial class MainWindow : Window
             PresetCombo.Items.Add(preset);
         }
     }
-
-    // --- Logic Handlers ---
 
     private void SelectSource_Click(object sender, RoutedEventArgs e)
     {
@@ -159,7 +141,6 @@ public partial class MainWindow : Window
     {
         SourceDirBox.Text = path;
         Log(string.Format(Loc("log_dir_selected"), path));
-
         UpdateMergedCheckboxLabel();
 
         string? detected = PresetManager.Instance.AutoDetectPreset(path);
@@ -217,7 +198,6 @@ public partial class MainWindow : Window
 
             var scanner = new FileScanner(exts, ignored);
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
-
             _filesSelectedForMerge = new HashSet<string>(_allFoundFiles);
 
             Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
@@ -241,7 +221,6 @@ public partial class MainWindow : Window
 
         var dialog = new SelectionWindow(_allFoundFiles, _filesSelectedForMerge, SourceDirBox.Text);
         dialog.Owner = this;
-
         if (dialog.ShowDialog() == true && dialog.Result != null)
         {
             _filesSelectedForMerge = dialog.Result;
@@ -267,6 +246,7 @@ public partial class MainWindow : Window
         try
         {
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+
             CompressionLevel compLevel = CompressionLevel.Smart;
             if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
                 compLevel = lvl;
@@ -306,8 +286,6 @@ public partial class MainWindow : Window
         }
     }
 
-    // --- Helpers ---
-
     private void SetUiBlocked(bool isBlocked)
     {
         _isProcessing = isBlocked;
@@ -341,7 +319,6 @@ public partial class MainWindow : Window
         }
 
         string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
-        // Защита от потери плейсхолдера, если строка из ресурсов битая
         if (baseStr.Contains("{0}"))
             MergedCb.Content = string.Format(baseStr, fileName);
         else
@@ -356,8 +333,6 @@ public partial class MainWindow : Window
 
     private string Loc(string key) => LanguageManager.Instance.GetString(key);
 
-    // --- Window Control ---
-
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton == MouseButton.Left) DragMove();
@@ -368,8 +343,6 @@ public partial class MainWindow : Window
         var settingsWin = new SettingsWindow();
         settingsWin.Owner = this;
         settingsWin.ShowDialog();
-
-        // Обновляем тексты, которые созданы вручную в коде
         UpdateManualTexts();
     }
 
@@ -385,11 +358,8 @@ public partial class MainWindow : Window
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
     private void Close_Click(object sender, RoutedEventArgs e)
     {
-        // Просто закрываем окно. 
-        // Вся логика сохранения теперь в OnClosing.
         Close();
     }
 }

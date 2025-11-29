@@ -10,7 +10,6 @@ public partial class SelectionWindow : Window
     private List<string> _allFiles;
     private HashSet<string> _initialSelection;
     private string _rootPath;
-
     private List<FileTreeNode> _rootNodes = new();
 
     public HashSet<string>? Result { get; private set; }
@@ -22,17 +21,28 @@ public partial class SelectionWindow : Window
         _initialSelection = new HashSet<string>(currentSelection);
         _rootPath = rootPath;
 
-        BuildTree(true); // Default by Type
-        UpdateStats();
+        ViewModeCombo.SelectedIndex = 0; // Default triggers SelectionChanged logic
+
+        // Ensure tree is built if event didn't fire due to init order
+        if (FileTree.ItemsSource == null)
+        {
+            BuildTree(true);
+            UpdateStats();
+        }
     }
 
     private void ViewMode_Changed(object sender, SelectionChangedEventArgs e)
     {
-        if (!IsLoaded) return;
+        if (!IsLoaded && _rootNodes.Count == 0) return;
+
         bool byType = ViewModeCombo.SelectedIndex == 0;
 
-        // Save current selection to re-apply
-        SnapshotSelection();
+        // Save state before switch
+        if (_rootNodes.Count > 0)
+        {
+            SnapshotSelection();
+        }
+
         BuildTree(byType);
         UpdateStats();
     }
@@ -40,7 +50,6 @@ public partial class SelectionWindow : Window
     private void BuildTree(bool byType)
     {
         _rootNodes.Clear();
-
         if (byType)
         {
             BuildByType();
@@ -49,7 +58,6 @@ public partial class SelectionWindow : Window
         {
             BuildByFolder();
         }
-
         FileTree.ItemsSource = null;
         FileTree.ItemsSource = _rootNodes;
     }
@@ -61,7 +69,7 @@ public partial class SelectionWindow : Window
 
         foreach (var group in grouped)
         {
-            string ext = string.IsNullOrEmpty(group.Key) ? "No Extension" : group.Key;
+            string ext = string.IsNullOrEmpty(group.Key) ? "No Extension" : group.Key.ToUpper();
             var groupNode = new FileTreeNode { Name = $"{ext} ({group.Count()})", IsFile = false };
 
             foreach (var file in group)
@@ -74,11 +82,9 @@ public partial class SelectionWindow : Window
                     Parent = groupNode,
                     IsChecked = _initialSelection.Contains(file)
                 };
-                // Подписываемся на изменения для обновления статистики
                 fileNode.PropertyChanged += FileNode_PropertyChanged;
                 groupNode.Children.Add(fileNode);
             }
-            // Пересчитываем состояние группы
             groupNode.RecalculateState();
             _rootNodes.Add(groupNode);
         }
@@ -86,8 +92,6 @@ public partial class SelectionWindow : Window
 
     private void BuildByFolder()
     {
-        // Словарь для быстрого поиска папок-нод
-        // Ключ - относительный путь папки
         var folderCache = new Dictionary<string, FileTreeNode>();
 
         foreach (var file in _allFiles)
@@ -97,11 +101,9 @@ public partial class SelectionWindow : Window
 
             FileTreeNode? currentParent = null;
 
-            // Идем по папкам
             for (int i = 0; i < parts.Length - 1; i++)
             {
                 string part = parts[i];
-                // Формируем ключ пути до этого уровня
                 string pathKey = string.Join(Path.DirectorySeparatorChar, parts.Take(i + 1));
 
                 if (!folderCache.TryGetValue(pathKey, out var folderNode))
@@ -120,7 +122,6 @@ public partial class SelectionWindow : Window
                 currentParent = folderNode;
             }
 
-            // Создаем файл
             var fileNode = new FileTreeNode
             {
                 Name = parts.Last(),
@@ -131,12 +132,10 @@ public partial class SelectionWindow : Window
             };
             fileNode.PropertyChanged += FileNode_PropertyChanged;
 
-            if (currentParent == null) _rootNodes.Add(fileNode); // Файл в корне
+            if (currentParent == null) _rootNodes.Add(fileNode);
             else currentParent.Children.Add(fileNode);
         }
 
-        // После построения всего дерева нужно пересчитать состояния снизу вверх
-        // Но так как мы не строим рекурсивно, а линейно, проще пройтись по корням
         foreach (var root in _rootNodes) RecalculateRecursive(root);
     }
 
@@ -160,7 +159,7 @@ public partial class SelectionWindow : Window
     private void UpdateStats()
     {
         int count = GetSelectedCount(_rootNodes);
-        InfoLabel.Text = $"Selected: {count} of {_allFiles.Count}";
+        InfoLabel.Text = $"{count} of {_allFiles.Count}";
     }
 
     private int GetSelectedCount(IEnumerable<FileTreeNode> nodes)
@@ -189,14 +188,35 @@ public partial class SelectionWindow : Window
         }
     }
 
-    // Handlers
-    private void SelectAll_Click(object sender, RoutedEventArgs e) => SetAll(true);
-    private void SelectNone_Click(object sender, RoutedEventArgs e) => SetAll(false);
+    // --- Actions ---
 
-    private void SetAll(bool state)
+    private void SelectAll_Click(object sender, RoutedEventArgs e) => SetCheckedState(true);
+    private void SelectNone_Click(object sender, RoutedEventArgs e) => SetCheckedState(false);
+
+    private void ExpandAll_Click(object sender, RoutedEventArgs e) => SetExpandedState(true);
+    private void CollapseAll_Click(object sender, RoutedEventArgs e) => SetExpandedState(false);
+
+    private void SetCheckedState(bool state)
     {
         foreach (var node in _rootNodes) node.IsChecked = state;
         UpdateStats();
+    }
+
+    private void SetExpandedState(bool isExpanded)
+    {
+        foreach (var node in _rootNodes)
+        {
+            SetExpandedRecursive(node, isExpanded);
+        }
+    }
+
+    private void SetExpandedRecursive(FileTreeNode node, bool isExpanded)
+    {
+        node.IsExpanded = isExpanded;
+        foreach (var child in node.Children)
+        {
+            SetExpandedRecursive(child, isExpanded);
+        }
     }
 
     private void Confirm_Click(object sender, RoutedEventArgs e)
@@ -208,6 +228,7 @@ public partial class SelectionWindow : Window
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
+
     private void TitleBar_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (e.ChangedButton == System.Windows.Input.MouseButton.Left) DragMove();

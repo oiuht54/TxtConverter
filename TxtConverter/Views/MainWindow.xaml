@@ -9,6 +9,7 @@
         WindowStyle="None" ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True" Drop="Window_Drop"
+        Loaded="Window_Loaded"
         Background="{StaticResource Brush_WindowBg}">
 
     <WindowChrome.WindowChrome>
@@ -36,7 +37,7 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0">
                     <TextBlock Text="{DynamicResource app_title}" 
                                Foreground="#888888" 
-                               FontWeight="Bold" 
+                               FontWeight="Bold"
                                FontSize="14"/>
                 </StackPanel>
 
@@ -90,7 +91,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{DynamicResource ui_extensions}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}"
+                            <TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}" 
                                      ToolTip="{DynamicResource ui_extensions_prompt}"/>
                         </Grid>
 
@@ -102,7 +103,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{DynamicResource ui_ignored}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,8,0" Tag="{DynamicResource ui_ignored_prompt}"
+                            <TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,8,0" Tag="{DynamicResource ui_ignored_prompt}" 
                                      ToolTip="{DynamicResource ui_ignored_prompt}"/>
                             <Button x:Name="RescanBtn" Grid.Column="2" Content="{DynamicResource ui_rescan_btn}" Click="Rescan_Click" IsEnabled="False" MinWidth="80"/>
                         </Grid>
@@ -120,7 +121,7 @@
                             <!-- Left: Structure -->
                             <StackPanel Grid.Column="0">
                                 <CheckBox x:Name="StructCb" Content="{DynamicResource ui_structure_cb}" IsChecked="False" Margin="0,0,0,10"/>
-                                <CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True"
+                                <CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True" 
                                           IsEnabled="{Binding IsChecked, ElementName=StructCb}"/>
                             </StackPanel>
 
@@ -156,8 +157,8 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <TextBlock Text="{DynamicResource ui_log_label}" FontWeight="Bold" Foreground="#AAAAAA" Margin="0,0,0,8"/>
-                        <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
-                                 FontFamily="Consolas" FontSize="13" TextWrapping="Wrap" 
+                        <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto" 
+                                 FontFamily="Consolas" FontSize="13" TextWrapping="Wrap"
                                  Background="#151515" BorderThickness="0" Padding="5"/>
                     </Grid>
                 </Border>
@@ -169,7 +170,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="200"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="StatusLabel" Text="{DynamicResource ui_status_ready}"
+                <TextBlock x:Name="StatusLabel" Text="{DynamicResource ui_status_ready}" 
                            Foreground="#888888" VerticalAlignment="Center" Margin="15,0" FontSize="12"/>
                 <ProgressBar x:Name="StatusProgressBar" Grid.Column="1" Margin="10,0,15,0" Height="4" VerticalAlignment="Center" Value="0" Maximum="1"/>
             </Grid>
