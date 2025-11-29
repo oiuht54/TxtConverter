@@ -1,0 +1,13 @@
+﻿using System.Windows;
+using TxtConverter.Services;
+namespace TxtConverter;
+public partial class App : Application
+{
+protected override void OnStartup(StartupEventArgs e)
+{
+base.OnStartup(e);
+PreferenceManager.Instance.Load();
+var savedLang = PreferenceManager.Instance.GetLanguage();
+LanguageManager.Instance.SetLanguage(savedLang);
+}
+}

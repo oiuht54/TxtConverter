@@ -1,0 +1,2866 @@
+# Project: TxtConverter
+
+
+>>> App.xaml
+﻿<Application x:Class="TxtConverter.App"
+xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+StartupUri="Views/MainWindow.xaml">
+<Application.Resources>
+<ResourceDictionary>
+<ResourceDictionary.MergedDictionaries>
+<!-- Используем Pack URI для надежности -->
+<ResourceDictionary Source="pack://application:,,,/Resources/Lang/Strings.en.xaml" />
+<ResourceDictionary Source="pack://application:,,,/Resources/Styles.xaml" />
+</ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>
+</Application.Resources>
+</Application>
+
+>>> App.xaml.cs
+﻿using System.Windows;
+using TxtConverter.Services;
+namespace TxtConverter;
+public partial class App : Application
+{
+protected override void OnStartup(StartupEventArgs e)
+{
+base.OnStartup(e);
+PreferenceManager.Instance.Load();
+var savedLang = PreferenceManager.Instance.GetLanguage();
+LanguageManager.Instance.SetLanguage(savedLang);
+}
+}
+
+>>> AssemblyInfo.cs
+using System.Windows;
+[assembly: ThemeInfo(
+ResourceDictionaryLocation.None,            //where theme specific resource dictionaries are located
+ResourceDictionaryLocation.SourceAssembly   //where the generic resource dictionary is located
+)]
+
+>>> CompressionLevel.cs
+﻿namespace TxtConverter.Core.Enums;
+public enum CompressionLevel
+{
+None,
+Smart,
+Maximum
+}
+
+>>> Converter.cs
+﻿using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
+using TxtConverter.Core.Enums;
+using TxtConverter.Core.Logic.Godot;
+using TxtConverter.Services;
+namespace TxtConverter.Core.Logic;
+public class Converter
+{
+private readonly string _sourceDirPath;
+private readonly List<string> _filesToProcess;
+private readonly HashSet<string> _filesSelectedForMerge;
+private readonly List<string> _ignoredFolders;
+private readonly bool _genStructure;
+private readonly bool _compactMode;
+private readonly CompressionLevel _compressionLevel;
+private readonly bool _genMerged;
+private static readonly Regex BlockCommentRegex = new(@"/\*[\s\S]*?\*/", RegexOptions.Compiled);
+public Converter(string sourceDirPath, List<string> filesToProcess, HashSet<string> filesSelectedForMerge,
+List<string> ignoredFolders, bool genStructure, bool compactMode,
+CompressionLevel compressionLevel, bool genMerged)
+{
+_sourceDirPath = sourceDirPath;
+_filesToProcess = filesToProcess;
+_filesSelectedForMerge = filesSelectedForMerge;
+_ignoredFolders = ignoredFolders;
+_genStructure = genStructure;
+_compactMode = compactMode;
+_compressionLevel = compressionLevel;
+_genMerged = genMerged;
+}
+public async Task RunConversionAsync(IProgress<double> progress, IProgress<string> status)
+{
+await Task.Run(() =>
+{
+status.Report(Loc("task_preparing"));
+string outputDir = Path.Combine(_sourceDirPath, ProjectConstants.OutputDirName);
+PrepareOutputDirectory(outputDir);
+var processedFilesMap = new Dictionary<string, string>(); // SourcePath -> DestPath
+int total = _filesToProcess.Count;
+int count = 0;
+foreach (var sourceFile in _filesToProcess)
+{
+count++;
+progress.Report((double)count / total);
+string fileName = Path.GetFileName(sourceFile);
+status.Report(string.Format(Loc("task_processing"), fileName));
+string destFileName = fileName.ToLower().EndsWith(".md") ? fileName : fileName + ".txt";
+string destFile = Path.Combine(outputDir, destFileName);
+if (_compressionLevel != CompressionLevel.None && !fileName.ToLower().EndsWith(".md"))
+{
+try
+{
+string content = File.ReadAllText(sourceFile, Encoding.UTF8)
+.Replace("\r\n", "\n")
+.Replace('\r', '\n');
+string compressed;
+if (_compressionLevel == CompressionLevel.Maximum && IsGodotFile(fileName))
+{
+compressed = GodotCompactConverter.Convert(content, fileName);
+}
+else
+{
+compressed = ApplyCompression(content, sourceFile);
+}
+File.WriteAllText(destFile, compressed, Encoding.UTF8);
+}
+catch
+{
+File.Copy(sourceFile, destFile, true);
+}
+}
+else
+{
+File.Copy(sourceFile, destFile, true);
+}
+processedFilesMap[sourceFile] = destFile;
+}
+if (_genStructure)
+{
+status.Report(Loc("task_generating_structure"));
+GenerateDeepStructureReport(outputDir, _sourceDirPath, processedFilesMap);
+}
+if (_genMerged && processedFilesMap.Count > 0)
+{
+status.Report(Loc("task_merging"));
+GenerateMergedFile(outputDir, processedFilesMap);
+}
+status.Report(Loc("task_done"));
+progress.Report(1.0);
+});
+}
+private string ApplyCompression(string content, string filePath)
+{
+if (_compressionLevel == CompressionLevel.Maximum)
+{
+return CompressMax(content, filePath);
+}
+else if (_compressionLevel == CompressionLevel.Smart)
+{
+return Regex.Replace(content, @"\n{3,}", "\n\n").Trim();
+}
+return content;
+}
+private string CompressMax(string content, string filePath)
+{
+content = BlockCommentRegex.Replace(content, "");
+var lines = content.Split('\n'); // Split только по \n, т.к. нормализовали
+var sb = new StringBuilder(content.Length / 2);
+bool isSensitive = IsWhitespaceSensitive(filePath);
+foreach (var line in lines)
+{
+string trimmed = line.Trim();
+if (string.IsNullOrEmpty(trimmed)) continue;
+if (trimmed.StartsWith("//") || trimmed.StartsWith("#")) continue;
+if (isSensitive)
+sb.Append(line.TrimEnd()).Append('\n'); // Используем явный \n
+else
+sb.Append(trimmed).Append('\n'); // Используем явный \n
+}
+return sb.ToString().Trim();
+}
+private bool IsWhitespaceSensitive(string path)
+{
+string ext = Path.GetExtension(path).ToLower();
+return ext == ".gd" || ext == ".py" || ext == ".yaml" || ext == ".yml";
+}
+private bool IsGodotFile(string fileName)
+{
+string lower = fileName.ToLower();
+return lower.EndsWith(".tscn") || lower.EndsWith(".tres");
+}
+private void PrepareOutputDirectory(string path)
+{
+if (Directory.Exists(path))
+{
+var dir = new DirectoryInfo(path);
+foreach (var file in dir.GetFiles()) file.Delete();
+foreach (var sub in dir.GetDirectories()) sub.Delete(true);
+}
+else
+{
+Directory.CreateDirectory(path);
+}
+}
+private void GenerateDeepStructureReport(string outputDir, string rootPath, Dictionary<string, string> processedFiles)
+{
+string reportPath = Path.Combine(outputDir, ProjectConstants.ReportStructureFile);
+var sb = new StringBuilder();
+sb.Append(Loc("report_structure_header")).Append('\n');
+sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append("\n\n");
+if (_compressionLevel == CompressionLevel.None)
+{
+sb.Append("### Legend / Легенда:\n");
+sb.Append("- `[ M ]` Merged: Full content included.\n");
+sb.Append("- `[ S ]` Stub: File included as a stub.\n\n");
+sb.Append("```text\n");
+}
+else
+{
+sb.Append(_compressionLevel == CompressionLevel.Maximum ? "(Flat Structure Mode)\n" : "(Compact Tree Mode)\n");
+}
+if (_compressionLevel == CompressionLevel.Maximum)
+{
+GenerateFlatStructure(rootPath, sb, processedFiles.Keys.ToHashSet());
+}
+else
+{
+if (_compressionLevel != CompressionLevel.None)
+{
+string rootName = new DirectoryInfo(rootPath).Name;
+sb.Append(_compressionLevel == CompressionLevel.Smart ? $"{rootName}/\n" : $"[ROOT] {rootName}\n");
+}
+bool simpleTree = (_compressionLevel == CompressionLevel.Smart);
+WalkDirectoryTree(rootPath, "", sb, processedFiles.Keys.ToHashSet(), simpleTree);
+}
+if (_compressionLevel == CompressionLevel.None) sb.Append("```\n");
+File.WriteAllText(reportPath, sb.ToString(), Encoding.UTF8);
+}
+private void GenerateFlatStructure(string currentDir, StringBuilder sb, HashSet<string> processedSet)
+{
+var dirInfo = new DirectoryInfo(currentDir);
+foreach (var file in dirInfo.GetFiles("*", SearchOption.AllDirectories))
+{
+if (!ShouldIncludeInStructure(file.FullName, currentDir)) continue;
+bool isProcessed = processedSet.Contains(file.FullName);
+if (_compactMode && !isProcessed) continue;
+string relPath = Path.GetRelativePath(currentDir, file.FullName).Replace('\\', '/');
+if (isProcessed)
+sb.Append(relPath).Append('\n');
+else
+sb.Append(relPath).Append(" [ignore]\n");
+}
+}
+private void WalkDirectoryTree(string currentDirPath, string prefix, StringBuilder sb, HashSet<string> processedSet, bool simpleTree)
+{
+var dirInfo = new DirectoryInfo(currentDirPath);
+FileSystemInfo[] children;
+try
+{
+children = dirInfo.GetFileSystemInfos();
+}
+catch { return; }
+var nodesToShow = new List<FileSystemInfo>();
+var filesToCollapse = new List<FileInfo>();
+foreach (var child in children)
+{
+if (!ShouldIncludeInStructure(child.FullName, currentDirPath)) continue;
+if (child is DirectoryInfo)
+{
+nodesToShow.Add(child);
+}
+else if (child is FileInfo fi)
+{
+if (processedSet.Contains(child.FullName))
+nodesToShow.Add(child);
+else if (!_compactMode)
+filesToCollapse.Add(fi);
+}
+}
+if (!_compactMode && filesToCollapse.Count > 0 && filesToCollapse.Count <= 5)
+{
+nodesToShow.AddRange(filesToCollapse);
+filesToCollapse.Clear();
+}
+nodesToShow.Sort((a, b) =>
+{
+bool da = a is DirectoryInfo;
+bool db = b is DirectoryInfo;
+if (da && !db) return -1;
+if (!da && db) return 1;
+return string.Compare(a.Name, b.Name, StringComparison.Ordinal);
+});
+int totalItems = nodesToShow.Count + (filesToCollapse.Count > 0 ? 1 : 0);
+int currentIndex = 0;
+foreach (var node in nodesToShow)
+{
+bool isLast = (currentIndex == totalItems - 1);
+PrintTreeNode(node, prefix, isLast, sb, processedSet, simpleTree);
+currentIndex++;
+}
+if (filesToCollapse.Count > 0)
+{
+var extStats = filesToCollapse
+.GroupBy(f => f.Extension)
+.OrderByDescending(g => g.Count())
+.Take(3)
+.Select(g => $"{g.Key}({g.Count()})");
+string statsStr = string.Join(", ", extStats);
+if (simpleTree)
+{
+sb.Append($"{prefix}  ... ({filesToCollapse.Count}: {statsStr})\n");
+}
+else
+{
+sb.Append($"{prefix}└── [ ... {filesToCollapse.Count} ignored: {statsStr} ... ]\n");
+}
+}
+}
+private void PrintTreeNode(FileSystemInfo node, string prefix, bool isLast, StringBuilder sb, HashSet<string> processedSet, bool simpleTree)
+{
+if (simpleTree)
+{
+string currentIndent = prefix + "  ";
+if (node is DirectoryInfo di)
+{
+sb.Append($"{currentIndent}{node.Name}/\n");
+WalkDirectoryTree(di.FullName, currentIndent, sb, processedSet, true);
+}
+else
+{
+sb.Append($"{currentIndent}{node.Name}\n");
+}
+}
+else
+{
+string connector = isLast ? "└── " : "├── ";
+string childPrefix = prefix + (isLast ? "    " : "│   ");
+if (node is DirectoryInfo di)
+{
+sb.Append($"{prefix}{connector}[DIR] {node.Name}\n");
+WalkDirectoryTree(di.FullName, childPrefix, sb, processedSet, false);
+}
+else
+{
+string size = FormatSize(((FileInfo)node).Length);
+string status = GetFileStatus(node.FullName, processedSet);
+sb.Append($"{prefix}{connector}[FILE] {node.Name} ({size}) {status}\n");
+}
+}
+}
+private void GenerateMergedFile(string outputDir, Dictionary<string, string> processedFiles)
+{
+string projectName = Path.GetFileName(_sourceDirPath);
+string outputFileName = "_" + projectName + ProjectConstants.MergedFileSuffix;
+string destPath = Path.Combine(outputDir, outputFileName);
+var sb = new StringBuilder();
+if (_compressionLevel != CompressionLevel.None)
+{
+sb.Append($"# Project: {projectName}\n\n");
+}
+else
+{
+sb.Append(string.Format(Loc("report_merged_header"), projectName)).Append('\n');
+sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append("\n\n");
+}
+foreach (var entry in processedFiles.OrderBy(e => e.Key))
+{
+string originalPath = entry.Key;
+string processedPath = entry.Value;
+string fileName = Path.GetFileName(originalPath);
+if (_compressionLevel != CompressionLevel.None)
+{
+sb.Append($"\n>>> {fileName}\n");
+}
+else
+{
+sb.Append($"\n--- {string.Format(Loc("report_file_header"), fileName)} ---\n");
+}
+if (_filesSelectedForMerge.Contains(originalPath))
+{
+try
+{
+string content = File.ReadAllText(processedPath, Encoding.UTF8);
+sb.Append(content).Append('\n');
+}
+catch (Exception ex)
+{
+sb.Append($"!!! Error: {ex.Message}\n");
+}
+}
+else
+{
+sb.Append("(Stub)\n\n");
+}
+}
+File.WriteAllText(destPath, sb.ToString(), Encoding.UTF8);
+}
+private bool ShouldIncludeInStructure(string path, string rootOfWalk)
+{
+string name = Path.GetFileName(path);
+if (name == ProjectConstants.OutputDirName) return false;
+if (name.EndsWith(".import") || name.EndsWith(".tmp") || name.EndsWith(".uid")) return false;
+if (name.StartsWith(".") && name != ".gitignore") return false;
+if (Directory.Exists(path))
+{
+if (_ignoredFolders.Contains(name.ToLower())) return false;
+}
+return true;
+}
+private string FormatSize(long bytes)
+{
+if (bytes < 1024) return bytes + " B";
+return (bytes / 1024) + " KB";
+}
+private string GetFileStatus(string path, HashSet<string> processedSet)
+{
+if (_filesSelectedForMerge.Contains(path)) return "[ M ]";
+if (processedSet.Contains(path)) return "[ S ]";
+return "[ - ]";
+}
+private string Loc(string key) => LanguageManager.Instance.GetString(key);
+}
+
+>>> FileScanner.cs
+﻿using System.IO;
+namespace TxtConverter.Core.Logic;
+public class FileScanner
+{
+private readonly List<string> _extensions;
+private readonly HashSet<string> _ignoredFolders;
+public FileScanner(List<string> extensions, List<string> ignoredFolders)
+{
+_extensions = extensions
+.Select(e => e.Trim().TrimStart('.').ToLower())
+.Where(e => !string.IsNullOrEmpty(e))
+.ToList();
+_ignoredFolders = new HashSet<string>(
+ignoredFolders.Select(f => f.Trim().ToLower())
+);
+_ignoredFolders.Add(ProjectConstants.OutputDirName.ToLower());
+}
+public Task<List<string>> ScanAsync(string sourcePath)
+{
+return Task.Run(() =>
+{
+var results = new List<string>();
+var rootDir = new DirectoryInfo(sourcePath);
+if (!rootDir.Exists) return results;
+WalkDirectory(rootDir, results);
+results.Sort();
+return results;
+});
+}
+private void WalkDirectory(DirectoryInfo directory, List<string> results)
+{
+try
+{
+foreach (var file in directory.EnumerateFiles())
+{
+if (IsFileMatch(file.Name))
+{
+results.Add(file.FullName);
+}
+}
+}
+catch (UnauthorizedAccessException) {  }
+try
+{
+foreach (var dir in directory.EnumerateDirectories())
+{
+string dirName = dir.Name.ToLower();
+if (_ignoredFolders.Contains(dirName)) continue;
+if (dirName.StartsWith(".") && dirName != ".gitignore") continue;
+WalkDirectory(dir, results);
+}
+}
+catch (UnauthorizedAccessException) {  }
+}
+private bool IsFileMatch(string fileName)
+{
+string lowerName = fileName.ToLower();
+if (lowerName.EndsWith(".md")) return true; // Всегда включаем MD (обычно это документация)
+string ext = Path.GetExtension(lowerName).TrimStart('.');
+if (_extensions.Contains(ext)) return true;
+if (_extensions.Contains(lowerName)) return true;
+return false;
+}
+}
+
+>>> GodotCompactConverter.cs
+﻿using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Collections.Generic; // OrderedDictionary находится здесь в .NET 9+
+namespace TxtConverter.Core.Logic.Godot;
+public class GodotCompactConverter
+{
+private static readonly Regex AttrRegex = new(@"(\w+)=((?:""[^""]*"")|(?:[^\s\]]+))", RegexOptions.Compiled);
+private static readonly Regex TransformRegex = new(@"^Transform3D\((.*?)\)$", RegexOptions.Compiled);
+private static readonly Regex VectorRegex = new(@"^(Vector[234])\((.*?)\)$", RegexOptions.Compiled);
+private static readonly Regex ColorRegex = new(@"^Color\((.*?)\)$", RegexOptions.Compiled);
+private static readonly Dictionary<string, string> TypeAbbreviations = new()
+{
+{ "MeshInstance3D", "Mesh" },
+{ "CollisionShape3D", "ColShape" },
+{ "NavigationAgent3D", "NavAgent" },
+{ "CharacterBody3D", "CharBody" },
+{ "RigidBody3D", "RigidBody" },
+{ "StaticBody3D", "StaticBody" },
+{ "StandardMaterial3D", "StdMat" },
+{ "BoxShape3D", "Box" },
+{ "SphereShape3D", "Sphere" },
+{ "CapsuleShape3D", "Capsule" },
+{ "CylinderShape3D", "Cylinder" },
+{ "BoxMesh", "BoxMesh" },
+{ "SphereMesh", "SphereMesh" },
+{ "QuadMesh", "Quad" },
+{ "GPUParticles3D", "GPU_Part" },
+{ "CPUParticles3D", "CPU_Part" },
+{ "Script", "Scr" },
+{ "PackedScene", "Scene" },
+{ "FastNoiseLite", "Noise" },
+{ "NoiseTexture2D", "NoiseTex" },
+{ "ShaderMaterial", "ShaderMat" }
+};
+private static readonly HashSet<string> IgnoredProps = new()
+{
+"uid", "load_steps", "format", "q_index", "node_paths", "skeleton"
+};
+private readonly Dictionary<string, string> _extResourceAliases = new();
+private readonly Dictionary<string, GdNode> _subResourceCache = new();
+private readonly Dictionary<string, GdNode> _nodePathMap = new();
+private readonly List<GdNode> _rootNodes = new();
+private readonly StringBuilder _output = new();
+public static string Convert(string content, string fileName)
+{
+return new GodotCompactConverter().Process(content, fileName);
+}
+private string Process(string content, string fileName)
+{
+ParseFile(content);
+OptimizeTree(_rootNodes);
+if (_rootNodes.Count == 1)
+{
+PrintNode(_rootNodes[0], "");
+}
+else
+{
+for (int i = 0; i < _rootNodes.Count; i++)
+{
+PrintNode(_rootNodes[i], "");
+if (i < _rootNodes.Count - 1) _output.Append('\n');
+}
+}
+return _output.ToString();
+}
+private void ParseFile(string content)
+{
+string[] lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+foreach (var rawLine in lines)
+{
+var line = rawLine.Trim();
+if (line.StartsWith("[ext_resource"))
+{
+var attrs = ParseAttributes(ExtractContent(line));
+string? id = CleanStr(attrs.GetValueOrDefault("id"));
+string? path = CleanStr(attrs.GetValueOrDefault("path"));
+string? type = CleanStr(attrs.GetValueOrDefault("type"));
+string alias;
+if (!string.IsNullOrEmpty(path))
+{
+string fName = ExtractNameFromPath(path);
+if (path.EndsWith(".gd")) alias = "$Scr_" + fName;
+else if (path.EndsWith(".tscn")) alias = "$Scn_" + fName;
+else alias = "$Res_" + fName;
+}
+else
+{
+alias = "$Ext_" + AbbreviateType(type) + "_" + id;
+}
+if (id != null) _extResourceAliases[id] = alias;
+}
+}
+GdNode? currentNode = null;
+foreach (var rawLine in lines)
+{
+var line = rawLine.Trim();
+if (string.IsNullOrEmpty(line) || line.StartsWith(";") || line.StartsWith("#")) continue;
+if (line.StartsWith("["))
+{
+string header = ExtractContent(line);
+var attrs = ParseAttributes(header);
+string[] parts = header.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+string typeKey = parts.Length > 0 ? parts[0] : "";
+if (typeKey == "node")
+{
+currentNode = new GdNode
+{
+Name = CleanStr(attrs.GetValueOrDefault("name")) ?? "Node",
+Type = CleanStr(attrs.GetValueOrDefault("type"))
+};
+string? parent = CleanStr(attrs.GetValueOrDefault("parent"));
+string fullPath = (parent == null || parent == ".") ? currentNode.Name : parent + "/" + currentNode.Name;
+if (fullPath != null) _nodePathMap[fullPath] = currentNode;
+if (parent == null || parent == ".")
+{
+_rootNodes.Add(currentNode);
+}
+else
+{
+if (_nodePathMap.TryGetValue(parent, out var parentNode))
+{
+parentNode.Children.Add(currentNode);
+}
+else
+{
+_rootNodes.Add(currentNode); // Fallback
+}
+}
+}
+else if (typeKey == "sub_resource")
+{
+currentNode = new GdNode
+{
+Type = CleanStr(attrs.GetValueOrDefault("type")),
+IsSubResource = true
+};
+string? id = CleanStr(attrs.GetValueOrDefault("id"));
+if (id != null) _subResourceCache[id] = currentNode;
+}
+else if (typeKey == "resource")
+{
+currentNode = new GdNode
+{
+Name = "RootRes",
+Type = "Resource"
+};
+_rootNodes.Add(currentNode);
+}
+else if (typeKey == "connection")
+{
+string? from = CleanStr(attrs.GetValueOrDefault("from"));
+string? signal = CleanStr(attrs.GetValueOrDefault("signal"));
+string? to = CleanStr(attrs.GetValueOrDefault("to"));
+string? method = CleanStr(attrs.GetValueOrDefault("method"));
+GdNode? fromNode = null;
+if (from != null && _nodePathMap.ContainsKey(from)) fromNode = _nodePathMap[from];
+else if (from == "." && _rootNodes.Count > 0) fromNode = _rootNodes[0];
+if (fromNode != null)
+{
+fromNode.Signals.Add($"{signal}->{to}.{method}");
+}
+currentNode = null;
+}
+else
+{
+currentNode = null;
+}
+}
+else if (currentNode != null)
+{
+int eqIndex = line.IndexOf('=');
+if (eqIndex > 0)
+{
+string key = line.Substring(0, eqIndex).Trim();
+string val = line.Substring(eqIndex + 1).Trim();
+if (!key.StartsWith("metadata/") && !IgnoredProps.Contains(key))
+{
+currentNode.Properties[key] = val;
+}
+}
+}
+}
+}
+private void OptimizeTree(List<GdNode> nodes)
+{
+if (nodes == null || nodes.Count == 0) return;
+foreach (var node in nodes)
+{
+OptimizeTree(node.Children);
+}
+var optimizedList = new List<GdNode>();
+int i = 0;
+while (i < nodes.Count)
+{
+GdNode current = nodes[i];
+int j = i + 1;
+while (j < nodes.Count && AreNodesSimilar(current, nodes[j]))
+{
+j++;
+}
+int count = j - i;
+if (count >= 3)
+{
+var propsCopy = new OrderedDictionary<string, string>();
+foreach (var kvp in current.Properties)
+{
+propsCopy.Add(kvp.Key, kvp.Value);
+}
+var groupNode = new GdNode
+{
+Name = $"@Repeated({count}) \"{current.Type ?? "null"}\"",
+Type = current.Type,
+IsGroupPlaceholder = true,
+Properties = propsCopy,
+Children = current.Children,
+Signals = current.Signals
+};
+groupNode.Properties.Remove("transform");
+groupNode.Properties.Remove("position");
+groupNode.Properties.Remove("rotation");
+groupNode.Properties["Layout"] = "Grid/Procedural";
+optimizedList.Add(groupNode);
+i = j;
+}
+else
+{
+optimizedList.Add(current);
+i++;
+}
+}
+nodes.Clear();
+nodes.AddRange(optimizedList);
+}
+private bool AreNodesSimilar(GdNode a, GdNode b)
+{
+if (a.Type != b.Type) return false;
+if (a.Children.Count != b.Children.Count) return false;
+var allKeys = new HashSet<string>(a.Properties.Keys);
+allKeys.UnionWith(b.Properties.Keys);
+foreach (var key in allKeys)
+{
+if (key == "transform" || key == "position" || key == "rotation" || key == "rotation_degrees") continue;
+string? v1 = a.Properties.ContainsKey(key) ? a.Properties[key] : null;
+string? v2 = b.Properties.ContainsKey(key) ? b.Properties[key] : null;
+if (v1 != v2) return false;
+}
+for (int k = 0; k < a.Children.Count; k++)
+{
+if (a.Children[k].Type != b.Children[k].Type) return false;
+}
+return true;
+}
+private void PrintNode(GdNode node, string indent)
+{
+_output.Append(indent);
+string typeAbbr = AbbreviateType(node.Type);
+if (node.IsGroupPlaceholder)
+{
+_output.Append(node.Name);
+}
+else if (node.IsSubResource)
+{
+_output.Append("@Sub ").Append(typeAbbr);
+}
+else
+{
+if (node.Name == "RootRes" || node.Name == "RootResource")
+_output.Append("ROOT");
+else
+_output.Append(node.Name);
+if (node.Type != null && node.Name != node.Type)
+{
+_output.Append(" (").Append(typeAbbr).Append(")");
+}
+}
+_output.Append(" {");
+List<string> props = new();
+foreach (var entry in node.Properties)
+{
+string key = ShortenKey(entry.Key);
+string val = FormatValue(entry.Value);
+props.Add(key + ":" + val);
+}
+foreach (var sig in node.Signals)
+{
+props.Add("$Sig:" + sig);
+}
+if (props.Count > 0)
+{
+_output.Append(" ").Append(string.Join(", ", props));
+}
+if (node.Children.Count > 0)
+{
+if (props.Count > 0) _output.Append(",");
+_output.Append('\n').Append(indent).Append("  children: [\n");
+for (int k = 0; k < node.Children.Count; k++)
+{
+PrintNode(node.Children[k], indent + "    ");
+if (k < node.Children.Count - 1) _output.Append(",");
+_output.Append('\n');
+}
+_output.Append(indent).Append("  ]");
+}
+else
+{
+_output.Append(" ");
+}
+_output.Append("}");
+}
+private string FormatValue(string val)
+{
+if (val == null) return "null";
+string? subId = ExtractSubResourceId(val);
+if (subId != null && _subResourceCache.ContainsKey(subId))
+{
+return FormatSubResourceInline(_subResourceCache[subId]);
+}
+string? extId = ExtractExtResourceId(val);
+if (extId != null && _extResourceAliases.ContainsKey(extId))
+{
+return _extResourceAliases[extId];
+}
+var vecM = VectorRegex.Match(val);
+if (vecM.Success)
+{
+var parts = vecM.Groups[2].Value.Split(',');
+return "[" + string.Join(",", parts.Select(CleanFloat)) + "]";
+}
+var colM = ColorRegex.Match(val);
+if (colM.Success)
+{
+var parts = colM.Groups[1].Value.Split(',');
+return "[" + string.Join(",", parts.Select(CleanFloat)) + "]";
+}
+if (val.StartsWith("Transform3D"))
+{
+var transM = TransformRegex.Match(val);
+if (transM.Success)
+{
+var p = transM.Groups[1].Value.Split(',');
+if (p.Length == 12)
+{
+return "[" + CleanFloat(p[9]) + "," + CleanFloat(p[10]) + "," + CleanFloat(p[11]) + "]";
+}
+}
+return "Xt(...)";
+}
+if (val.StartsWith("\"")) return val;
+if (double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out _))
+{
+return CleanFloat(val);
+}
+return val;
+}
+private string FormatSubResourceInline(GdNode node)
+{
+var sb = new StringBuilder();
+sb.Append(AbbreviateType(node.Type)).Append("{");
+var p = new List<string>();
+foreach (var entry in node.Properties)
+{
+p.Add(ShortenKey(entry.Key) + ":" + FormatValue(entry.Value));
+}
+sb.Append(string.Join(",", p));
+sb.Append("}");
+return sb.ToString();
+}
+private string AbbreviateType(string? type)
+{
+if (type == null) return "Null";
+return TypeAbbreviations.TryGetValue(type, out var val) ? val : type;
+}
+private string ShortenKey(string key)
+{
+return key switch
+{
+"transform" => "xt",
+"position" => "pos",
+"rotation_degrees" => "rot",
+"material_override" => "mat",
+"collision_layer" => "layer",
+"collision_mask" => "mask",
+_ => key
+};
+}
+private string CleanFloat(string numStr)
+{
+if (double.TryParse(numStr.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out double d))
+{
+if (d == 0) return "0";
+if (d == 1) return "1";
+if (d % 1 == 0 && !double.IsInfinity(d)) return ((int)d).ToString();
+return d.ToString("0.##", CultureInfo.InvariantCulture);
+}
+return numStr.Trim();
+}
+private string? ExtractSubResourceId(string val) => ExtractIdGeneric(val, "SubResource");
+private string? ExtractExtResourceId(string val) => ExtractIdGeneric(val, "ExtResource");
+private string? ExtractIdGeneric(string val, string keyword)
+{
+int idx = val.IndexOf(keyword + "(", StringComparison.Ordinal);
+if (idx == -1) return null;
+int start = idx + keyword.Length + 1;
+int end = val.IndexOf(")", start, StringComparison.Ordinal);
+if (end == -1) return null;
+return val.Substring(start, end - start).Trim().Replace("\"", "");
+}
+private string ExtractContent(string line)
+{
+if (line.Length < 2) return "";
+return line.Substring(1, line.Length - 2);
+}
+private string? CleanStr(string? s) => s?.Replace("\"", "");
+private string ExtractNameFromPath(string path)
+{
+path = CleanStr(path) ?? "";
+int slash = path.LastIndexOf('/');
+if (slash >= 0)
+{
+string name = path.Substring(slash + 1);
+int dot = name.LastIndexOf('.');
+return (dot > 0) ? name.Substring(0, dot) : name;
+}
+return path;
+}
+private Dictionary<string, string> ParseAttributes(string header)
+{
+var map = new Dictionary<string, string>();
+var matches = AttrRegex.Matches(header);
+foreach (Match m in matches)
+{
+map[m.Groups[1].Value] = m.Groups[2].Value;
+}
+return map;
+}
+private class GdNode
+{
+public string Name { get; set; } = "";
+public string? Type { get; set; }
+public bool IsSubResource { get; set; }
+public bool IsGroupPlaceholder { get; set; }
+public OrderedDictionary<string, string> Properties { get; set; } = new();
+public List<GdNode> Children { get; set; } = new();
+public List<string> Signals { get; set; } = new();
+}
+}
+
+>>> FileTreeNode.cs
+﻿using System.ComponentModel;
+using System.IO;
+namespace TxtConverter.Core.Models;
+public class FileTreeNode : System.ComponentModel.INotifyPropertyChanged
+{
+public string Name { get; set; } = "";
+public string FullPath { get; set; } = "";
+public bool IsFile { get; set; }
+public FileTreeNode? Parent { get; set; }
+public List<FileTreeNode> Children { get; } = new();
+private bool? _isChecked = false;
+private bool _isExpanded = true;
+public bool? IsChecked
+{
+get => _isChecked;
+set
+{
+if (_isChecked != value)
+{
+_isChecked = value;
+OnPropertyChanged(nameof(IsChecked));
+if (_isChecked.HasValue)
+{
+UpdateChildren(_isChecked.Value);
+}
+Parent?.RecalculateState();
+}
+}
+}
+public bool IsExpanded
+{
+get => _isExpanded;
+set { _isExpanded = value; OnPropertyChanged(nameof(IsExpanded)); }
+}
+private void UpdateChildren(bool state)
+{
+foreach (var child in Children)
+{
+if (child.IsChecked != state)
+{
+child._isChecked = state;
+child.OnPropertyChanged(nameof(IsChecked));
+child.UpdateChildren(state);
+}
+}
+}
+public void RecalculateState()
+{
+bool allChecked = true;
+bool allUnchecked = true;
+foreach (var child in Children)
+{
+if (child.IsChecked == true) allUnchecked = false;
+else if (child.IsChecked == false) allChecked = false;
+else
+{
+allChecked = false;
+allUnchecked = false;
+break;
+}
+}
+bool? newState;
+if (allChecked) newState = true;
+else if (allUnchecked) newState = false;
+else newState = null;
+if (_isChecked != newState)
+{
+_isChecked = newState;
+OnPropertyChanged(nameof(IsChecked));
+Parent?.RecalculateState();
+}
+}
+public event PropertyChangedEventHandler? PropertyChanged;
+protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+>>> ProjectConstants.cs
+﻿namespace TxtConverter.Core;
+public static class ProjectConstants
+{
+public const string OutputDirName = "_ConvertedToTxt";
+public const string ReportStructureFile = "_FileStructure.md";
+public const string MergedFileSuffix = "_Full_Source_code.txt";
+public const string AppDataFolderName = "TartarusCore/TxtConverter";
+public const string SettingsFileName = "settings.json";
+public const string LangEn = "en";
+public const string LangRu = "ru";
+}
+
+>>> MainWindow.xaml
+﻿<Window x:Class="TxtConverter.Views.MainWindow"
+xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+mc:Ignorable="d"
+Title="{DynamicResource app_title}"
+Height="660" Width="650" MinHeight="600" MinWidth="600"
+WindowStyle="None" ResizeMode="CanResizeWithGrip"
+WindowStartupLocation="CenterScreen"
+AllowDrop="True" Drop="Window_Drop">
+<WindowChrome.WindowChrome>
+<WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
+</WindowChrome.WindowChrome>
+<Border BorderBrush="#333333" BorderThickness="1" Background="{StaticResource BgColor}">
+<Grid>
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<!-- Custom Title Bar -->
+<RowDefinition Height="Auto"/>
+<!-- Configuration -->
+<RowDefinition Height="*"/>
+<!-- Log -->
+<RowDefinition Height="Auto"/>
+<!-- Status Bar -->
+</Grid.RowDefinitions>
+<!-- 1. Custom Title Bar -->
+<Grid Grid.Row="0" Background="#2d2d30" MouseDown="TitleBar_MouseDown" Height="40">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource app_title}"
+Foreground="White" FontWeight="Bold"
+VerticalAlignment="Center" Margin="15,0"/>
+<StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+<Button Content="⚙" Click="Settings_Click" Style="{StaticResource TitleBarButton}" ToolTip="Settings"/>
+<Button Content="_" Click="Minimize_Click" Style="{StaticResource TitleBarButton}"/>
+<Button Content="X" Click="Close_Click" Style="{StaticResource CloseButton}"/>
+</StackPanel>
+</Grid>
+<!-- 2. Configuration Area -->
+<StackPanel Grid.Row="1" Margin="15">
+<TextBlock Text="Configuration" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
+<!-- Source Folder -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_source_dir}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<TextBox x:Name="SourceDirBox" Grid.Column="1" IsReadOnly="True" Margin="0,0,10,0"/>
+<Button x:Name="SelectSourceBtn" Grid.Column="2" Content="{DynamicResource ui_choose_btn}" Click="SelectSource_Click"/>
+</Grid>
+<!-- Preset -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_preset}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<ComboBox x:Name="PresetCombo" Grid.Column="1" SelectionChanged="Preset_SelectionChanged"/>
+</Grid>
+<!-- Extensions -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_extensions}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}"
+ToolTip="{DynamicResource ui_extensions_prompt}"/>
+</Grid>
+<!-- Ignored & Rescan -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_ignored}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,10,0" Tag="{DynamicResource ui_ignored_prompt}"
+ToolTip="{DynamicResource ui_ignored_prompt}"/>
+<Button x:Name="RescanBtn" Grid.Column="2" Content="{DynamicResource ui_rescan_btn}" Click="Rescan_Click" IsEnabled="False"/>
+</Grid>
+<!-- Checkboxes Row 1 -->
+<StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+<CheckBox x:Name="StructCb" Content="{DynamicResource ui_structure_cb}" IsChecked="False" Margin="0,0,20,0"/>
+<CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True"
+IsEnabled="{Binding IsChecked, ElementName=StructCb}"/>
+</StackPanel>
+<!-- Compression Row -->
+<StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+<TextBlock Text="{DynamicResource ui_compression_label}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<ComboBox x:Name="CompressionCombo" Width="200"/>
+</StackPanel>
+<!-- Checkboxes Row 2 & Files Button -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<CheckBox x:Name="MergedCb"
+Content="Generate Merged File with All Code"
+IsChecked="True"
+VerticalAlignment="Center"/>
+<Button x:Name="SelectFilesBtn" Grid.Column="1" Content="{DynamicResource ui_select_files_btn}" Click="SelectFiles_Click" IsEnabled="False"/>
+</Grid>
+<!-- START BUTTON -->
+<Button x:Name="ConvertBtn" Content="{DynamicResource ui_convert_btn}" Style="{StaticResource AccentButton}"
+Click="Convert_Click" IsEnabled="False" Margin="0,5,0,0"/>
+</StackPanel>
+<!-- 3. Log Area -->
+<Grid Grid.Row="2" Margin="15,0,15,10">
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<RowDefinition Height="*"/>
+</Grid.RowDefinitions>
+<TextBlock Text="{DynamicResource ui_log_label}" FontWeight="Bold" Margin="0,0,0,5"/>
+<TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
+FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"/>
+</Grid>
+<!-- 4. Status Bar -->
+<Grid Grid.Row="3" Background="#2d2d30" Height="30">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="200"/>
+</Grid.ColumnDefinitions>
+<TextBlock x:Name="StatusLabel" Text="{DynamicResource ui_status_ready}"
+Foreground="#cccccc" VerticalAlignment="Center" Margin="15,0"/>
+<ProgressBar x:Name="StatusProgressBar" Grid.Column="1" Margin="10,8,15,8" Value="0" Maximum="1"/>
+</Grid>
+</Grid>
+</Border>
+</Window>
+
+>>> MainWindow.xaml.cs
+﻿using Microsoft.Win32;
+using System.ComponentModel;
+using System.IO;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using TxtConverter.Core;
+using TxtConverter.Core.Enums;
+using TxtConverter.Core.Logic;
+using TxtConverter.Services;
+namespace TxtConverter.Views;
+public partial class MainWindow : Window
+{
+private List<string> _allFoundFiles = new();
+private HashSet<string> _filesSelectedForMerge = new();
+private bool _isProcessing;
+public MainWindow()
+{
+InitializeComponent();
+UpdateMergedCheckboxLabel();
+SetupCompressionCombo();
+SetupPresets();
+LoadPreferences();
+Log(Loc("log_app_ready"));
+}
+protected override void OnClosing(CancelEventArgs e)
+{
+if (_isProcessing)
+{
+e.Cancel = true; // Не даем закрыть, если идет работа
+return;
+}
+SavePreferences();
+base.OnClosing(e);
+}
+private void SavePreferences()
+{
+var prefs = PreferenceManager.Instance;
+prefs.SetLastSourceDir(SourceDirBox.Text);
+if (PresetCombo.SelectedItem is string preset)
+prefs.SetLastPreset(preset);
+prefs.SetGenerateStructure(StructCb.IsChecked == true);
+prefs.SetCompactMode(CompactCb.IsChecked == true);
+prefs.SetGenerateMerged(MergedCb.IsChecked == true);
+if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
+{
+prefs.SetCompressionLevel(lvl);
+}
+prefs.Save();
+}
+private void LoadPreferences()
+{
+var prefs = PreferenceManager.Instance;
+string lastDir = prefs.GetLastSourceDir();
+if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir))
+{
+SourceDirBox.Text = lastDir;
+UpdateMergedCheckboxLabel();
+RescanBtn.IsEnabled = true;
+}
+string lastPreset = prefs.GetLastPreset();
+if (PresetManager.Instance.HasPreset(lastPreset))
+PresetCombo.SelectedItem = lastPreset;
+else
+PresetCombo.SelectedIndex = 0;
+StructCb.IsChecked = prefs.GetGenerateStructure();
+CompactCb.IsChecked = prefs.GetCompactMode();
+MergedCb.IsChecked = prefs.GetGenerateMerged();
+CompressionLevel savedComp = prefs.GetCompressionLevel();
+foreach (ComboBoxItem item in CompressionCombo.Items)
+{
+if (item.Tag is CompressionLevel lvl && lvl == savedComp)
+{
+CompressionCombo.SelectedItem = item;
+break;
+}
+}
+}
+private void SetupCompressionCombo()
+{
+CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_none"), Tag = CompressionLevel.None });
+CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_smart"), Tag = CompressionLevel.Smart });
+CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_max"), Tag = CompressionLevel.Maximum });
+CompressionCombo.SelectedIndex = 1;
+}
+private void SetupPresets()
+{
+foreach (var preset in PresetManager.Instance.GetPresetNames())
+{
+PresetCombo.Items.Add(preset);
+}
+}
+private void SelectSource_Click(object sender, RoutedEventArgs e)
+{
+var dialog = new OpenFolderDialog
+{
+Title = Loc("ui_source_dir"),
+Multiselect = false
+};
+if (Directory.Exists(SourceDirBox.Text))
+{
+dialog.InitialDirectory = SourceDirBox.Text;
+}
+if (dialog.ShowDialog() == true)
+{
+SetSourceDirectory(dialog.FolderName);
+}
+}
+private void SetSourceDirectory(string path)
+{
+SourceDirBox.Text = path;
+Log(string.Format(Loc("log_dir_selected"), path));
+UpdateMergedCheckboxLabel();
+string? detected = PresetManager.Instance.AutoDetectPreset(path);
+if (detected != null)
+{
+Log($"🤖 Auto-detected project type: {detected}");
+PresetCombo.SelectedItem = detected;
+}
+Rescan_Click(this, new RoutedEventArgs());
+}
+private void Window_Drop(object sender, DragEventArgs e)
+{
+if (e.Data.GetDataPresent(DataFormats.FileDrop))
+{
+string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+if (files != null && files.Length == 1 && Directory.Exists(files[0]))
+{
+SetSourceDirectory(files[0]);
+}
+}
+}
+private void Preset_SelectionChanged(object sender, SelectionChangedEventArgs e)
+{
+if (PresetCombo.SelectedItem is string presetName)
+{
+if (presetName != "Manual")
+{
+ExtensionsBox.Text = PresetManager.Instance.GetExtensionsFor(presetName);
+IgnoredBox.Text = PresetManager.Instance.GetIgnoredFoldersFor(presetName);
+}
+Log(string.Format(Loc("log_preset_selected"), presetName));
+}
+}
+private async void Rescan_Click(object sender, RoutedEventArgs e)
+{
+if (string.IsNullOrWhiteSpace(SourceDirBox.Text))
+{
+Log(Loc("log_error_no_dir"));
+return;
+}
+SetUiBlocked(true);
+StatusLabel.Text = Loc("ui_status_scanning");
+Log(Loc("log_scanning_start"));
+StatusProgressBar.IsIndeterminate = true;
+try
+{
+var exts = ExtensionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+var scanner = new FileScanner(exts, ignored);
+_allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
+_filesSelectedForMerge = new HashSet<string>(_allFoundFiles);
+Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
+UpdateButtonsState();
+}
+catch (Exception ex)
+{
+Log(string.Format(Loc("log_scan_error"), ex.Message));
+}
+finally
+{
+SetUiBlocked(false);
+StatusProgressBar.IsIndeterminate = false;
+StatusLabel.Text = Loc("ui_status_waiting");
+}
+}
+private void SelectFiles_Click(object sender, RoutedEventArgs e)
+{
+if (_allFoundFiles.Count == 0) return;
+var dialog = new SelectionWindow(_allFoundFiles, _filesSelectedForMerge, SourceDirBox.Text);
+dialog.Owner = this;
+if (dialog.ShowDialog() == true && dialog.Result != null)
+{
+_filesSelectedForMerge = dialog.Result;
+Log(string.Format(Loc("log_files_selected"), _filesSelectedForMerge.Count, _allFoundFiles.Count));
+}
+}
+private async void Convert_Click(object sender, RoutedEventArgs e)
+{
+if (_allFoundFiles.Count == 0)
+{
+Log(Loc("log_no_files"));
+return;
+}
+SetUiBlocked(true);
+LogBox.Clear();
+Log(Loc("log_conversion_start"));
+StatusLabel.Text = Loc("ui_status_converting");
+StatusProgressBar.IsIndeterminate = false;
+StatusProgressBar.Value = 0;
+try
+{
+var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+CompressionLevel compLevel = CompressionLevel.Smart;
+if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
+compLevel = lvl;
+var converter = new Converter(
+SourceDirBox.Text,
+_allFoundFiles,
+_filesSelectedForMerge,
+ignored,
+StructCb.IsChecked == true,
+CompactCb.IsChecked == true,
+compLevel,
+MergedCb.IsChecked == true
+);
+var progress = new Progress<double>(p => StatusProgressBar.Value = p);
+var status = new Progress<string>(s => StatusLabel.Text = s);
+await converter.RunConversionAsync(progress, status);
+Log("====================");
+Log(Loc("log_conversion_success"));
+Log("====================");
+Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
+StatusLabel.Text = Loc("ui_status_done");
+}
+catch (Exception ex)
+{
+Log(string.Format(Loc("log_conversion_error"), ex.Message));
+StatusLabel.Text = Loc("ui_status_error");
+}
+finally
+{
+SetUiBlocked(false);
+StatusProgressBar.Value = 1;
+}
+}
+private void SetUiBlocked(bool isBlocked)
+{
+_isProcessing = isBlocked;
+SelectSourceBtn.IsEnabled = !isBlocked;
+PresetCombo.IsEnabled = !isBlocked;
+RescanBtn.IsEnabled = !isBlocked && !string.IsNullOrEmpty(SourceDirBox.Text);
+ConvertBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
+SelectFilesBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
+if (isBlocked) Mouse.OverrideCursor = Cursors.Wait;
+else Mouse.OverrideCursor = null;
+}
+private void UpdateButtonsState()
+{
+bool hasFiles = _allFoundFiles.Count > 0;
+bool hasDir = !string.IsNullOrEmpty(SourceDirBox.Text);
+RescanBtn.IsEnabled = hasDir;
+SelectFilesBtn.IsEnabled = hasFiles;
+ConvertBtn.IsEnabled = hasFiles;
+}
+private void UpdateMergedCheckboxLabel()
+{
+string fileName = "_MergedOutput.txt";
+if (!string.IsNullOrEmpty(SourceDirBox.Text))
+{
+string projName = Path.GetFileName(SourceDirBox.Text);
+fileName = "_" + projName + ProjectConstants.MergedFileSuffix;
+}
+string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
+if (baseStr.Contains("{0}"))
+MergedCb.Content = string.Format(baseStr, fileName);
+else
+MergedCb.Content = baseStr + $" ({fileName})";
+}
+private void Log(string message)
+{
+LogBox.AppendText(message + Environment.NewLine);
+LogBox.ScrollToEnd();
+}
+private string Loc(string key) => LanguageManager.Instance.GetString(key);
+private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
+{
+if (e.ChangedButton == MouseButton.Left) DragMove();
+}
+private void Settings_Click(object sender, RoutedEventArgs e)
+{
+var settingsWin = new SettingsWindow();
+settingsWin.Owner = this;
+settingsWin.ShowDialog();
+UpdateManualTexts();
+}
+private void UpdateManualTexts()
+{
+if (CompressionCombo.Items.Count >= 3)
+{
+((ComboBoxItem)CompressionCombo.Items[0]).Content = Loc("ui_comp_none");
+((ComboBoxItem)CompressionCombo.Items[1]).Content = Loc("ui_comp_smart");
+((ComboBoxItem)CompressionCombo.Items[2]).Content = Loc("ui_comp_max");
+}
+UpdateMergedCheckboxLabel();
+}
+private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+private void Close_Click(object sender, RoutedEventArgs e)
+{
+Close();
+}
+}
+
+>>> Strings.en.xaml
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:s="clr-namespace:System;assembly=mscorlib">
+<s:String x:Key="app_title">TXT File Converter</s:String>
+<s:String x:Key="ui_settings">Settings</s:String>
+<s:String x:Key="ui_source_dir">Source Folder:</s:String>
+<s:String x:Key="ui_choose_btn">Select...</s:String>
+<s:String x:Key="ui_preset">Preset:</s:String>
+<s:String x:Key="ui_extensions">Extensions (comma separated):</s:String>
+<s:String x:Key="ui_extensions_prompt">Example: gd, tscn, java, xml</s:String>
+<s:String x:Key="ui_ignored">Ignored Folders (comma separated):</s:String>
+<s:String x:Key="ui_ignored_prompt">Example: Library, Temp, obj</s:String>
+<s:String x:Key="ui_rescan_btn">Rescan</s:String>
+<s:String x:Key="ui_structure_cb">Generate Structure File</s:String>
+<s:String x:Key="ui_compact_structure_cb">Compact Mode (Collapse ignored files)</s:String>
+<s:String x:Key="ui_token_compression_cb">Smart Token Compression (Remove visual noise)</s:String>
+<s:String x:Key="ui_merged_cb">Generate Merged File with All Code ({0})</s:String>
+<s:String x:Key="ui_select_files_btn">Select Files...</s:String>
+<s:String x:Key="ui_convert_btn">START CONVERSION</s:String>
+<s:String x:Key="ui_log_label">Execution Log:</s:String>
+<s:String x:Key="ui_compression_label">Token Compression:</s:String>
+<s:String x:Key="ui_comp_none">None (Original)</s:String>
+<s:String x:Key="ui_comp_smart">Smart (Safe)</s:String>
+<s:String x:Key="ui_comp_max">Maximum (No comments)</s:String>
+<s:String x:Key="ui_status_ready">Ready</s:String>
+<s:String x:Key="ui_status_waiting">Waiting for action</s:String>
+<s:String x:Key="ui_status_scanning">Scanning...</s:String>
+<s:String x:Key="ui_status_converting">Converting...</s:String>
+<s:String x:Key="ui_status_done">Done</s:String>
+<s:String x:Key="ui_status_error">Error</s:String>
+<!-- Log Messages -->
+<s:String x:Key="log_app_ready">Application ready.</s:String>
+<s:String x:Key="log_preset_selected">Preset '{0}' selected. Settings updated.</s:String>
+<s:String x:Key="log_dir_selected">Source folder selected: {0}</s:String>
+<s:String x:Key="log_error_no_dir">Error: Folder not selected.</s:String>
+<s:String x:Key="log_scanning_start">Starting scan...</s:String>
+<s:String x:Key="log_scan_complete">Scan complete. Files found: {0}</s:String>
+<s:String x:Key="log_scan_error">SCAN ERROR: {0}</s:String>
+<s:String x:Key="log_files_selected">Selected for report: {0} of {1}</s:String>
+<s:String x:Key="log_no_files">No files to process.</s:String>
+<s:String x:Key="log_conversion_start">Starting conversion...</s:String>
+<s:String x:Key="log_conversion_success">CONVERSION SUCCESSFUL</s:String>
+<s:String x:Key="log_result_path">Result saved in: {0}</s:String>
+<s:String x:Key="log_conversion_error">CRITICAL CONVERSION ERROR: {0}</s:String>
+<!-- Report Messages -->
+<s:String x:Key="report_structure_header"># Structure of copied files</s:String>
+<s:String x:Key="report_merged_header">Unified file with full project code ({0})</s:String>
+<s:String x:Key="report_generated_date">Date generated: {0}</s:String>
+<s:String x:Key="report_file_header">FILE: {0}</s:String>
+<s:String x:Key="report_read_error">!!! READ ERROR: {0} !!!</s:String>
+<s:String x:Key="report_omitted">(File content omitted for brevity. AI assistant must request full code if needed)</s:String>
+<!-- Task Messages -->
+<s:String x:Key="task_preparing">Preparing for conversion...</s:String>
+<s:String x:Key="task_processing">Processing: {0}</s:String>
+<s:String x:Key="task_generating_structure">Generating structure file...</s:String>
+<s:String x:Key="task_merging">Assembling unified file...</s:String>
+<s:String x:Key="task_done">Done!</s:String>
+</ResourceDictionary>
+
+>>> Strings.ru.xaml
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:s="clr-namespace:System;assembly=mscorlib">
+<s:String x:Key="app_title">TXT Конвертер Файлов</s:String>
+<s:String x:Key="ui_settings">Настройки</s:String>
+<s:String x:Key="ui_source_dir">Папка с исходниками:</s:String>
+<s:String x:Key="ui_choose_btn">Выбрать...</s:String>
+<s:String x:Key="ui_preset">Пресет:</s:String>
+<s:String x:Key="ui_extensions">Расширения (через запятую):</s:String>
+<s:String x:Key="ui_extensions_prompt">Например: gd, tscn, java, xml</s:String>
+<s:String x:Key="ui_ignored">Игнорируемые папки (через запятую):</s:String>
+<s:String x:Key="ui_ignored_prompt">Например: Library, Temp, obj</s:String>
+<s:String x:Key="ui_rescan_btn">Пересканировать</s:String>
+<s:String x:Key="ui_structure_cb">Создавать файл структуры</s:String>
+<s:String x:Key="ui_compact_structure_cb">Компактный режим (Свернуть лишнее)</s:String>
+<s:String x:Key="ui_token_compression_cb">Умное сжатие (Убрать визуальный шум)</s:String>
+<s:String x:Key="ui_merged_cb">Создавать единый файл со всем кодом ({0})</s:String>
+<s:String x:Key="ui_select_files_btn">Выбрать файлы...</s:String>
+<s:String x:Key="ui_convert_btn">НАЧАТЬ КОНВЕРТАЦИЮ</s:String>
+<s:String x:Key="ui_log_label">Лог выполнения:</s:String>
+<s:String x:Key="ui_compression_label">Сжатие токенов:</s:String>
+<s:String x:Key="ui_comp_none">Нет (Оригинал)</s:String>
+<s:String x:Key="ui_comp_smart">Умное (Безопасно)</s:String>
+<s:String x:Key="ui_comp_max">Максимум (Без комментариев)</s:String>
+<s:String x:Key="ui_status_ready">Готов к работе</s:String>
+<s:String x:Key="ui_status_waiting">Ожидание действий</s:String>
+<s:String x:Key="ui_status_scanning">Сканирование...</s:String>
+<s:String x:Key="ui_status_converting">Конвертация...</s:String>
+<s:String x:Key="ui_status_done">Готово</s:String>
+<s:String x:Key="ui_status_error">Ошибка</s:String>
+<!-- Log Messages -->
+<s:String x:Key="log_app_ready">Приложение готово к работе.</s:String>
+<s:String x:Key="log_preset_selected">Выбран пресет '{0}'. Настройки обновлены.</s:String>
+<s:String x:Key="log_dir_selected">Выбрана папка с исходниками: {0}</s:String>
+<s:String x:Key="log_error_no_dir">Ошибка: Папка не выбрана.</s:String>
+<s:String x:Key="log_scanning_start">Запуск сканирования...</s:String>
+<s:String x:Key="log_scan_complete">Сканирование завершено. Найдено файлов: {0}</s:String>
+<s:String x:Key="log_scan_error">ОШИБКА СКАНИРОВАНИЯ: {0}</s:String>
+<s:String x:Key="log_files_selected">Выбрано для отчета: {0} из {1}</s:String>
+<s:String x:Key="log_no_files">Нет файлов для обработки.</s:String>
+<s:String x:Key="log_conversion_start">Начало конвертации...</s:String>
+<s:String x:Key="log_conversion_success">КОНВЕРТАЦИЯ УСПЕШНА</s:String>
+<s:String x:Key="log_result_path">Результат в папке: {0}</s:String>
+<s:String x:Key="log_conversion_error">КРИТИЧЕСКАЯ ОШИБКА КОНВЕРТАЦИИ: {0}</s:String>
+<!-- Report Messages -->
+<s:String x:Key="report_structure_header"># Структура скопированных файлов</s:String>
+<s:String x:Key="report_merged_header">Единый файл с полным кодом проекта ({0})</s:String>
+<s:String x:Key="report_generated_date">Дата генерации: {0}</s:String>
+<s:String x:Key="report_file_header">ФАЙЛ: {0}</s:String>
+<s:String x:Key="report_read_error">!!! ОШИБКА ЧТЕНИЯ: {0} !!!</s:String>
+<s:String x:Key="report_omitted">(Содержимое файла опущено для краткости. При необходимости ИИ-ассистент обязан запросить его полный код)</s:String>
+<!-- Task Messages -->
+<s:String x:Key="task_preparing">Подготовка к конвертации...</s:String>
+<s:String x:Key="task_processing">Обработка: {0}</s:String>
+<s:String x:Key="task_generating_structure">Генерация файла структуры...</s:String>
+<s:String x:Key="task_merging">Сборка единого файла...</s:String>
+<s:String x:Key="task_done">Готово!</s:String>
+</ResourceDictionary>
+
+>>> Styles.xaml
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<!-- ================= ПАЛИТРА ================= -->
+<SolidColorBrush x:Key="BgColor" Color="#181818"/>
+<SolidColorBrush x:Key="FgColor" Color="#E0E0E0"/>
+<SolidColorBrush x:Key="ControlBg" Color="#202020"/>
+<SolidColorBrush x:Key="AccentColor" Color="#3A96FF"/>
+<!-- ================= ОКНО ================= -->
+<Style TargetType="Window">
+<Setter Property="Background" Value="{StaticResource BgColor}"/>
+<Setter Property="Foreground" Value="{StaticResource FgColor}"/>
+<Setter Property="FontFamily" Value="Segoe UI"/>
+<Setter Property="FontSize" Value="14"/>
+<!-- Чуть крупнее шрифт везде -->
+<Setter Property="UseLayoutRounding" Value="True"/>
+</Style>
+<Style TargetType="TextBlock">
+<Setter Property="Foreground" Value="{StaticResource FgColor}"/>
+<Setter Property="VerticalAlignment" Value="Center"/>
+</Style>
+<!-- ================= КРАСИВЫЕ КНОПКИ (Как в Java) ================= -->
+<Style TargetType="Button">
+<Setter Property="Background" Value="#383838"/>
+<!-- Светлее фона, чтобы выделялась -->
+<Setter Property="Foreground" Value="#F0F0F0"/>
+<Setter Property="BorderBrush" Value="#555555"/>
+<!-- Заметная рамка -->
+<Setter Property="BorderThickness" Value="1"/>
+<Setter Property="Padding" Value="15,6"/>
+<Setter Property="MinHeight" Value="34"/>
+<!-- Кнопки теперь высокие -->
+<Setter Property="FontSize" Value="13"/>
+<Setter Property="Cursor" Value="Hand"/>
+<Setter Property="Template">
+<Setter.Value>
+<ControlTemplate TargetType="Button">
+<Border x:Name="border"
+Background="{TemplateBinding Background}"
+BorderBrush="{TemplateBinding BorderBrush}"
+BorderThickness="{TemplateBinding BorderThickness}"
+CornerRadius="4">
+<!-- Скругление -->
+<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+</Border>
+<ControlTemplate.Triggers>
+<Trigger Property="IsMouseOver" Value="True">
+<Setter TargetName="border" Property="Background" Value="#454545"/>
+<Setter TargetName="border" Property="BorderBrush" Value="#777777"/>
+</Trigger>
+<Trigger Property="IsPressed" Value="True">
+<Setter TargetName="border" Property="Background" Value="#222222"/>
+<Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentColor}"/>
+</Trigger>
+<Trigger Property="IsEnabled" Value="False">
+<Setter TargetName="border" Property="Opacity" Value="0.4"/>
+</Trigger>
+</ControlTemplate.Triggers>
+</ControlTemplate>
+</Setter.Value>
+</Setter>
+</Style>
+<!-- ================= КНОПКА START (Большая и Синяя) ================= -->
+<Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+<Setter Property="Background" Value="{StaticResource AccentColor}"/>
+<Setter Property="Foreground" Value="White"/>
+<Setter Property="BorderThickness" Value="0"/>
+<Setter Property="FontWeight" Value="Bold"/>
+<Setter Property="FontSize" Value="15"/>
+<Setter Property="MinHeight" Value="42"/>
+<!-- Еще выше -->
+<Setter Property="Padding" Value="0,0"/>
+<Style.Triggers>
+<Trigger Property="IsMouseOver" Value="True">
+<Setter Property="Background" Value="#2984E8"/>
+</Trigger>
+<Trigger Property="IsPressed" Value="True">
+<Setter Property="Background" Value="#1C68C0"/>
+</Trigger>
+</Style.Triggers>
+</Style>
+<!-- ================= КНОПКИ ЗАГОЛОВКА (X, _) ================= -->
+<Style x:Key="TitleBarButton" TargetType="Button">
+<Setter Property="Background" Value="Transparent"/>
+<Setter Property="BorderThickness" Value="0"/>
+<Setter Property="MinHeight" Value="30"/>
+<Setter Property="Width" Value="45"/>
+<Setter Property="Template">
+<Setter.Value>
+<ControlTemplate TargetType="Button">
+<Grid Background="{TemplateBinding Background}">
+<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+</Grid>
+<ControlTemplate.Triggers>
+<Trigger Property="IsMouseOver" Value="True">
+<Setter Property="Background" Value="#333333"/>
+</Trigger>
+</ControlTemplate.Triggers>
+</ControlTemplate>
+</Setter.Value>
+</Setter>
+</Style>
+<Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource TitleBarButton}">
+<Style.Triggers>
+<Trigger Property="IsMouseOver" Value="True">
+<Setter Property="Background" Value="#E81123"/>
+<Setter Property="Foreground" Value="White"/>
+</Trigger>
+</Style.Triggers>
+</Style>
+<!-- ================= ПОЛЯ ВВОДА ================= -->
+<Style TargetType="TextBox">
+<Setter Property="Background" Value="#121212"/>
+<Setter Property="Foreground" Value="#E0E0E0"/>
+<Setter Property="BorderBrush" Value="#333333"/>
+<Setter Property="BorderThickness" Value="1"/>
+<Setter Property="Padding" Value="6,6"/>
+<!-- Больше паддинг внутри -->
+<Setter Property="VerticalContentAlignment" Value="Center"/>
+<Setter Property="MinHeight" Value="30"/>
+<!-- Поля тоже выше -->
+<Setter Property="CaretBrush" Value="White"/>
+<Setter Property="Template">
+<Setter.Value>
+<ControlTemplate TargetType="TextBox">
+<Border x:Name="border" Background="{TemplateBinding Background}"
+BorderBrush="{TemplateBinding BorderBrush}"
+BorderThickness="{TemplateBinding BorderThickness}"
+CornerRadius="3">
+<ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+</Border>
+<ControlTemplate.Triggers>
+<Trigger Property="IsMouseOver" Value="True">
+<Setter TargetName="border" Property="BorderBrush" Value="#666666"/>
+</Trigger>
+<Trigger Property="IsFocused" Value="True">
+<Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentColor}"/>
+<Setter TargetName="border" Property="Background" Value="Black"/>
+</Trigger>
+</ControlTemplate.Triggers>
+</ControlTemplate>
+</Setter.Value>
+</Setter>
+</Style>
+<!-- ================= COMBO BOX ================= -->
+<Style TargetType="ComboBoxItem">
+<Setter Property="SnapsToDevicePixels" Value="True"/>
+<Setter Property="Foreground" Value="#E0E0E0"/>
+<Setter Property="Background" Value="#252526"/>
+<Setter Property="BorderThickness" Value="0"/>
+<Setter Property="Padding" Value="8"/>
+<Setter Property="Template">
+<Setter.Value>
+<ControlTemplate TargetType="ComboBoxItem">
+<Border x:Name="bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+<ContentPresenter />
+</Border>
+<ControlTemplate.Triggers>
+<Trigger Property="IsMouseOver" Value="True">
+<Setter TargetName="bd" Property="Background" Value="#3E3E42"/>
+</Trigger>
+<Trigger Property="IsSelected" Value="True">
+<Setter TargetName="bd" Property="Background" Value="{StaticResource AccentColor}"/>
+<Setter TargetName="bd" Property="TextElement.Foreground" Value="White"/>
+</Trigger>
+</ControlTemplate.Triggers>
+</ControlTemplate>
+</Setter.Value>
+</Setter>
+</Style>
+<Style TargetType="ComboBox">
+<Setter Property="Background" Value="#121212"/>
+<Setter Property="Foreground" Value="#E0E0E0"/>
+<Setter Property="BorderBrush" Value="#333333"/>
+<Setter Property="BorderThickness" Value="1"/>
+<Setter Property="Height" Value="30"/>
+<!-- Выше -->
+<Setter Property="Padding" Value="6,0"/>
+<Setter Property="VerticalContentAlignment" Value="Center"/>
+<Setter Property="Template">
+<Setter.Value>
+<ControlTemplate TargetType="ComboBox">
+<Grid>
+<ToggleButton Name="ToggleButton"
+Background="{TemplateBinding Background}"
+BorderBrush="{TemplateBinding BorderBrush}"
+BorderThickness="{TemplateBinding BorderThickness}"
+Focusable="false" IsChecked="{Binding Path=IsDropDownOpen,Mode=TwoWay,RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press">
+<ToggleButton.Template>
+<ControlTemplate TargetType="ToggleButton">
+<Border x:Name="border" Background="{TemplateBinding Background}"
+BorderBrush="{TemplateBinding BorderBrush}"
+BorderThickness="{TemplateBinding BorderThickness}"
+CornerRadius="3">
+<Grid>
+<Grid.ColumnDefinitions>
+<ColumnDefinition />
+<ColumnDefinition Width="30" />
+</Grid.ColumnDefinitions>
+<Path Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="#999999" Data="M0,0 L4,4 L8,0Z"/>
+</Grid>
+</Border>
+<ControlTemplate.Triggers>
+<Trigger Property="IsMouseOver" Value="True">
+<Setter TargetName="border" Property="BorderBrush" Value="#666666"/>
+</Trigger>
+</ControlTemplate.Triggers>
+</ControlTemplate>
+</ToggleButton.Template>
+</ToggleButton>
+<ContentPresenter Name="ContentSite" IsHitTestVisible="False"  Content="{TemplateBinding SelectionBoxItem}"
+ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+Margin="7,0,30,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+<Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+<Grid Name="DropDown" SnapsToDevicePixels="True" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+<Border x:Name="DropDownBorder" Background="#252526" BorderThickness="1" BorderBrush="#555555"/>
+<ScrollViewer Margin="1" SnapsToDevicePixels="True">
+<StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+</ScrollViewer>
+</Grid>
+</Popup>
+</Grid>
+</ControlTemplate>
+</Setter.Value>
+</Setter>
+</Style>
+<!-- ================= CHECK BOX (Красивый) ================= -->
+<Style TargetType="CheckBox">
+<Setter Property="Foreground" Value="{StaticResource FgColor}"/>
+<Setter Property="Cursor" Value="Hand"/>
+<Setter Property="FontSize" Value="13"/>
+<Setter Property="Template">
+<Setter.Value>
+<ControlTemplate TargetType="CheckBox">
+<StackPanel Orientation="Horizontal" Background="Transparent">
+<Grid Width="20" Height="20" Margin="0,0,10,0">
+<Border x:Name="border"
+Background="#202020"
+BorderBrush="#555555"
+BorderThickness="1"
+CornerRadius="4"/>
+<!-- Скругление -->
+<Path x:Name="checkMark"
+Data="M 3 10 L 7 14 L 17 4"
+Stroke="White"
+StrokeThickness="2.5"
+Visibility="Collapsed"
+HorizontalAlignment="Center"
+VerticalAlignment="Center"/>
+</Grid>
+<ContentPresenter VerticalAlignment="Center"/>
+</StackPanel>
+<ControlTemplate.Triggers>
+<Trigger Property="IsMouseOver" Value="True">
+<Setter TargetName="border" Property="BorderBrush" Value="#888888"/>
+<Setter TargetName="border" Property="Background" Value="#2A2A2A"/>
+</Trigger>
+<Trigger Property="IsChecked" Value="True">
+<Setter TargetName="border" Property="Background" Value="{StaticResource AccentColor}"/>
+<Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentColor}"/>
+<Setter TargetName="checkMark" Property="Visibility" Value="Visible"/>
+</Trigger>
+<Trigger Property="IsEnabled" Value="False">
+<Setter Property="Opacity" Value="0.5"/>
+</Trigger>
+</ControlTemplate.Triggers>
+</ControlTemplate>
+</Setter.Value>
+</Setter>
+</Style>
+<!-- ================= SCROLL BAR ================= -->
+<Style TargetType="ScrollBar">
+<Setter Property="Background" Value="Transparent"/>
+<Setter Property="Width" Value="10"/>
+<Setter Property="Template">
+<Setter.Value>
+<ControlTemplate TargetType="ScrollBar">
+<Grid Background="{TemplateBinding Background}">
+<Track Name="PART_Track" IsDirectionReversed="true">
+<Track.Thumb>
+<Thumb>
+<Thumb.Template>
+<ControlTemplate TargetType="Thumb">
+<Border Background="#444444" CornerRadius="4" Margin="2"/>
+</ControlTemplate>
+</Thumb.Template>
+</Thumb>
+</Track.Thumb>
+</Track>
+</Grid>
+</ControlTemplate>
+</Setter.Value>
+</Setter>
+</Style>
+</ResourceDictionary>
+
+>>> LanguageManager.cs
+﻿using System.Windows;
+using TxtConverter.Core;
+namespace TxtConverter.Services;
+public class LanguageManager
+{
+private static LanguageManager? _instance;
+public static LanguageManager Instance => _instance ??= new LanguageManager();
+private LanguageManager() { }
+public string CurrentLanguage { get; private set; } = ProjectConstants.LangEn;
+public void SetLanguage(string languageCode)
+{
+var uri = new Uri($"pack://application:,,,/Resources/Lang/Strings.{languageCode}.xaml");
+try
+{
+var dict = new ResourceDictionary { Source = uri };
+Application.Current.Resources.MergedDictionaries.Clear();
+Application.Current.Resources.MergedDictionaries.Add(dict);
+var styles = new ResourceDictionary { Source = new Uri("pack://application:,,,/Resources/Styles.xaml") };
+Application.Current.Resources.MergedDictionaries.Add(styles);
+CurrentLanguage = languageCode;
+PreferenceManager.Instance.SetLanguage(languageCode);
+}
+catch (Exception ex)
+{
+System.Diagnostics.Debug.WriteLine($"Error loading language {languageCode}: {ex.Message}");
+}
+}
+public string GetString(string key)
+{
+if (Application.Current.Resources.Contains(key))
+{
+return Application.Current.Resources[key] as string ?? $"!{key}!";
+}
+return $"!{key}!";
+}
+}
+
+>>> PreferenceManager.cs
+﻿using System.IO;
+using System.Text.Json;
+using TxtConverter.Core;
+using TxtConverter.Core.Enums;
+namespace TxtConverter.Services;
+public class AppSettings
+{
+public string Language { get; set; } = ProjectConstants.LangEn;
+public string LastSourceDir { get; set; } = string.Empty;
+public string LastPreset { get; set; } = "Unity Engine";
+public bool GenerateStructure { get; set; } = false;
+public bool CompactMode { get; set; } = true;
+public bool GenerateMerged { get; set; } = true;
+public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
+}
+public class PreferenceManager
+{
+private static PreferenceManager? _instance;
+public static PreferenceManager Instance => _instance ??= new PreferenceManager();
+private AppSettings _settings;
+private readonly string _settingsPath;
+private PreferenceManager()
+{
+string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+string folder = Path.Combine(appData, ProjectConstants.AppDataFolderName);
+Directory.CreateDirectory(folder);
+_settingsPath = Path.Combine(folder, ProjectConstants.SettingsFileName);
+_settings = new AppSettings();
+}
+public void Load()
+{
+if (File.Exists(_settingsPath))
+{
+try
+{
+string json = File.ReadAllText(_settingsPath);
+var loaded = JsonSerializer.Deserialize<AppSettings>(json);
+if (loaded != null)
+{
+_settings = loaded;
+}
+}
+catch
+{
+}
+}
+}
+public void Save()
+{
+try
+{
+var options = new JsonSerializerOptions { WriteIndented = true };
+string json = JsonSerializer.Serialize(_settings, options);
+File.WriteAllText(_settingsPath, json);
+}
+catch
+{
+}
+}
+public string GetLanguage() => _settings.Language;
+public void SetLanguage(string lang) { _settings.Language = lang; Save(); }
+public string GetLastSourceDir() => _settings.LastSourceDir;
+public void SetLastSourceDir(string path) { _settings.LastSourceDir = path; Save(); }
+public string GetLastPreset() => _settings.LastPreset;
+public void SetLastPreset(string preset) { _settings.LastPreset = preset; Save(); }
+public bool GetGenerateStructure() => _settings.GenerateStructure;
+public void SetGenerateStructure(bool val) { _settings.GenerateStructure = val; Save(); }
+public bool GetCompactMode() => _settings.CompactMode;
+public void SetCompactMode(bool val) { _settings.CompactMode = val; Save(); }
+public bool GetGenerateMerged() => _settings.GenerateMerged;
+public void SetGenerateMerged(bool val) { _settings.GenerateMerged = val; Save(); }
+public CompressionLevel GetCompressionLevel() => _settings.Compression;
+public void SetCompressionLevel(CompressionLevel level) { _settings.Compression = level; Save(); }
+}
+
+>>> PresetManager.cs
+﻿using System.IO;
+namespace TxtConverter.Services;
+public class PresetManager
+{
+private static PresetManager? _instance;
+public static PresetManager Instance => _instance ??= new PresetManager();
+private readonly Dictionary<string, string> _presets = new();
+private readonly Dictionary<string, string> _ignoredFolderPresets = new();
+private PresetManager()
+{
+SetupPresets();
+}
+private void SetupPresets()
+{
+_presets.Add("Manual", "");
+_presets.Add("Godot Engine", "gd, tscn, tres, gdshader, godot");
+_presets.Add("Unity Engine", "cs, shader, cginc, txt, json, xml, asmdef, asset, inputactions");
+_presets.Add("C# (.NET / Visual Studio)", "cs, csproj, sln, xaml, config, json, cshtml, razor, sql, xml, props, targets");
+_presets.Add("Java (Maven/Gradle)", "java, xml, properties, fxml, gradle, groovy");
+_presets.Add("Web (JavaScript / Classic)", "js, mjs, html, css, json");
+_presets.Add("Web (TypeScript / React)", "ts, tsx, jsx, html, css, scss, less, json, vue, svelte");
+_presets.Add("Python", "py, requirements.txt, yaml, yml, json");
+_ignoredFolderPresets.Add("Manual", "");
+_ignoredFolderPresets.Add("Godot Engine", ".godot, export_presets, .import");
+_ignoredFolderPresets.Add("Unity Engine", "Library, Temp, obj, bin, ProjectSettings, Logs, UserSettings, .vs, .idea");
+_ignoredFolderPresets.Add("C# (.NET / Visual Studio)", "bin, obj, .vs, packages, TestResults, .git, .idea, .vscode");
+_ignoredFolderPresets.Add("Java (Maven/Gradle)", "target, .idea, build, .settings, bin, out");
+string webIgnored = "node_modules, dist, build, .next, .nuxt, coverage, .git, .vscode, .idea";
+_ignoredFolderPresets.Add("Web (JavaScript / Classic)", webIgnored);
+_ignoredFolderPresets.Add("Web (TypeScript / React)", webIgnored);
+_ignoredFolderPresets.Add("Python", "__pycache__, venv, env, .venv, .git, .idea, .vscode, build, dist, egg-info");
+}
+public IEnumerable<string> GetPresetNames() => _presets.Keys;
+public string GetExtensionsFor(string presetName) =>
+_presets.TryGetValue(presetName, out var val) ? val : "";
+public string GetIgnoredFoldersFor(string presetName) =>
+_ignoredFolderPresets.TryGetValue(presetName, out var val) ? val : "";
+public bool HasPreset(string presetName) => _presets.ContainsKey(presetName);
+public string? AutoDetectPreset(string rootPath)
+{
+if (File.Exists(Path.Combine(rootPath, "project.godot"))) return "Godot Engine";
+if (Directory.Exists(Path.Combine(rootPath, "Assets")) && Directory.Exists(Path.Combine(rootPath, "ProjectSettings"))) return "Unity Engine";
+if (HasFileByPattern(rootPath, "*.sln")) return "C# (.NET / Visual Studio)";
+if (HasFileByPattern(rootPath, "*.csproj")) return "C# (.NET / Visual Studio)";
+if (File.Exists(Path.Combine(rootPath, "pom.xml")) ||
+File.Exists(Path.Combine(rootPath, "build.gradle")) ||
+File.Exists(Path.Combine(rootPath, "build.gradle.kts")))
+{
+return "Java (Maven/Gradle)";
+}
+if (File.Exists(Path.Combine(rootPath, "requirements.txt")) ||
+File.Exists(Path.Combine(rootPath, "pyproject.toml")) ||
+Directory.Exists(Path.Combine(rootPath, "venv")) ||
+Directory.Exists(Path.Combine(rootPath, ".venv")))
+{
+return "Python";
+}
+if (File.Exists(Path.Combine(rootPath, "package.json")))
+{
+if (File.Exists(Path.Combine(rootPath, "tsconfig.json")) ||
+File.Exists(Path.Combine(rootPath, "vite.config.ts")))
+{
+return "Web (TypeScript / React)";
+}
+return "Web (JavaScript / Classic)";
+}
+return null;
+}
+private bool HasFileByPattern(string path, string pattern)
+{
+try
+{
+return Directory.EnumerateFiles(path, pattern).Any();
+}
+catch
+{
+return false;
+}
+}
+}
+
+>>> TxtConverter.csproj
+﻿<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup>
+<OutputType>WinExe</OutputType>
+<TargetFramework>net10.0-windows</TargetFramework>
+<Nullable>enable</Nullable>
+<ImplicitUsings>enable</ImplicitUsings>
+<UseWPF>true</UseWPF>
+<ApplicationIcon>icon.ico</ApplicationIcon>
+<RootNamespace>TxtConverter</RootNamespace>
+<!-- Настройки Публикации (Single File) -->
+<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+<SelfContained>true</SelfContained>
+<PublishSingleFile>true</PublishSingleFile>
+<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+<!-- Отключаем создание pdb (файлов отладки) в релизе -->
+<DebugType>embedded</DebugType>
+</PropertyGroup>
+</Project>
+
+>>> MainWindow.xaml
+﻿<Window x:Class="TxtConverter.Views.MainWindow"
+xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+mc:Ignorable="d"
+Title="{DynamicResource app_title}"
+Height="660" Width="650" MinHeight="600" MinWidth="600"
+WindowStyle="None" ResizeMode="CanResizeWithGrip"
+WindowStartupLocation="CenterScreen"
+AllowDrop="True" Drop="Window_Drop">
+<WindowChrome.WindowChrome>
+<WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
+</WindowChrome.WindowChrome>
+<Border BorderBrush="#333333" BorderThickness="1" Background="{StaticResource BgColor}">
+<Grid>
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<!-- Custom Title Bar -->
+<RowDefinition Height="Auto"/>
+<!-- Configuration -->
+<RowDefinition Height="*"/>
+<!-- Log -->
+<RowDefinition Height="Auto"/>
+<!-- Status Bar -->
+</Grid.RowDefinitions>
+<!-- 1. Custom Title Bar -->
+<Grid Grid.Row="0" Background="#2d2d30" MouseDown="TitleBar_MouseDown" Height="40">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource app_title}"
+Foreground="White" FontWeight="Bold"
+VerticalAlignment="Center" Margin="15,0"/>
+<StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+<Button Content="⚙" Click="Settings_Click" Style="{StaticResource TitleBarButton}" ToolTip="Settings"/>
+<Button Content="_" Click="Minimize_Click" Style="{StaticResource TitleBarButton}"/>
+<Button Content="X" Click="Close_Click" Style="{StaticResource CloseButton}"/>
+</StackPanel>
+</Grid>
+<!-- 2. Configuration Area -->
+<StackPanel Grid.Row="1" Margin="15">
+<TextBlock Text="Configuration" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
+<!-- Source Folder -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_source_dir}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<TextBox x:Name="SourceDirBox" Grid.Column="1" IsReadOnly="True" Margin="0,0,10,0"/>
+<Button x:Name="SelectSourceBtn" Grid.Column="2" Content="{DynamicResource ui_choose_btn}" Click="SelectSource_Click"/>
+</Grid>
+<!-- Preset -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_preset}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<ComboBox x:Name="PresetCombo" Grid.Column="1" SelectionChanged="Preset_SelectionChanged"/>
+</Grid>
+<!-- Extensions -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_extensions}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}"
+ToolTip="{DynamicResource ui_extensions_prompt}"/>
+</Grid>
+<!-- Ignored & Rescan -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_ignored}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,10,0" Tag="{DynamicResource ui_ignored_prompt}"
+ToolTip="{DynamicResource ui_ignored_prompt}"/>
+<Button x:Name="RescanBtn" Grid.Column="2" Content="{DynamicResource ui_rescan_btn}" Click="Rescan_Click" IsEnabled="False"/>
+</Grid>
+<!-- Checkboxes Row 1 -->
+<StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+<CheckBox x:Name="StructCb" Content="{DynamicResource ui_structure_cb}" IsChecked="False" Margin="0,0,20,0"/>
+<CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True"
+IsEnabled="{Binding IsChecked, ElementName=StructCb}"/>
+</StackPanel>
+<!-- Compression Row -->
+<StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+<TextBlock Text="{DynamicResource ui_compression_label}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<ComboBox x:Name="CompressionCombo" Width="200"/>
+</StackPanel>
+<!-- Checkboxes Row 2 & Files Button -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<CheckBox x:Name="MergedCb"
+Content="Generate Merged File with All Code"
+IsChecked="True"
+VerticalAlignment="Center"/>
+<Button x:Name="SelectFilesBtn" Grid.Column="1" Content="{DynamicResource ui_select_files_btn}" Click="SelectFiles_Click" IsEnabled="False"/>
+</Grid>
+<!-- START BUTTON -->
+<Button x:Name="ConvertBtn" Content="{DynamicResource ui_convert_btn}" Style="{StaticResource AccentButton}"
+Click="Convert_Click" IsEnabled="False" Margin="0,5,0,0"/>
+</StackPanel>
+<!-- 3. Log Area -->
+<Grid Grid.Row="2" Margin="15,0,15,10">
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<RowDefinition Height="*"/>
+</Grid.RowDefinitions>
+<TextBlock Text="{DynamicResource ui_log_label}" FontWeight="Bold" Margin="0,0,0,5"/>
+<TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
+FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"/>
+</Grid>
+<!-- 4. Status Bar -->
+<Grid Grid.Row="3" Background="#2d2d30" Height="30">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="200"/>
+</Grid.ColumnDefinitions>
+<TextBlock x:Name="StatusLabel" Text="{DynamicResource ui_status_ready}"
+Foreground="#cccccc" VerticalAlignment="Center" Margin="15,0"/>
+<ProgressBar x:Name="StatusProgressBar" Grid.Column="1" Margin="10,8,15,8" Value="0" Maximum="1"/>
+</Grid>
+</Grid>
+</Border>
+</Window>
+
+>>> MainWindow.xaml.cs
+﻿using Microsoft.Win32;
+using System.ComponentModel;
+using System.IO;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using TxtConverter.Core;
+using TxtConverter.Core.Enums;
+using TxtConverter.Core.Logic;
+using TxtConverter.Services;
+namespace TxtConverter.Views;
+public partial class MainWindow : Window
+{
+private List<string> _allFoundFiles = new();
+private HashSet<string> _filesSelectedForMerge = new();
+private bool _isProcessing;
+public MainWindow()
+{
+InitializeComponent();
+UpdateMergedCheckboxLabel();
+SetupCompressionCombo();
+SetupPresets();
+LoadPreferences();
+Log(Loc("log_app_ready"));
+}
+protected override void OnClosing(CancelEventArgs e)
+{
+if (_isProcessing)
+{
+e.Cancel = true; // Не даем закрыть, если идет работа
+return;
+}
+SavePreferences();
+base.OnClosing(e);
+}
+private void SavePreferences()
+{
+var prefs = PreferenceManager.Instance;
+prefs.SetLastSourceDir(SourceDirBox.Text);
+if (PresetCombo.SelectedItem is string preset)
+prefs.SetLastPreset(preset);
+prefs.SetGenerateStructure(StructCb.IsChecked == true);
+prefs.SetCompactMode(CompactCb.IsChecked == true);
+prefs.SetGenerateMerged(MergedCb.IsChecked == true);
+if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
+{
+prefs.SetCompressionLevel(lvl);
+}
+prefs.Save();
+}
+private void LoadPreferences()
+{
+var prefs = PreferenceManager.Instance;
+string lastDir = prefs.GetLastSourceDir();
+if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir))
+{
+SourceDirBox.Text = lastDir;
+UpdateMergedCheckboxLabel();
+RescanBtn.IsEnabled = true;
+}
+string lastPreset = prefs.GetLastPreset();
+if (PresetManager.Instance.HasPreset(lastPreset))
+PresetCombo.SelectedItem = lastPreset;
+else
+PresetCombo.SelectedIndex = 0;
+StructCb.IsChecked = prefs.GetGenerateStructure();
+CompactCb.IsChecked = prefs.GetCompactMode();
+MergedCb.IsChecked = prefs.GetGenerateMerged();
+CompressionLevel savedComp = prefs.GetCompressionLevel();
+foreach (ComboBoxItem item in CompressionCombo.Items)
+{
+if (item.Tag is CompressionLevel lvl && lvl == savedComp)
+{
+CompressionCombo.SelectedItem = item;
+break;
+}
+}
+}
+private void SetupCompressionCombo()
+{
+CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_none"), Tag = CompressionLevel.None });
+CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_smart"), Tag = CompressionLevel.Smart });
+CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_max"), Tag = CompressionLevel.Maximum });
+CompressionCombo.SelectedIndex = 1;
+}
+private void SetupPresets()
+{
+foreach (var preset in PresetManager.Instance.GetPresetNames())
+{
+PresetCombo.Items.Add(preset);
+}
+}
+private void SelectSource_Click(object sender, RoutedEventArgs e)
+{
+var dialog = new OpenFolderDialog
+{
+Title = Loc("ui_source_dir"),
+Multiselect = false
+};
+if (Directory.Exists(SourceDirBox.Text))
+{
+dialog.InitialDirectory = SourceDirBox.Text;
+}
+if (dialog.ShowDialog() == true)
+{
+SetSourceDirectory(dialog.FolderName);
+}
+}
+private void SetSourceDirectory(string path)
+{
+SourceDirBox.Text = path;
+Log(string.Format(Loc("log_dir_selected"), path));
+UpdateMergedCheckboxLabel();
+string? detected = PresetManager.Instance.AutoDetectPreset(path);
+if (detected != null)
+{
+Log($"🤖 Auto-detected project type: {detected}");
+PresetCombo.SelectedItem = detected;
+}
+Rescan_Click(this, new RoutedEventArgs());
+}
+private void Window_Drop(object sender, DragEventArgs e)
+{
+if (e.Data.GetDataPresent(DataFormats.FileDrop))
+{
+string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+if (files != null && files.Length == 1 && Directory.Exists(files[0]))
+{
+SetSourceDirectory(files[0]);
+}
+}
+}
+private void Preset_SelectionChanged(object sender, SelectionChangedEventArgs e)
+{
+if (PresetCombo.SelectedItem is string presetName)
+{
+if (presetName != "Manual")
+{
+ExtensionsBox.Text = PresetManager.Instance.GetExtensionsFor(presetName);
+IgnoredBox.Text = PresetManager.Instance.GetIgnoredFoldersFor(presetName);
+}
+Log(string.Format(Loc("log_preset_selected"), presetName));
+}
+}
+private async void Rescan_Click(object sender, RoutedEventArgs e)
+{
+if (string.IsNullOrWhiteSpace(SourceDirBox.Text))
+{
+Log(Loc("log_error_no_dir"));
+return;
+}
+SetUiBlocked(true);
+StatusLabel.Text = Loc("ui_status_scanning");
+Log(Loc("log_scanning_start"));
+StatusProgressBar.IsIndeterminate = true;
+try
+{
+var exts = ExtensionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+var scanner = new FileScanner(exts, ignored);
+_allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
+_filesSelectedForMerge = new HashSet<string>(_allFoundFiles);
+Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
+UpdateButtonsState();
+}
+catch (Exception ex)
+{
+Log(string.Format(Loc("log_scan_error"), ex.Message));
+}
+finally
+{
+SetUiBlocked(false);
+StatusProgressBar.IsIndeterminate = false;
+StatusLabel.Text = Loc("ui_status_waiting");
+}
+}
+private void SelectFiles_Click(object sender, RoutedEventArgs e)
+{
+if (_allFoundFiles.Count == 0) return;
+var dialog = new SelectionWindow(_allFoundFiles, _filesSelectedForMerge, SourceDirBox.Text);
+dialog.Owner = this;
+if (dialog.ShowDialog() == true && dialog.Result != null)
+{
+_filesSelectedForMerge = dialog.Result;
+Log(string.Format(Loc("log_files_selected"), _filesSelectedForMerge.Count, _allFoundFiles.Count));
+}
+}
+private async void Convert_Click(object sender, RoutedEventArgs e)
+{
+if (_allFoundFiles.Count == 0)
+{
+Log(Loc("log_no_files"));
+return;
+}
+SetUiBlocked(true);
+LogBox.Clear();
+Log(Loc("log_conversion_start"));
+StatusLabel.Text = Loc("ui_status_converting");
+StatusProgressBar.IsIndeterminate = false;
+StatusProgressBar.Value = 0;
+try
+{
+var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+CompressionLevel compLevel = CompressionLevel.Smart;
+if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
+compLevel = lvl;
+var converter = new Converter(
+SourceDirBox.Text,
+_allFoundFiles,
+_filesSelectedForMerge,
+ignored,
+StructCb.IsChecked == true,
+CompactCb.IsChecked == true,
+compLevel,
+MergedCb.IsChecked == true
+);
+var progress = new Progress<double>(p => StatusProgressBar.Value = p);
+var status = new Progress<string>(s => StatusLabel.Text = s);
+await converter.RunConversionAsync(progress, status);
+Log("====================");
+Log(Loc("log_conversion_success"));
+Log("====================");
+Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
+StatusLabel.Text = Loc("ui_status_done");
+}
+catch (Exception ex)
+{
+Log(string.Format(Loc("log_conversion_error"), ex.Message));
+StatusLabel.Text = Loc("ui_status_error");
+}
+finally
+{
+SetUiBlocked(false);
+StatusProgressBar.Value = 1;
+}
+}
+private void SetUiBlocked(bool isBlocked)
+{
+_isProcessing = isBlocked;
+SelectSourceBtn.IsEnabled = !isBlocked;
+PresetCombo.IsEnabled = !isBlocked;
+RescanBtn.IsEnabled = !isBlocked && !string.IsNullOrEmpty(SourceDirBox.Text);
+ConvertBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
+SelectFilesBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
+if (isBlocked) Mouse.OverrideCursor = Cursors.Wait;
+else Mouse.OverrideCursor = null;
+}
+private void UpdateButtonsState()
+{
+bool hasFiles = _allFoundFiles.Count > 0;
+bool hasDir = !string.IsNullOrEmpty(SourceDirBox.Text);
+RescanBtn.IsEnabled = hasDir;
+SelectFilesBtn.IsEnabled = hasFiles;
+ConvertBtn.IsEnabled = hasFiles;
+}
+private void UpdateMergedCheckboxLabel()
+{
+string fileName = "_MergedOutput.txt";
+if (!string.IsNullOrEmpty(SourceDirBox.Text))
+{
+string projName = Path.GetFileName(SourceDirBox.Text);
+fileName = "_" + projName + ProjectConstants.MergedFileSuffix;
+}
+string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
+if (baseStr.Contains("{0}"))
+MergedCb.Content = string.Format(baseStr, fileName);
+else
+MergedCb.Content = baseStr + $" ({fileName})";
+}
+private void Log(string message)
+{
+LogBox.AppendText(message + Environment.NewLine);
+LogBox.ScrollToEnd();
+}
+private string Loc(string key) => LanguageManager.Instance.GetString(key);
+private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
+{
+if (e.ChangedButton == MouseButton.Left) DragMove();
+}
+private void Settings_Click(object sender, RoutedEventArgs e)
+{
+var settingsWin = new SettingsWindow();
+settingsWin.Owner = this;
+settingsWin.ShowDialog();
+UpdateManualTexts();
+}
+private void UpdateManualTexts()
+{
+if (CompressionCombo.Items.Count >= 3)
+{
+((ComboBoxItem)CompressionCombo.Items[0]).Content = Loc("ui_comp_none");
+((ComboBoxItem)CompressionCombo.Items[1]).Content = Loc("ui_comp_smart");
+((ComboBoxItem)CompressionCombo.Items[2]).Content = Loc("ui_comp_max");
+}
+UpdateMergedCheckboxLabel();
+}
+private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+private void Close_Click(object sender, RoutedEventArgs e)
+{
+Close();
+}
+}
+
+>>> SelectionWindow.xaml
+﻿<Window x:Class="TxtConverter.Views.SelectionWindow"
+xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:models="clr-namespace:TxtConverter.Core.Models"
+WindowStyle="None" ResizeMode="CanResize"
+Width="600" Height="700"
+WindowStartupLocation="CenterOwner"
+Title="Select Files" Background="{StaticResource BgColor}">
+<Border BorderBrush="#333333" BorderThickness="1">
+<Grid>
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<!-- Title -->
+<RowDefinition Height="Auto"/>
+<!-- Toolbar -->
+<RowDefinition Height="*"/>
+<!-- Tree -->
+<RowDefinition Height="Auto"/>
+<!-- Buttons -->
+</Grid.RowDefinitions>
+<!-- Title Bar -->
+<Grid Grid.Row="0" Background="#2d2d30" MouseDown="TitleBar_MouseDown">
+<TextBlock Text="{DynamicResource ui_select_files_btn}" FontWeight="Bold" Foreground="White" Margin="10,8" VerticalAlignment="Center"/>
+<Button Style="{StaticResource CloseButton}" HorizontalAlignment="Right" Click="Cancel_Click" Content="X"/>
+</Grid>
+<!-- Toolbar -->
+<Grid Grid.Row="1" Margin="15,10">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto"/>
+<ColumnDefinition Width="Auto"/>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="View Mode: " VerticalAlignment="Center" Margin="0,0,10,0"/>
+<ComboBox x:Name="ViewModeCombo" Grid.Column="1" Width="150" SelectionChanged="ViewMode_Changed">
+<ComboBoxItem Content="By Type (Extensions)" IsSelected="True"/>
+<ComboBoxItem Content="By Folder (FileSystem)"/>
+</ComboBox>
+<StackPanel Grid.Column="3" Orientation="Horizontal">
+<Button Content="Select All" Click="SelectAll_Click" Margin="0,0,10,0"/>
+<Button Content="Select None" Click="SelectNone_Click"/>
+</StackPanel>
+</Grid>
+<!-- TreeView -->
+<TreeView x:Name="FileTree" Grid.Row="2" Margin="15,0,15,10"
+Background="{StaticResource BgColor}" BorderBrush="#333333" BorderThickness="1">
+<TreeView.ItemTemplate>
+<HierarchicalDataTemplate DataType="{x:Type models:FileTreeNode}" ItemsSource="{Binding Children}">
+<StackPanel Orientation="Horizontal">
+<CheckBox IsChecked="{Binding IsChecked}" Margin="0,0,5,0" VerticalAlignment="Center"/>
+<TextBlock Text="{Binding Name}" VerticalAlignment="Center" Foreground="{StaticResource FgColor}"/>
+</StackPanel>
+</HierarchicalDataTemplate>
+</TreeView.ItemTemplate>
+<TreeView.ItemContainerStyle>
+<Style TargetType="TreeViewItem">
+<Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+</Style>
+</TreeView.ItemContainerStyle>
+</TreeView>
+<!-- Footer -->
+<Grid Grid.Row="3" Margin="15,0,15,15">
+<TextBlock x:Name="InfoLabel" Text="Selected: 0" Foreground="#888888" VerticalAlignment="Center"/>
+<StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+<Button Content="Cancel" Click="Cancel_Click" Margin="0,0,10,0"/>
+<Button Content="Confirm" Style="{StaticResource AccentButton}" Click="Confirm_Click"/>
+</StackPanel>
+</Grid>
+</Grid>
+</Border>
+</Window>
+
+>>> SelectionWindow.xaml.cs
+﻿using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using TxtConverter.Core.Models;
+namespace TxtConverter.Views;
+public partial class SelectionWindow : Window
+{
+private List<string> _allFiles;
+private HashSet<string> _initialSelection;
+private string _rootPath;
+private List<FileTreeNode> _rootNodes = new();
+public HashSet<string>? Result { get; private set; }
+public SelectionWindow(List<string> allFiles, HashSet<string> currentSelection, string rootPath)
+{
+InitializeComponent();
+_allFiles = allFiles;
+_initialSelection = new HashSet<string>(currentSelection);
+_rootPath = rootPath;
+BuildTree(true); // Default by Type
+UpdateStats();
+}
+private void ViewMode_Changed(object sender, SelectionChangedEventArgs e)
+{
+if (!IsLoaded) return;
+bool byType = ViewModeCombo.SelectedIndex == 0;
+SnapshotSelection();
+BuildTree(byType);
+UpdateStats();
+}
+private void BuildTree(bool byType)
+{
+_rootNodes.Clear();
+if (byType)
+{
+BuildByType();
+}
+else
+{
+BuildByFolder();
+}
+FileTree.ItemsSource = null;
+FileTree.ItemsSource = _rootNodes;
+}
+private void BuildByType()
+{
+var grouped = _allFiles.GroupBy(f => Path.GetExtension(f).TrimStart('.').ToLower())
+.OrderBy(g => g.Key);
+foreach (var group in grouped)
+{
+string ext = string.IsNullOrEmpty(group.Key) ? "No Extension" : group.Key;
+var groupNode = new FileTreeNode { Name = $"{ext} ({group.Count()})", IsFile = false };
+foreach (var file in group)
+{
+var fileNode = new FileTreeNode
+{
+Name = Path.GetRelativePath(_rootPath, file),
+FullPath = file,
+IsFile = true,
+Parent = groupNode,
+IsChecked = _initialSelection.Contains(file)
+};
+fileNode.PropertyChanged += FileNode_PropertyChanged;
+groupNode.Children.Add(fileNode);
+}
+groupNode.RecalculateState();
+_rootNodes.Add(groupNode);
+}
+}
+private void BuildByFolder()
+{
+var folderCache = new Dictionary<string, FileTreeNode>();
+foreach (var file in _allFiles)
+{
+string relPath = Path.GetRelativePath(_rootPath, file);
+string[] parts = relPath.Split(Path.DirectorySeparatorChar);
+FileTreeNode? currentParent = null;
+for (int i = 0; i < parts.Length - 1; i++)
+{
+string part = parts[i];
+string pathKey = string.Join(Path.DirectorySeparatorChar, parts.Take(i + 1));
+if (!folderCache.TryGetValue(pathKey, out var folderNode))
+{
+folderNode = new FileTreeNode
+{
+Name = part,
+IsFile = false,
+Parent = currentParent
+};
+folderCache[pathKey] = folderNode;
+if (currentParent == null) _rootNodes.Add(folderNode);
+else currentParent.Children.Add(folderNode);
+}
+currentParent = folderNode;
+}
+var fileNode = new FileTreeNode
+{
+Name = parts.Last(),
+FullPath = file,
+IsFile = true,
+Parent = currentParent,
+IsChecked = _initialSelection.Contains(file)
+};
+fileNode.PropertyChanged += FileNode_PropertyChanged;
+if (currentParent == null) _rootNodes.Add(fileNode); // Файл в корне
+else currentParent.Children.Add(fileNode);
+}
+foreach (var root in _rootNodes) RecalculateRecursive(root);
+}
+private void RecalculateRecursive(FileTreeNode node)
+{
+if (node.Children.Count > 0)
+{
+foreach (var child in node.Children) RecalculateRecursive(child);
+node.RecalculateState();
+}
+}
+private void FileNode_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+{
+if (e.PropertyName == nameof(FileTreeNode.IsChecked))
+{
+UpdateStats();
+}
+}
+private void UpdateStats()
+{
+int count = GetSelectedCount(_rootNodes);
+InfoLabel.Text = $"Selected: {count} of {_allFiles.Count}";
+}
+private int GetSelectedCount(IEnumerable<FileTreeNode> nodes)
+{
+int count = 0;
+foreach (var node in nodes)
+{
+if (node.IsFile && node.IsChecked == true) count++;
+count += GetSelectedCount(node.Children);
+}
+return count;
+}
+private void SnapshotSelection()
+{
+_initialSelection.Clear();
+CollectSelected(_rootNodes);
+}
+private void CollectSelected(IEnumerable<FileTreeNode> nodes)
+{
+foreach (var node in nodes)
+{
+if (node.IsFile && node.IsChecked == true) _initialSelection.Add(node.FullPath);
+CollectSelected(node.Children);
+}
+}
+private void SelectAll_Click(object sender, RoutedEventArgs e) => SetAll(true);
+private void SelectNone_Click(object sender, RoutedEventArgs e) => SetAll(false);
+private void SetAll(bool state)
+{
+foreach (var node in _rootNodes) node.IsChecked = state;
+UpdateStats();
+}
+private void Confirm_Click(object sender, RoutedEventArgs e)
+{
+SnapshotSelection();
+Result = _initialSelection;
+DialogResult = true;
+Close();
+}
+private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
+private void TitleBar_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+{
+if (e.ChangedButton == System.Windows.Input.MouseButton.Left) DragMove();
+}
+}
+
+>>> SettingsWindow.xaml
+﻿<Window x:Class="TxtConverter.Views.SettingsWindow"
+xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+WindowStyle="None" ResizeMode="NoResize"
+Width="350" Height="200"
+WindowStartupLocation="CenterOwner"
+Title="Settings" Background="{StaticResource BgColor}">
+<Border BorderBrush="#333333" BorderThickness="1">
+<Grid>
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<!-- Title Bar -->
+<RowDefinition Height="*"/>
+<!-- Content -->
+</Grid.RowDefinitions>
+<!-- Title Bar -->
+<Grid Grid.Row="0" Background="#2d2d30" MouseDown="TitleBar_MouseDown">
+<StackPanel Orientation="Horizontal" Margin="10,8">
+<TextBlock Text="{DynamicResource ui_settings}" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+</StackPanel>
+<Button Style="{StaticResource CloseButton}" HorizontalAlignment="Right" Click="Close_Click" Content="X"/>
+</Grid>
+<!-- Content -->
+<StackPanel Grid.Row="1" Margin="20">
+<StackPanel Margin="0,0,0,15">
+<TextBlock Text="Language / Язык:" Margin="0,0,0,5"/>
+<ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged"/>
+</StackPanel>
+<Button Content="Close" HorizontalAlignment="Right" Width="80" Click="Close_Click" Margin="0,20,0,0"/>
+</StackPanel>
+</Grid>
+</Border>
+</Window>
+
+>>> SettingsWindow.xaml.cs
+﻿using System.Windows;
+using System.Windows.Controls;
+using TxtConverter.Core;
+using TxtConverter.Services;
+namespace TxtConverter.Views;
+public partial class SettingsWindow : Window
+{
+private bool _ignoreSelectionChange;
+public SettingsWindow()
+{
+InitializeComponent();
+LoadLanguages();
+}
+private void LoadLanguages()
+{
+_ignoreSelectionChange = true;
+LanguageCombo.Items.Add(new ComboBoxItem { Content = "English", Tag = ProjectConstants.LangEn });
+LanguageCombo.Items.Add(new ComboBoxItem { Content = "Русский", Tag = ProjectConstants.LangRu });
+string current = LanguageManager.Instance.CurrentLanguage;
+foreach (ComboBoxItem item in LanguageCombo.Items)
+{
+if (item.Tag.ToString() == current)
+{
+LanguageCombo.SelectedItem = item;
+break;
+}
+}
+_ignoreSelectionChange = false;
+}
+private void LanguageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+{
+if (_ignoreSelectionChange) return;
+if (LanguageCombo.SelectedItem is ComboBoxItem item)
+{
+string code = item.Tag.ToString() ?? ProjectConstants.LangEn;
+LanguageManager.Instance.SetLanguage(code);
+}
+}
+private void TitleBar_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+{
+if (e.ChangedButton == System.Windows.Input.MouseButton.Left)
+this.DragMove();
+}
+private void Close_Click(object sender, RoutedEventArgs e) => this.Close();
+}

@@ -1,0 +1,447 @@
+﻿using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Collections.Generic; // OrderedDictionary находится здесь в .NET 9+
+namespace TxtConverter.Core.Logic.Godot;
+public class GodotCompactConverter
+{
+private static readonly Regex AttrRegex = new(@"(\w+)=((?:""[^""]*"")|(?:[^\s\]]+))", RegexOptions.Compiled);
+private static readonly Regex TransformRegex = new(@"^Transform3D\((.*?)\)$", RegexOptions.Compiled);
+private static readonly Regex VectorRegex = new(@"^(Vector[234])\((.*?)\)$", RegexOptions.Compiled);
+private static readonly Regex ColorRegex = new(@"^Color\((.*?)\)$", RegexOptions.Compiled);
+private static readonly Dictionary<string, string> TypeAbbreviations = new()
+{
+{ "MeshInstance3D", "Mesh" },
+{ "CollisionShape3D", "ColShape" },
+{ "NavigationAgent3D", "NavAgent" },
+{ "CharacterBody3D", "CharBody" },
+{ "RigidBody3D", "RigidBody" },
+{ "StaticBody3D", "StaticBody" },
+{ "StandardMaterial3D", "StdMat" },
+{ "BoxShape3D", "Box" },
+{ "SphereShape3D", "Sphere" },
+{ "CapsuleShape3D", "Capsule" },
+{ "CylinderShape3D", "Cylinder" },
+{ "BoxMesh", "BoxMesh" },
+{ "SphereMesh", "SphereMesh" },
+{ "QuadMesh", "Quad" },
+{ "GPUParticles3D", "GPU_Part" },
+{ "CPUParticles3D", "CPU_Part" },
+{ "Script", "Scr" },
+{ "PackedScene", "Scene" },
+{ "FastNoiseLite", "Noise" },
+{ "NoiseTexture2D", "NoiseTex" },
+{ "ShaderMaterial", "ShaderMat" }
+};
+private static readonly HashSet<string> IgnoredProps = new()
+{
+"uid", "load_steps", "format", "q_index", "node_paths", "skeleton"
+};
+private readonly Dictionary<string, string> _extResourceAliases = new();
+private readonly Dictionary<string, GdNode> _subResourceCache = new();
+private readonly Dictionary<string, GdNode> _nodePathMap = new();
+private readonly List<GdNode> _rootNodes = new();
+private readonly StringBuilder _output = new();
+public static string Convert(string content, string fileName)
+{
+return new GodotCompactConverter().Process(content, fileName);
+}
+private string Process(string content, string fileName)
+{
+ParseFile(content);
+OptimizeTree(_rootNodes);
+if (_rootNodes.Count == 1)
+{
+PrintNode(_rootNodes[0], "");
+}
+else
+{
+for (int i = 0; i < _rootNodes.Count; i++)
+{
+PrintNode(_rootNodes[i], "");
+if (i < _rootNodes.Count - 1) _output.Append('\n');
+}
+}
+return _output.ToString();
+}
+private void ParseFile(string content)
+{
+string[] lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+foreach (var rawLine in lines)
+{
+var line = rawLine.Trim();
+if (line.StartsWith("[ext_resource"))
+{
+var attrs = ParseAttributes(ExtractContent(line));
+string? id = CleanStr(attrs.GetValueOrDefault("id"));
+string? path = CleanStr(attrs.GetValueOrDefault("path"));
+string? type = CleanStr(attrs.GetValueOrDefault("type"));
+string alias;
+if (!string.IsNullOrEmpty(path))
+{
+string fName = ExtractNameFromPath(path);
+if (path.EndsWith(".gd")) alias = "$Scr_" + fName;
+else if (path.EndsWith(".tscn")) alias = "$Scn_" + fName;
+else alias = "$Res_" + fName;
+}
+else
+{
+alias = "$Ext_" + AbbreviateType(type) + "_" + id;
+}
+if (id != null) _extResourceAliases[id] = alias;
+}
+}
+GdNode? currentNode = null;
+foreach (var rawLine in lines)
+{
+var line = rawLine.Trim();
+if (string.IsNullOrEmpty(line) || line.StartsWith(";") || line.StartsWith("#")) continue;
+if (line.StartsWith("["))
+{
+string header = ExtractContent(line);
+var attrs = ParseAttributes(header);
+string[] parts = header.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+string typeKey = parts.Length > 0 ? parts[0] : "";
+if (typeKey == "node")
+{
+currentNode = new GdNode
+{
+Name = CleanStr(attrs.GetValueOrDefault("name")) ?? "Node",
+Type = CleanStr(attrs.GetValueOrDefault("type"))
+};
+string? parent = CleanStr(attrs.GetValueOrDefault("parent"));
+string fullPath = (parent == null || parent == ".") ? currentNode.Name : parent + "/" + currentNode.Name;
+if (fullPath != null) _nodePathMap[fullPath] = currentNode;
+if (parent == null || parent == ".")
+{
+_rootNodes.Add(currentNode);
+}
+else
+{
+if (_nodePathMap.TryGetValue(parent, out var parentNode))
+{
+parentNode.Children.Add(currentNode);
+}
+else
+{
+_rootNodes.Add(currentNode); // Fallback
+}
+}
+}
+else if (typeKey == "sub_resource")
+{
+currentNode = new GdNode
+{
+Type = CleanStr(attrs.GetValueOrDefault("type")),
+IsSubResource = true
+};
+string? id = CleanStr(attrs.GetValueOrDefault("id"));
+if (id != null) _subResourceCache[id] = currentNode;
+}
+else if (typeKey == "resource")
+{
+currentNode = new GdNode
+{
+Name = "RootRes",
+Type = "Resource"
+};
+_rootNodes.Add(currentNode);
+}
+else if (typeKey == "connection")
+{
+string? from = CleanStr(attrs.GetValueOrDefault("from"));
+string? signal = CleanStr(attrs.GetValueOrDefault("signal"));
+string? to = CleanStr(attrs.GetValueOrDefault("to"));
+string? method = CleanStr(attrs.GetValueOrDefault("method"));
+GdNode? fromNode = null;
+if (from != null && _nodePathMap.ContainsKey(from)) fromNode = _nodePathMap[from];
+else if (from == "." && _rootNodes.Count > 0) fromNode = _rootNodes[0];
+if (fromNode != null)
+{
+fromNode.Signals.Add($"{signal}->{to}.{method}");
+}
+currentNode = null;
+}
+else
+{
+currentNode = null;
+}
+}
+else if (currentNode != null)
+{
+int eqIndex = line.IndexOf('=');
+if (eqIndex > 0)
+{
+string key = line.Substring(0, eqIndex).Trim();
+string val = line.Substring(eqIndex + 1).Trim();
+if (!key.StartsWith("metadata/") && !IgnoredProps.Contains(key))
+{
+currentNode.Properties[key] = val;
+}
+}
+}
+}
+}
+private void OptimizeTree(List<GdNode> nodes)
+{
+if (nodes == null || nodes.Count == 0) return;
+foreach (var node in nodes)
+{
+OptimizeTree(node.Children);
+}
+var optimizedList = new List<GdNode>();
+int i = 0;
+while (i < nodes.Count)
+{
+GdNode current = nodes[i];
+int j = i + 1;
+while (j < nodes.Count && AreNodesSimilar(current, nodes[j]))
+{
+j++;
+}
+int count = j - i;
+if (count >= 3)
+{
+var propsCopy = new OrderedDictionary<string, string>();
+foreach (var kvp in current.Properties)
+{
+propsCopy.Add(kvp.Key, kvp.Value);
+}
+var groupNode = new GdNode
+{
+Name = $"@Repeated({count}) \"{current.Type ?? "null"}\"",
+Type = current.Type,
+IsGroupPlaceholder = true,
+Properties = propsCopy,
+Children = current.Children,
+Signals = current.Signals
+};
+groupNode.Properties.Remove("transform");
+groupNode.Properties.Remove("position");
+groupNode.Properties.Remove("rotation");
+groupNode.Properties["Layout"] = "Grid/Procedural";
+optimizedList.Add(groupNode);
+i = j;
+}
+else
+{
+optimizedList.Add(current);
+i++;
+}
+}
+nodes.Clear();
+nodes.AddRange(optimizedList);
+}
+private bool AreNodesSimilar(GdNode a, GdNode b)
+{
+if (a.Type != b.Type) return false;
+if (a.Children.Count != b.Children.Count) return false;
+var allKeys = new HashSet<string>(a.Properties.Keys);
+allKeys.UnionWith(b.Properties.Keys);
+foreach (var key in allKeys)
+{
+if (key == "transform" || key == "position" || key == "rotation" || key == "rotation_degrees") continue;
+string? v1 = a.Properties.ContainsKey(key) ? a.Properties[key] : null;
+string? v2 = b.Properties.ContainsKey(key) ? b.Properties[key] : null;
+if (v1 != v2) return false;
+}
+for (int k = 0; k < a.Children.Count; k++)
+{
+if (a.Children[k].Type != b.Children[k].Type) return false;
+}
+return true;
+}
+private void PrintNode(GdNode node, string indent)
+{
+_output.Append(indent);
+string typeAbbr = AbbreviateType(node.Type);
+if (node.IsGroupPlaceholder)
+{
+_output.Append(node.Name);
+}
+else if (node.IsSubResource)
+{
+_output.Append("@Sub ").Append(typeAbbr);
+}
+else
+{
+if (node.Name == "RootRes" || node.Name == "RootResource")
+_output.Append("ROOT");
+else
+_output.Append(node.Name);
+if (node.Type != null && node.Name != node.Type)
+{
+_output.Append(" (").Append(typeAbbr).Append(")");
+}
+}
+_output.Append(" {");
+List<string> props = new();
+foreach (var entry in node.Properties)
+{
+string key = ShortenKey(entry.Key);
+string val = FormatValue(entry.Value);
+props.Add(key + ":" + val);
+}
+foreach (var sig in node.Signals)
+{
+props.Add("$Sig:" + sig);
+}
+if (props.Count > 0)
+{
+_output.Append(" ").Append(string.Join(", ", props));
+}
+if (node.Children.Count > 0)
+{
+if (props.Count > 0) _output.Append(",");
+_output.Append('\n').Append(indent).Append("  children: [\n");
+for (int k = 0; k < node.Children.Count; k++)
+{
+PrintNode(node.Children[k], indent + "    ");
+if (k < node.Children.Count - 1) _output.Append(",");
+_output.Append('\n');
+}
+_output.Append(indent).Append("  ]");
+}
+else
+{
+_output.Append(" ");
+}
+_output.Append("}");
+}
+private string FormatValue(string val)
+{
+if (val == null) return "null";
+string? subId = ExtractSubResourceId(val);
+if (subId != null && _subResourceCache.ContainsKey(subId))
+{
+return FormatSubResourceInline(_subResourceCache[subId]);
+}
+string? extId = ExtractExtResourceId(val);
+if (extId != null && _extResourceAliases.ContainsKey(extId))
+{
+return _extResourceAliases[extId];
+}
+var vecM = VectorRegex.Match(val);
+if (vecM.Success)
+{
+var parts = vecM.Groups[2].Value.Split(',');
+return "[" + string.Join(",", parts.Select(CleanFloat)) + "]";
+}
+var colM = ColorRegex.Match(val);
+if (colM.Success)
+{
+var parts = colM.Groups[1].Value.Split(',');
+return "[" + string.Join(",", parts.Select(CleanFloat)) + "]";
+}
+if (val.StartsWith("Transform3D"))
+{
+var transM = TransformRegex.Match(val);
+if (transM.Success)
+{
+var p = transM.Groups[1].Value.Split(',');
+if (p.Length == 12)
+{
+return "[" + CleanFloat(p[9]) + "," + CleanFloat(p[10]) + "," + CleanFloat(p[11]) + "]";
+}
+}
+return "Xt(...)";
+}
+if (val.StartsWith("\"")) return val;
+if (double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out _))
+{
+return CleanFloat(val);
+}
+return val;
+}
+private string FormatSubResourceInline(GdNode node)
+{
+var sb = new StringBuilder();
+sb.Append(AbbreviateType(node.Type)).Append("{");
+var p = new List<string>();
+foreach (var entry in node.Properties)
+{
+p.Add(ShortenKey(entry.Key) + ":" + FormatValue(entry.Value));
+}
+sb.Append(string.Join(",", p));
+sb.Append("}");
+return sb.ToString();
+}
+private string AbbreviateType(string? type)
+{
+if (type == null) return "Null";
+return TypeAbbreviations.TryGetValue(type, out var val) ? val : type;
+}
+private string ShortenKey(string key)
+{
+return key switch
+{
+"transform" => "xt",
+"position" => "pos",
+"rotation_degrees" => "rot",
+"material_override" => "mat",
+"collision_layer" => "layer",
+"collision_mask" => "mask",
+_ => key
+};
+}
+private string CleanFloat(string numStr)
+{
+if (double.TryParse(numStr.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out double d))
+{
+if (d == 0) return "0";
+if (d == 1) return "1";
+if (d % 1 == 0 && !double.IsInfinity(d)) return ((int)d).ToString();
+return d.ToString("0.##", CultureInfo.InvariantCulture);
+}
+return numStr.Trim();
+}
+private string? ExtractSubResourceId(string val) => ExtractIdGeneric(val, "SubResource");
+private string? ExtractExtResourceId(string val) => ExtractIdGeneric(val, "ExtResource");
+private string? ExtractIdGeneric(string val, string keyword)
+{
+int idx = val.IndexOf(keyword + "(", StringComparison.Ordinal);
+if (idx == -1) return null;
+int start = idx + keyword.Length + 1;
+int end = val.IndexOf(")", start, StringComparison.Ordinal);
+if (end == -1) return null;
+return val.Substring(start, end - start).Trim().Replace("\"", "");
+}
+private string ExtractContent(string line)
+{
+if (line.Length < 2) return "";
+return line.Substring(1, line.Length - 2);
+}
+private string? CleanStr(string? s) => s?.Replace("\"", "");
+private string ExtractNameFromPath(string path)
+{
+path = CleanStr(path) ?? "";
+int slash = path.LastIndexOf('/');
+if (slash >= 0)
+{
+string name = path.Substring(slash + 1);
+int dot = name.LastIndexOf('.');
+return (dot > 0) ? name.Substring(0, dot) : name;
+}
+return path;
+}
+private Dictionary<string, string> ParseAttributes(string header)
+{
+var map = new Dictionary<string, string>();
+var matches = AttrRegex.Matches(header);
+foreach (Match m in matches)
+{
+map[m.Groups[1].Value] = m.Groups[2].Value;
+}
+return map;
+}
+private class GdNode
+{
+public string Name { get; set; } = "";
+public string? Type { get; set; }
+public bool IsSubResource { get; set; }
+public bool IsGroupPlaceholder { get; set; }
+public OrderedDictionary<string, string> Properties { get; set; } = new();
+public List<GdNode> Children { get; set; } = new();
+public List<string> Signals { get; set; } = new();
+}
+}

@@ -1,0 +1,136 @@
+﻿<Window x:Class="TxtConverter.Views.MainWindow"
+xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+mc:Ignorable="d"
+Title="{DynamicResource app_title}"
+Height="660" Width="650" MinHeight="600" MinWidth="600"
+WindowStyle="None" ResizeMode="CanResizeWithGrip"
+WindowStartupLocation="CenterScreen"
+AllowDrop="True" Drop="Window_Drop">
+<WindowChrome.WindowChrome>
+<WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
+</WindowChrome.WindowChrome>
+<Border BorderBrush="#333333" BorderThickness="1" Background="{StaticResource BgColor}">
+<Grid>
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<!-- Custom Title Bar -->
+<RowDefinition Height="Auto"/>
+<!-- Configuration -->
+<RowDefinition Height="*"/>
+<!-- Log -->
+<RowDefinition Height="Auto"/>
+<!-- Status Bar -->
+</Grid.RowDefinitions>
+<!-- 1. Custom Title Bar -->
+<Grid Grid.Row="0" Background="#2d2d30" MouseDown="TitleBar_MouseDown" Height="40">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource app_title}"
+Foreground="White" FontWeight="Bold"
+VerticalAlignment="Center" Margin="15,0"/>
+<StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+<Button Content="⚙" Click="Settings_Click" Style="{StaticResource TitleBarButton}" ToolTip="Settings"/>
+<Button Content="_" Click="Minimize_Click" Style="{StaticResource TitleBarButton}"/>
+<Button Content="X" Click="Close_Click" Style="{StaticResource CloseButton}"/>
+</StackPanel>
+</Grid>
+<!-- 2. Configuration Area -->
+<StackPanel Grid.Row="1" Margin="15">
+<TextBlock Text="Configuration" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
+<!-- Source Folder -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_source_dir}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<TextBox x:Name="SourceDirBox" Grid.Column="1" IsReadOnly="True" Margin="0,0,10,0"/>
+<Button x:Name="SelectSourceBtn" Grid.Column="2" Content="{DynamicResource ui_choose_btn}" Click="SelectSource_Click"/>
+</Grid>
+<!-- Preset -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_preset}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<ComboBox x:Name="PresetCombo" Grid.Column="1" SelectionChanged="Preset_SelectionChanged"/>
+</Grid>
+<!-- Extensions -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_extensions}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}"
+ToolTip="{DynamicResource ui_extensions_prompt}"/>
+</Grid>
+<!-- Ignored & Rescan -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Text="{DynamicResource ui_ignored}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,10,0" Tag="{DynamicResource ui_ignored_prompt}"
+ToolTip="{DynamicResource ui_ignored_prompt}"/>
+<Button x:Name="RescanBtn" Grid.Column="2" Content="{DynamicResource ui_rescan_btn}" Click="Rescan_Click" IsEnabled="False"/>
+</Grid>
+<!-- Checkboxes Row 1 -->
+<StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+<CheckBox x:Name="StructCb" Content="{DynamicResource ui_structure_cb}" IsChecked="False" Margin="0,0,20,0"/>
+<CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True"
+IsEnabled="{Binding IsChecked, ElementName=StructCb}"/>
+</StackPanel>
+<!-- Compression Row -->
+<StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+<TextBlock Text="{DynamicResource ui_compression_label}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+<ComboBox x:Name="CompressionCombo" Width="200"/>
+</StackPanel>
+<!-- Checkboxes Row 2 & Files Button -->
+<Grid Margin="0,0,0,12">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<CheckBox x:Name="MergedCb"
+Content="Generate Merged File with All Code"
+IsChecked="True"
+VerticalAlignment="Center"/>
+<Button x:Name="SelectFilesBtn" Grid.Column="1" Content="{DynamicResource ui_select_files_btn}" Click="SelectFiles_Click" IsEnabled="False"/>
+</Grid>
+<!-- START BUTTON -->
+<Button x:Name="ConvertBtn" Content="{DynamicResource ui_convert_btn}" Style="{StaticResource AccentButton}"
+Click="Convert_Click" IsEnabled="False" Margin="0,5,0,0"/>
+</StackPanel>
+<!-- 3. Log Area -->
+<Grid Grid.Row="2" Margin="15,0,15,10">
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<RowDefinition Height="*"/>
+</Grid.RowDefinitions>
+<TextBlock Text="{DynamicResource ui_log_label}" FontWeight="Bold" Margin="0,0,0,5"/>
+<TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
+FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"/>
+</Grid>
+<!-- 4. Status Bar -->
+<Grid Grid.Row="3" Background="#2d2d30" Height="30">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="200"/>
+</Grid.ColumnDefinitions>
+<TextBlock x:Name="StatusLabel" Text="{DynamicResource ui_status_ready}"
+Foreground="#cccccc" VerticalAlignment="Center" Margin="15,0"/>
+<ProgressBar x:Name="StatusProgressBar" Grid.Column="1" Margin="10,8,15,8" Value="0" Maximum="1"/>
+</Grid>
+</Grid>
+</Border>
+</Window>

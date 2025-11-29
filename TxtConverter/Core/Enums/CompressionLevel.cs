@@ -1,0 +1,8 @@
+﻿namespace TxtConverter.Core.Enums;
+
+public enum CompressionLevel
+{
+    None,
+    Smart,
+    Maximum
+}

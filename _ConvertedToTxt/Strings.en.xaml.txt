@@ -1,0 +1,58 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:s="clr-namespace:System;assembly=mscorlib">
+<s:String x:Key="app_title">TXT File Converter</s:String>
+<s:String x:Key="ui_settings">Settings</s:String>
+<s:String x:Key="ui_source_dir">Source Folder:</s:String>
+<s:String x:Key="ui_choose_btn">Select...</s:String>
+<s:String x:Key="ui_preset">Preset:</s:String>
+<s:String x:Key="ui_extensions">Extensions (comma separated):</s:String>
+<s:String x:Key="ui_extensions_prompt">Example: gd, tscn, java, xml</s:String>
+<s:String x:Key="ui_ignored">Ignored Folders (comma separated):</s:String>
+<s:String x:Key="ui_ignored_prompt">Example: Library, Temp, obj</s:String>
+<s:String x:Key="ui_rescan_btn">Rescan</s:String>
+<s:String x:Key="ui_structure_cb">Generate Structure File</s:String>
+<s:String x:Key="ui_compact_structure_cb">Compact Mode (Collapse ignored files)</s:String>
+<s:String x:Key="ui_token_compression_cb">Smart Token Compression (Remove visual noise)</s:String>
+<s:String x:Key="ui_merged_cb">Generate Merged File with All Code ({0})</s:String>
+<s:String x:Key="ui_select_files_btn">Select Files...</s:String>
+<s:String x:Key="ui_convert_btn">START CONVERSION</s:String>
+<s:String x:Key="ui_log_label">Execution Log:</s:String>
+<s:String x:Key="ui_compression_label">Token Compression:</s:String>
+<s:String x:Key="ui_comp_none">None (Original)</s:String>
+<s:String x:Key="ui_comp_smart">Smart (Safe)</s:String>
+<s:String x:Key="ui_comp_max">Maximum (No comments)</s:String>
+<s:String x:Key="ui_status_ready">Ready</s:String>
+<s:String x:Key="ui_status_waiting">Waiting for action</s:String>
+<s:String x:Key="ui_status_scanning">Scanning...</s:String>
+<s:String x:Key="ui_status_converting">Converting...</s:String>
+<s:String x:Key="ui_status_done">Done</s:String>
+<s:String x:Key="ui_status_error">Error</s:String>
+<!-- Log Messages -->
+<s:String x:Key="log_app_ready">Application ready.</s:String>
+<s:String x:Key="log_preset_selected">Preset '{0}' selected. Settings updated.</s:String>
+<s:String x:Key="log_dir_selected">Source folder selected: {0}</s:String>
+<s:String x:Key="log_error_no_dir">Error: Folder not selected.</s:String>
+<s:String x:Key="log_scanning_start">Starting scan...</s:String>
+<s:String x:Key="log_scan_complete">Scan complete. Files found: {0}</s:String>
+<s:String x:Key="log_scan_error">SCAN ERROR: {0}</s:String>
+<s:String x:Key="log_files_selected">Selected for report: {0} of {1}</s:String>
+<s:String x:Key="log_no_files">No files to process.</s:String>
+<s:String x:Key="log_conversion_start">Starting conversion...</s:String>
+<s:String x:Key="log_conversion_success">CONVERSION SUCCESSFUL</s:String>
+<s:String x:Key="log_result_path">Result saved in: {0}</s:String>
+<s:String x:Key="log_conversion_error">CRITICAL CONVERSION ERROR: {0}</s:String>
+<!-- Report Messages -->
+<s:String x:Key="report_structure_header"># Structure of copied files</s:String>
+<s:String x:Key="report_merged_header">Unified file with full project code ({0})</s:String>
+<s:String x:Key="report_generated_date">Date generated: {0}</s:String>
+<s:String x:Key="report_file_header">FILE: {0}</s:String>
+<s:String x:Key="report_read_error">!!! READ ERROR: {0} !!!</s:String>
+<s:String x:Key="report_omitted">(File content omitted for brevity. AI assistant must request full code if needed)</s:String>
+<!-- Task Messages -->
+<s:String x:Key="task_preparing">Preparing for conversion...</s:String>
+<s:String x:Key="task_processing">Processing: {0}</s:String>
+<s:String x:Key="task_generating_structure">Generating structure file...</s:String>
+<s:String x:Key="task_merging">Assembling unified file...</s:String>
+<s:String x:Key="task_done">Done!</s:String>
+</ResourceDictionary>
