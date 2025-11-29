@@ -9,13 +9,9 @@
 		<ApplicationIcon>icon.ico</ApplicationIcon>
 		<RootNamespace>TxtConverter</RootNamespace>
 
-		<!-- Настройки Публикации (Single File) -->
-		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
-		<SelfContained>true</SelfContained>
-		<PublishSingleFile>true</PublishSingleFile>
-		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-		<!-- Отключаем создание pdb (файлов отладки) в релизе -->
-		<DebugType>embedded</DebugType>
+		<!-- В релизе отключаем отладочную информацию для уменьшения веса -->
+		<DebugType>none</DebugType>
+		<DebugSymbols>false</DebugSymbols>
 	</PropertyGroup>
 
 </Project>

@@ -22,7 +22,7 @@
     <s:String x:Key="ui_compression_label">Сжатие токенов:</s:String>
     <s:String x:Key="ui_comp_none">Нет (Оригинал)</s:String>
     <s:String x:Key="ui_comp_smart">Умное (Безопасно)</s:String>
-    <s:String x:Key="ui_comp_max">Максимум (Без комментариев + уникальный алгоритм сжатия)</s:String>
+    <s:String x:Key="ui_comp_max">Максимум (уникальный алгоритм сжатия)</s:String>
     <s:String x:Key="ui_status_ready">Готов к работе</s:String>
     <s:String x:Key="ui_status_waiting">Ожидание действий</s:String>
     <s:String x:Key="ui_status_scanning">Сканирование...</s:String>

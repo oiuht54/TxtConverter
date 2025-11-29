@@ -22,7 +22,7 @@
     <s:String x:Key="ui_compression_label">Token Compression:</s:String>
     <s:String x:Key="ui_comp_none">None (Original)</s:String>
     <s:String x:Key="ui_comp_smart">Smart (Safe)</s:String>
-    <s:String x:Key="ui_comp_max">Maximum (No comments+unique algorithm of comression)</s:String>
+    <s:String x:Key="ui_comp_max">Maximum (unique comression)</s:String>
     <s:String x:Key="ui_status_ready">Ready</s:String>
     <s:String x:Key="ui_status_waiting">Waiting for action</s:String>
     <s:String x:Key="ui_status_scanning">Scanning...</s:String>
