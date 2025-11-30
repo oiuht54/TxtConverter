@@ -8,10 +8,13 @@
 		<UseWPF>true</UseWPF>
 		<ApplicationIcon>icon.ico</ApplicationIcon>
 		<RootNamespace>TxtConverter</RootNamespace>
-
 		<!-- В релизе отключаем отладочную информацию для уменьшения веса -->
 		<DebugType>none</DebugType>
 		<DebugSymbols>false</DebugSymbols>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+	</ItemGroup>
 
 </Project>
