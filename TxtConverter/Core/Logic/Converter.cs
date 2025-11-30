@@ -18,7 +18,6 @@ public class Converter
     private readonly CompressionLevel _compressionLevel;
     private readonly bool _genMerged;
 
-    // Regex for block comments /* ... */
     private static readonly Regex BlockCommentRegex = new(@"/\*[\s\S]*?\*/", RegexOptions.Compiled);
 
     public Converter(string sourceDirPath, List<string> filesToProcess, HashSet<string> filesSelectedForMerge,
@@ -52,6 +51,7 @@ public class Converter
             {
                 count++;
                 progress.Report((double)count / total);
+
                 string fileName = Path.GetFileName(sourceFile);
                 status.Report(string.Format(Loc("task_processing"), fileName));
 
@@ -62,13 +62,11 @@ public class Converter
                 {
                     try
                     {
-                        // FIX: Сразу нормализуем переносы строк к LF (\n)
                         string content = File.ReadAllText(sourceFile, Encoding.UTF8)
                                              .Replace("\r\n", "\n")
                                              .Replace('\r', '\n');
 
                         string compressed;
-
                         if (_compressionLevel == CompressionLevel.Maximum && IsGodotFile(fileName))
                         {
                             compressed = GodotCompactConverter.Convert(content, fileName);
@@ -77,8 +75,6 @@ public class Converter
                         {
                             compressed = ApplyCompression(content, sourceFile);
                         }
-
-                        // WriteAllText сама по себе не меняет переносы, если они уже в строке
                         File.WriteAllText(destFile, compressed, Encoding.UTF8);
                     }
                     catch
@@ -90,7 +86,6 @@ public class Converter
                 {
                     File.Copy(sourceFile, destFile, true);
                 }
-
                 processedFilesMap[sourceFile] = destFile;
             }
 
@@ -113,15 +108,12 @@ public class Converter
 
     private string ApplyCompression(string content, string filePath)
     {
-        // content уже нормализован к LF (\n) в RunConversionAsync
-
         if (_compressionLevel == CompressionLevel.Maximum)
         {
             return CompressMax(content, filePath);
         }
         else if (_compressionLevel == CompressionLevel.Smart)
         {
-            // Заменяем 3 и более перевода строк на 2 (сохраняя параграфы)
             return Regex.Replace(content, @"\n{3,}", "\n\n").Trim();
         }
         return content;
@@ -146,7 +138,6 @@ public class Converter
             else
                 sb.Append(trimmed).Append('\n'); // Используем явный \n
         }
-
         return sb.ToString().Trim();
     }
 
@@ -176,14 +167,11 @@ public class Converter
         }
     }
 
-    // --- Structure Generation ---
-
     private void GenerateDeepStructureReport(string outputDir, string rootPath, Dictionary<string, string> processedFiles)
     {
         string reportPath = Path.Combine(outputDir, ProjectConstants.ReportStructureFile);
         var sb = new StringBuilder();
 
-        // FIX: Используем Append("...\n") вместо AppendLine(), чтобы избежать \r\n
         sb.Append(Loc("report_structure_header")).Append('\n');
         sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append("\n\n");
 
@@ -210,7 +198,6 @@ public class Converter
                 string rootName = new DirectoryInfo(rootPath).Name;
                 sb.Append(_compressionLevel == CompressionLevel.Smart ? $"{rootName}/\n" : $"[ROOT] {rootName}\n");
             }
-
             bool simpleTree = (_compressionLevel == CompressionLevel.Smart);
             WalkDirectoryTree(rootPath, "", sb, processedFiles.Keys.ToHashSet(), simpleTree);
         }
@@ -223,6 +210,7 @@ public class Converter
     private void GenerateFlatStructure(string currentDir, StringBuilder sb, HashSet<string> processedSet)
     {
         var dirInfo = new DirectoryInfo(currentDir);
+
         foreach (var file in dirInfo.GetFiles("*", SearchOption.AllDirectories))
         {
             if (!ShouldIncludeInStructure(file.FullName, currentDir)) continue;
@@ -231,7 +219,6 @@ public class Converter
             if (_compactMode && !isProcessed) continue;
 
             string relPath = Path.GetRelativePath(currentDir, file.FullName).Replace('\\', '/');
-
             if (isProcessed)
                 sb.Append(relPath).Append('\n');
             else
@@ -349,8 +336,6 @@ public class Converter
         }
     }
 
-    // --- Merged File Generation ---
-
     private void GenerateMergedFile(string outputDir, Dictionary<string, string> processedFiles)
     {
         string projectName = Path.GetFileName(_sourceDirPath);
@@ -358,19 +343,20 @@ public class Converter
         string destPath = Path.Combine(outputDir, outputFileName);
 
         var sb = new StringBuilder();
-
-        // FIX: Использование явного \n вместо AppendLine
         if (_compressionLevel != CompressionLevel.None)
         {
-            sb.Append($"# Project: {projectName}\n\n");
+            sb.Append($"# Project: {projectName}\n");
+            // Добавляем предупреждение в заголовок
+            sb.Append(Loc("report_stub_warning")).Append("\n\n");
         }
         else
         {
             sb.Append(string.Format(Loc("report_merged_header"), projectName)).Append('\n');
-            sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append("\n\n");
+            sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append('\n');
+            // Добавляем предупреждение в заголовок
+            sb.Append(Loc("report_stub_warning")).Append("\n\n");
         }
 
-        // Сортировка по оригинальному пути
         foreach (var entry in processedFiles.OrderBy(e => e.Key))
         {
             string originalPath = entry.Key;
@@ -390,7 +376,6 @@ public class Converter
             {
                 try
                 {
-                    // Читаем уже обработанный файл (он уже в LF), поэтому просто читаем
                     string content = File.ReadAllText(processedPath, Encoding.UTF8);
                     sb.Append(content).Append('\n');
                 }
@@ -401,14 +386,13 @@ public class Converter
             }
             else
             {
-                sb.Append("(Stub)\n\n");
+                // Заменяем (Stub) на локализованное сообщение-инструкцию
+                sb.Append(Loc("report_omitted")).Append("\n\n");
             }
         }
 
         File.WriteAllText(destPath, sb.ToString(), Encoding.UTF8);
     }
-
-    // --- Helpers ---
 
     private bool ShouldIncludeInStructure(string path, string rootOfWalk)
     {
@@ -421,6 +405,7 @@ public class Converter
         {
             if (_ignoredFolders.Contains(name.ToLower())) return false;
         }
+
         return true;
     }
 

@@ -1,7 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:s="clr-namespace:System;assembly=mscorlib">
-
 	<s:String x:Key="app_title">TXT File Converter</s:String>
 
 	<!-- Main Window -->
@@ -68,7 +67,10 @@
 	<s:String x:Key="report_generated_date">Date generated: {0}</s:String>
 	<s:String x:Key="report_file_header">FILE: {0}</s:String>
 	<s:String x:Key="report_read_error">!!! READ ERROR: {0} !!!</s:String>
-	<s:String x:Key="report_omitted">(File content omitted for brevity. AI assistant must request full code if needed)</s:String>
+
+	<!-- Updated Strings for Stub Logic -->
+	<s:String x:Key="report_stub_warning">*** SYSTEM INSTRUCTION: Files marked as (Stub) have content omitted to save tokens. If the task requires code from these files, you MUST request it from the user. Do not hallucinate the implementation. ***</s:String>
+	<s:String x:Key="report_omitted">(Stub)</s:String>
 
 	<!-- Task Messages -->
 	<s:String x:Key="task_preparing">Preparing for conversion...</s:String>
