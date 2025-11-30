@@ -20,7 +20,6 @@
         <GradientStop Color="#333333" Offset="0"/>
         <GradientStop Color="#252526" Offset="1"/>
     </LinearGradientBrush>
-
     <LinearGradientBrush x:Key="Brush_ButtonHover" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#3E3E40" Offset="0"/>
         <GradientStop Color="#2D2D30" Offset="1"/>
@@ -32,14 +31,13 @@
         <GradientStop Color="#007ACC" Offset="1"/>
     </LinearGradientBrush>
 
-    <!-- ================= БАЗА (Настройки четкости текста) ================= -->
+    <!-- ================= БАЗА ================= -->
     <Style TargetType="{x:Type Window}">
         <Setter Property="Background" Value="{StaticResource Brush_WindowBg}"/>
         <Setter Property="Foreground" Value="{StaticResource Brush_Fg}"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="UseLayoutRounding" Value="True"/>
-        <!-- ВАЖНО: Эти настройки делают текст четким -->
         <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
     </Style>
@@ -56,10 +54,9 @@
         <Setter Property="Margin" Value="0,0,10,0"/>
     </Style>
 
-    <!-- ================= КАРТОЧКА (Без тени для четкости) ================= -->
+    <!-- ================= КАРТОЧКА ================= -->
     <Style x:Key="CardBorder" TargetType="{x:Type Border}">
         <Setter Property="Background" Value="{StaticResource Brush_CardBg}"/>
-        <!-- Тонкая светлая граница создает выделение без размытия -->
         <Setter Property="BorderBrush" Value="#353537"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="6"/>
@@ -104,14 +101,12 @@
         </Setter>
     </Style>
 
-    <!-- Кнопка "Начать" -->
     <Style x:Key="AccentButton" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Background" Value="{StaticResource Brush_AccentGradient}"/>
         <Setter Property="BorderBrush" Value="#005A9E"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="FontSize" Value="15"/>
         <Setter Property="Height" Value="45"/>
-        <!-- Тень убрана для четкости текста кнопки -->
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="#3399FF"/>
@@ -127,7 +122,7 @@
         </Style.Triggers>
     </Style>
 
-    <!-- Кнопки заголовка -->
+    <!-- Кнопки окна -->
     <Style x:Key="TitleBarButton" TargetType="{x:Type Button}">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
@@ -236,10 +231,10 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="30" />
                 </Grid.ColumnDefinitions>
-                <Path x:Name="arrow" Grid.Column="1" 
-                      Data="M 0 0 L 4 4 L 8 0 Z" 
+                <Path x:Name="arrow" Grid.Column="1"
+                      Data="M 0 0 L 4 4 L 8 0 Z"
                       Fill="{StaticResource Brush_Fg}"
-                      HorizontalAlignment="Center" 
+                      HorizontalAlignment="Center"
                       VerticalAlignment="Center"/>
             </Grid>
         </Border>
@@ -251,6 +246,7 @@
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
+    <!-- ВАЖНО: Исправленный стиль ComboBox с поддержкой IsEditable -->
     <Style TargetType="{x:Type ComboBox}">
         <Setter Property="Background" Value="#202020"/>
         <Setter Property="Foreground" Value="White"/>
@@ -263,6 +259,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ComboBox}">
                     <Grid>
+                        <!-- Кнопка выпадающего списка -->
                         <ToggleButton Name="ToggleButton"
                                       Template="{StaticResource ComboBoxToggleButton}"
                                       Focusable="false"
@@ -272,11 +269,33 @@
                                       BorderBrush="{TemplateBinding BorderBrush}"
                                       BorderThickness="{TemplateBinding BorderThickness}"
                                       Foreground="{TemplateBinding Foreground}"/>
-                        <ContentPresenter Name="ContentSite" IsHitTestVisible="False" 
+
+                        <!-- Для режима только выбора (IsEditable = False) -->
+                        <ContentPresenter Name="ContentSite" 
+                                          IsHitTestVisible="False"
                                           Content="{TemplateBinding SelectionBoxItem}"
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                           ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
-                                          Margin="10,0,30,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                          Margin="10,0,30,0" 
+                                          VerticalAlignment="Center" 
+                                          HorizontalAlignment="Left" />
+
+                        <!-- Для режима редактирования (IsEditable = True) -->
+                        <TextBox x:Name="PART_EditableTextBox"
+                                 Style="{x:Null}"
+                                 HorizontalAlignment="Stretch"
+                                 VerticalAlignment="Center"
+                                 Margin="3,3,30,3"
+                                 Focusable="True"
+                                 Background="Transparent"
+                                 Foreground="{TemplateBinding Foreground}"
+                                 BorderThickness="0"
+                                 FontSize="{TemplateBinding FontSize}"
+                                 Padding="5,0,0,0"
+                                 Visibility="Hidden"
+                                 IsReadOnly="{TemplateBinding IsReadOnly}"/>
+
+                        <!-- Выпадающий список -->
                         <Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
                             <Grid Name="DropDown" SnapsToDevicePixels="True" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                 <Border x:Name="DropDownBorder" Background="{StaticResource Brush_CardBg}" BorderThickness="1" BorderBrush="#555555" CornerRadius="4">
@@ -287,6 +306,18 @@
                             </Grid>
                         </Popup>
                     </Grid>
+
+                    <!-- Триггеры переключения видимости -->
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="HasItems" Value="false">
+                            <Setter TargetName="DropDownBorder" Property="MinHeight" Value="95"/>
+                        </Trigger>
+                        <Trigger Property="IsEditable" Value="true">
+                            <Setter Property="IsTabStop" Value="false"/>
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

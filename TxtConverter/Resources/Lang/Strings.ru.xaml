@@ -3,6 +3,8 @@
                     xmlns:s="clr-namespace:System;assembly=mscorlib">
 
     <s:String x:Key="app_title">TXT Конвертер Файлов</s:String>
+
+    <!-- Main Window -->
     <s:String x:Key="ui_settings">Настройки</s:String>
     <s:String x:Key="ui_source_dir">Папка с исходниками:</s:String>
     <s:String x:Key="ui_choose_btn">Выбрать...</s:String>
@@ -23,12 +25,27 @@
     <s:String x:Key="ui_comp_none">Нет (Оригинал)</s:String>
     <s:String x:Key="ui_comp_smart">Умное (Безопасно)</s:String>
     <s:String x:Key="ui_comp_max">Максимум (уникальный алгоритм сжатия)</s:String>
+    <s:String x:Key="ui_ai_select_btn">🪄 AI Выбор</s:String>
+
+    <!-- Status -->
     <s:String x:Key="ui_status_ready">Готов к работе</s:String>
     <s:String x:Key="ui_status_waiting">Ожидание действий</s:String>
     <s:String x:Key="ui_status_scanning">Сканирование...</s:String>
     <s:String x:Key="ui_status_converting">Конвертация...</s:String>
+    <s:String x:Key="ui_status_analyzing">ИИ Анализирует проект...</s:String>
     <s:String x:Key="ui_status_done">Готово</s:String>
     <s:String x:Key="ui_status_error">Ошибка</s:String>
+
+    <!-- Settings Window -->
+    <s:String x:Key="ui_settings_general">Общие</s:String>
+    <s:String x:Key="ui_settings_ai">ИИ (Gemini)</s:String>
+    <s:String x:Key="ui_settings_lang">Язык интерфейса:</s:String>
+    <s:String x:Key="ui_settings_apikey">API Ключ:</s:String>
+    <s:String x:Key="ui_settings_model">Модель:</s:String>
+    <s:String x:Key="ui_settings_thinking">Размышление (Thinking):</s:String>
+    <s:String x:Key="ui_settings_tokens">Бюджет токенов:</s:String>
+    <s:String x:Key="ui_settings_enable_reasoning">Включить размышление</s:String>
+    <s:String x:Key="ui_settings_close">Закрыть</s:String>
 
     <!-- Log Messages -->
     <s:String x:Key="log_app_ready">Приложение готово к работе.</s:String>
@@ -59,5 +76,4 @@
     <s:String x:Key="task_generating_structure">Генерация файла структуры...</s:String>
     <s:String x:Key="task_merging">Сборка единого файла...</s:String>
     <s:String x:Key="task_done">Готово!</s:String>
-
 </ResourceDictionary>

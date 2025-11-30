@@ -30,7 +30,6 @@ public partial class MainWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        // Автоматическое сканирование при старте, если папка уже выбрана
         if (!string.IsNullOrWhiteSpace(SourceDirBox.Text) && Directory.Exists(SourceDirBox.Text))
         {
             Log("🔄 Auto-scan on startup initiated...");
@@ -53,26 +52,21 @@ public partial class MainWindow : Window
     {
         var prefs = PreferenceManager.Instance;
         prefs.SetLastSourceDir(SourceDirBox.Text);
-
         if (PresetCombo.SelectedItem is string preset)
             prefs.SetLastPreset(preset);
-
         prefs.SetGenerateStructure(StructCb.IsChecked == true);
         prefs.SetCompactMode(CompactCb.IsChecked == true);
         prefs.SetGenerateMerged(MergedCb.IsChecked == true);
-
         if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
         {
             prefs.SetCompressionLevel(lvl);
         }
-
         prefs.Save();
     }
 
     private void LoadPreferences()
     {
         var prefs = PreferenceManager.Instance;
-
         string lastDir = prefs.GetLastSourceDir();
         if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir))
         {
@@ -198,6 +192,7 @@ public partial class MainWindow : Window
 
             var scanner = new FileScanner(exts, ignored);
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
+
             _filesSelectedForMerge = new HashSet<string>(_allFoundFiles);
 
             Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
@@ -225,6 +220,37 @@ public partial class MainWindow : Window
         {
             _filesSelectedForMerge = dialog.Result;
             Log(string.Format(Loc("log_files_selected"), _filesSelectedForMerge.Count, _allFoundFiles.Count));
+        }
+    }
+
+    private void AiSelect_Click(object sender, RoutedEventArgs e)
+    {
+        if (_allFoundFiles.Count == 0) return;
+
+        // Check if API Key is set
+        if (string.IsNullOrWhiteSpace(PreferenceManager.Instance.GetAiApiKey()))
+        {
+            MessageBox.Show("Please set your Google Gemini API Key in Settings first.", "API Key Missing", MessageBoxButton.OK, MessageBoxImage.Information);
+            Settings_Click(null, null); // Open settings
+            return;
+        }
+
+        var dialog = new AiTaskWindow(SourceDirBox.Text, _allFoundFiles);
+        dialog.Owner = this;
+
+        if (dialog.ShowDialog() == true && dialog.ResultPaths != null)
+        {
+            _filesSelectedForMerge = new HashSet<string>(dialog.ResultPaths);
+            Log("✨ AI Selection Applied:");
+            Log($"   Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
+            Log($"   Selected: {_filesSelectedForMerge.Count} files.");
+
+            // Optional: List top 5 files in log
+            foreach (var f in _filesSelectedForMerge.Take(5))
+                Log($"   - {Path.GetFileName(f)}");
+            if (_filesSelectedForMerge.Count > 5) Log("   ...");
+
+            MessageBox.Show($"AI selected {_filesSelectedForMerge.Count} files based on your task.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 
@@ -289,11 +315,14 @@ public partial class MainWindow : Window
     private void SetUiBlocked(bool isBlocked)
     {
         _isProcessing = isBlocked;
+
         SelectSourceBtn.IsEnabled = !isBlocked;
         PresetCombo.IsEnabled = !isBlocked;
         RescanBtn.IsEnabled = !isBlocked && !string.IsNullOrEmpty(SourceDirBox.Text);
+
         ConvertBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
         SelectFilesBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
+        AiSelectBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
 
         if (isBlocked) Mouse.OverrideCursor = Cursors.Wait;
         else Mouse.OverrideCursor = null;
@@ -306,6 +335,7 @@ public partial class MainWindow : Window
 
         RescanBtn.IsEnabled = hasDir;
         SelectFilesBtn.IsEnabled = hasFiles;
+        AiSelectBtn.IsEnabled = hasFiles;
         ConvertBtn.IsEnabled = hasFiles;
     }
 
@@ -358,6 +388,7 @@ public partial class MainWindow : Window
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
     private void Close_Click(object sender, RoutedEventArgs e)
     {
         Close();

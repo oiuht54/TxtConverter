@@ -5,9 +5,6 @@ using TxtConverter.Core.Enums;
 
 namespace TxtConverter.Services;
 
-/// <summary>
-/// Класс для сериализации настроек
-/// </summary>
 public class AppSettings
 {
     public string Language { get; set; } = ProjectConstants.LangEn;
@@ -17,6 +14,12 @@ public class AppSettings
     public bool CompactMode { get; set; } = true;
     public bool GenerateMerged { get; set; } = true;
     public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
+
+    // AI Settings
+    public string AiApiKey { get; set; } = string.Empty;
+    public string AiModel { get; set; } = ProjectConstants.DefaultAiModel;
+    public int AiThinkingBudget { get; set; } = ProjectConstants.DefaultThinkingBudget;
+    public bool AiThinkingEnabled { get; set; } = true;
 }
 
 public class PreferenceManager
@@ -51,7 +54,7 @@ public class PreferenceManager
             }
             catch
             {
-                // Если файл поврежден, используем дефолтные
+                // Fallback to defaults
             }
         }
     }
@@ -66,12 +69,11 @@ public class PreferenceManager
         }
         catch
         {
-            // Игнорируем ошибки записи
+            // Ignore save errors
         }
     }
 
-    // --- Accessors ---
-
+    // General
     public string GetLanguage() => _settings.Language;
     public void SetLanguage(string lang) { _settings.Language = lang; Save(); }
 
@@ -92,4 +94,17 @@ public class PreferenceManager
 
     public CompressionLevel GetCompressionLevel() => _settings.Compression;
     public void SetCompressionLevel(CompressionLevel level) { _settings.Compression = level; Save(); }
+
+    // AI
+    public string GetAiApiKey() => _settings.AiApiKey;
+    public void SetAiApiKey(string key) { _settings.AiApiKey = key; Save(); }
+
+    public string GetAiModel() => _settings.AiModel;
+    public void SetAiModel(string model) { _settings.AiModel = model; Save(); }
+
+    public int GetAiThinkingBudget() => _settings.AiThinkingBudget;
+    public void SetAiThinkingBudget(int tokens) { _settings.AiThinkingBudget = tokens; Save(); }
+
+    public bool GetAiThinkingEnabled() => _settings.AiThinkingEnabled;
+    public void SetAiThinkingEnabled(bool enabled) { _settings.AiThinkingEnabled = enabled; Save(); }
 }
