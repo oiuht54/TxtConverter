@@ -1,30 +1,31 @@
 ﻿using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 using TxtConverter.Core.Enums;
-using TxtConverter.Core.Logic.Godot;
-using TxtConverter.Core.Logic.Unity;
-using TxtConverter.Core.Logic.Csharp; // Добавлен namespace
+using TxtConverter.Core.Logic.Processing;
 
 namespace TxtConverter.Core.Logic;
 
+/// <summary>
+/// Builds the context string for AI analysis.
+/// Now uses FileContentProcessor to ensure consistent processing logic with the main converter.
+/// </summary>
 public class ContextBuilder
 {
     private readonly string _rootPath;
     private readonly List<string> _files;
-    private readonly CompressionLevel _compression;
+    private readonly FileContentProcessor _processor;
 
     public ContextBuilder(string rootPath, List<string> files, CompressionLevel compression)
     {
         _rootPath = rootPath;
         _files = files;
-        _compression = compression;
+        // Reuse the same processor logic
+        _processor = new FileContentProcessor(compression);
     }
 
     public async Task<string> BuildContextAsync(IProgress<string> statusReporter)
     {
-        return await Task.Run(() =>
-        {
+        return await Task.Run(() => {
             var sb = new StringBuilder();
             sb.AppendLine("# Project Context");
             sb.AppendLine($"# Total Files: {_files.Count}");
@@ -42,15 +43,8 @@ public class ContextBuilder
 
                 try
                 {
-                    string content = File.ReadAllText(file, Encoding.UTF8)
-                        .Replace("\r\n", "\n")
-                        .Replace('\r', '\n');
-
-                    if (_compression != CompressionLevel.None)
-                    {
-                        content = ApplyCompression(content, file);
-                    }
-
+                    // Unified processing call
+                    string content = _processor.ReadAndProcess(file);
                     sb.AppendLine(content);
                 }
                 catch (Exception ex)
@@ -63,51 +57,5 @@ public class ContextBuilder
 
             return sb.ToString();
         });
-    }
-
-    private string ApplyCompression(string content, string filePath)
-    {
-        string ext = Path.GetExtension(filePath).ToLower();
-
-        if (_compression == CompressionLevel.Maximum)
-        {
-            if (ext == ".tscn" || ext == ".tres")
-            {
-                try { return GodotCompactConverter.Convert(content, Path.GetFileName(filePath)); }
-                catch { return content; }
-            }
-            if (ext == ".unity" || ext == ".prefab")
-            {
-                try { return UnityCompactConverter.Convert(content); }
-                catch { return content; }
-            }
-            if (ext == ".cs")
-            {
-                try { return CsCompactConverter.Convert(content); }
-                catch { return content; }
-            }
-        }
-
-        if (_compression == CompressionLevel.Smart || _compression == CompressionLevel.Maximum)
-        {
-            content = Regex.Replace(content, @"\n{3,}", "\n\n");
-
-            if (_compression == CompressionLevel.Maximum && ext != ".md" && ext != ".txt")
-            {
-                content = Regex.Replace(content, @"/\*[\s\S]*?\*/", "");
-                var lines = content.Split('\n');
-                var sb = new StringBuilder();
-                foreach (var line in lines)
-                {
-                    string trimmed = line.Trim();
-                    if (trimmed.StartsWith("//") || trimmed.StartsWith("#")) continue;
-                    sb.AppendLine(line);
-                }
-                return sb.ToString().Trim();
-            }
-            return content.Trim();
-        }
-
-        return content;
     }
 }

@@ -41,7 +41,7 @@ public partial class MainWindow : Window
     {
         if (_isProcessing)
         {
-            e.Cancel = true; // Не даем закрыть, если идет работа
+            e.Cancel = true; // Block closing if busy
             return;
         }
         SavePreferences();
@@ -54,9 +54,11 @@ public partial class MainWindow : Window
         prefs.SetLastSourceDir(SourceDirBox.Text);
         if (PresetCombo.SelectedItem is string preset)
             prefs.SetLastPreset(preset);
+
         prefs.SetGenerateStructure(StructCb.IsChecked == true);
         prefs.SetCompactMode(CompactCb.IsChecked == true);
         prefs.SetGenerateMerged(MergedCb.IsChecked == true);
+
         if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
         {
             prefs.SetCompressionLevel(lvl);
@@ -67,6 +69,7 @@ public partial class MainWindow : Window
     private void LoadPreferences()
     {
         var prefs = PreferenceManager.Instance;
+
         string lastDir = prefs.GetLastSourceDir();
         if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir))
         {
@@ -143,7 +146,6 @@ public partial class MainWindow : Window
             Log($"🤖 Auto-detected project type: {detected}");
             PresetCombo.SelectedItem = detected;
         }
-
         Rescan_Click(this, new RoutedEventArgs());
     }
 
@@ -216,6 +218,7 @@ public partial class MainWindow : Window
 
         var dialog = new SelectionWindow(_allFoundFiles, _filesSelectedForMerge, SourceDirBox.Text);
         dialog.Owner = this;
+
         if (dialog.ShowDialog() == true && dialog.Result != null)
         {
             _filesSelectedForMerge = dialog.Result;
@@ -227,7 +230,6 @@ public partial class MainWindow : Window
     {
         if (_allFoundFiles.Count == 0) return;
 
-        // Check if API Key is set
         if (string.IsNullOrWhiteSpace(PreferenceManager.Instance.GetAiApiKey()))
         {
             MessageBox.Show("Please set your Google Gemini API Key in Settings first.", "API Key Missing", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -244,8 +246,6 @@ public partial class MainWindow : Window
             Log("✨ AI Selection Applied:");
             Log($"   Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
             Log($"   Selected: {_filesSelectedForMerge.Count} files.");
-
-            // Optional: List top 5 files in log
             foreach (var f in _filesSelectedForMerge.Take(5))
                 Log($"   - {Path.GetFileName(f)}");
             if (_filesSelectedForMerge.Count > 5) Log("   ...");
@@ -277,7 +277,8 @@ public partial class MainWindow : Window
             if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
                 compLevel = lvl;
 
-            var converter = new Converter(
+            // Updated to use the new Orchestrator
+            var orchestrator = new ConversionOrchestrator(
                 SourceDirBox.Text,
                 _allFoundFiles,
                 _filesSelectedForMerge,
@@ -291,13 +292,12 @@ public partial class MainWindow : Window
             var progress = new Progress<double>(p => StatusProgressBar.Value = p);
             var status = new Progress<string>(s => StatusLabel.Text = s);
 
-            await converter.RunConversionAsync(progress, status);
+            await orchestrator.RunAsync(progress, status);
 
             Log("====================");
             Log(Loc("log_conversion_success"));
             Log("====================");
             Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
-
             StatusLabel.Text = Loc("ui_status_done");
         }
         catch (Exception ex)
@@ -315,11 +315,9 @@ public partial class MainWindow : Window
     private void SetUiBlocked(bool isBlocked)
     {
         _isProcessing = isBlocked;
-
         SelectSourceBtn.IsEnabled = !isBlocked;
         PresetCombo.IsEnabled = !isBlocked;
         RescanBtn.IsEnabled = !isBlocked && !string.IsNullOrEmpty(SourceDirBox.Text);
-
         ConvertBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
         SelectFilesBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
         AiSelectBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
@@ -332,7 +330,6 @@ public partial class MainWindow : Window
     {
         bool hasFiles = _allFoundFiles.Count > 0;
         bool hasDir = !string.IsNullOrEmpty(SourceDirBox.Text);
-
         RescanBtn.IsEnabled = hasDir;
         SelectFilesBtn.IsEnabled = hasFiles;
         AiSelectBtn.IsEnabled = hasFiles;
@@ -347,7 +344,6 @@ public partial class MainWindow : Window
             string projName = Path.GetFileName(SourceDirBox.Text);
             fileName = "_" + projName + ProjectConstants.MergedFileSuffix;
         }
-
         string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
         if (baseStr.Contains("{0}"))
             MergedCb.Content = string.Format(baseStr, fileName);
@@ -388,7 +384,6 @@ public partial class MainWindow : Window
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
     private void Close_Click(object sender, RoutedEventArgs e)
     {
         Close();
