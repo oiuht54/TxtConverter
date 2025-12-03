@@ -11,9 +11,11 @@
         AllowDrop="True" Drop="Window_Drop"
         Loaded="Window_Loaded"
         Background="{StaticResource Brush_WindowBg}">
+
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
     </WindowChrome.WindowChrome>
+
     <Border BorderBrush="#333333" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
@@ -31,9 +33,11 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
+
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0">
                     <TextBlock Text="{DynamicResource app_title}" Foreground="#888888" FontWeight="Bold" FontSize="14"/>
                 </StackPanel>
+
                 <StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
                     <Button Content="⚙" Click="Settings_Click" Style="{StaticResource TitleBarButton}" ToolTip="{DynamicResource ui_settings}"/>
                     <Button Content="_" Click="Minimize_Click" Style="{StaticResource TitleBarButton}"/>
@@ -84,7 +88,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{DynamicResource ui_extensions}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}"
+                            <TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}" 
                                      ToolTip="{DynamicResource ui_extensions_prompt}"/>
                         </Grid>
 
@@ -96,7 +100,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{DynamicResource ui_ignored}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,8,0" Tag="{DynamicResource ui_ignored_prompt}"
+                            <TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,8,0" Tag="{DynamicResource ui_ignored_prompt}" 
                                      ToolTip="{DynamicResource ui_ignored_prompt}"/>
                             <Button x:Name="RescanBtn" Grid.Column="2" Content="{DynamicResource ui_rescan_btn}" Click="Rescan_Click" IsEnabled="False" MinWidth="80"/>
                         </Grid>
@@ -110,12 +114,14 @@
                                 <ColumnDefinition Width="20"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
+
                             <!-- Left: Structure -->
                             <StackPanel Grid.Column="0">
                                 <CheckBox x:Name="StructCb" Content="{DynamicResource ui_structure_cb}" IsChecked="False" Margin="0,0,0,10"/>
-                                <CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True"
+                                <CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True" 
                                           IsEnabled="{Binding IsChecked, ElementName=StructCb}"/>
                             </StackPanel>
+
                             <!-- Right: Compression -->
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="{DynamicResource ui_compression_label}" FontWeight="SemiBold" Foreground="#AAAAAA" Margin="0,0,0,5" FontSize="12"/>
@@ -123,7 +129,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- ACTION AREA (Split into rows for better layout) -->
+                        <!-- ACTION AREA -->
                         <Grid Margin="0,20,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -145,25 +151,33 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- AI Select Button -->
-                                <Button x:Name="AiSelectBtn" Grid.Column="0" 
-                                        Content="{DynamicResource ui_ai_select_btn}" 
-                                        Click="AiSelect_Click" 
-                                        IsEnabled="False" 
+                                <!-- AI Select Button (ИСПРАВЛЕНО: Векторная иконка вместо эмодзи) -->
+                                <Button x:Name="AiSelectBtn" Grid.Column="0"
+                                        Click="AiSelect_Click"
+                                        IsEnabled="False"
                                         Height="38"
-                                        Background="#2D2D30" BorderBrush="#007ACC" Foreground="#0090F0" FontWeight="SemiBold"/>
+                                        Background="#2D2D30" BorderBrush="#007ACC" Foreground="#0090F0" FontWeight="SemiBold">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <!-- Векторная иконка "Искры/AI" -->
+                                        <Path Data="M19,9l1.25-2.75L23,5l-2.75-1.25L19,1l-1.25,2.75L15,5l2.75,1.25L19,9z M11.5,9.5L9,4L6.5,9.5L1,12l5.5,2.5L9,20l2.5-5.5L17,12L11.5,9.5z"
+                                              Fill="#0090F0"
+                                              Width="18" Height="18" Stretch="Uniform"
+                                              Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{DynamicResource ui_ai_select_btn}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
 
                                 <!-- Manual Select Button -->
-                                <Button x:Name="SelectFilesBtn" Grid.Column="2" 
-                                        Content="{DynamicResource ui_select_files_btn}" 
+                                <Button x:Name="SelectFilesBtn" Grid.Column="2"
+                                        Content="{DynamicResource ui_select_files_btn}"
                                         Click="SelectFiles_Click" 
-                                        IsEnabled="False" 
+                                        IsEnabled="False"
                                         Height="38"/>
                             </Grid>
                         </Grid>
 
                         <!-- Big Convert Button -->
-                        <Button x:Name="ConvertBtn" Content="{DynamicResource ui_convert_btn}"
+                        <Button x:Name="ConvertBtn" Content="{DynamicResource ui_convert_btn}" 
                                 Style="{StaticResource AccentButton}"
                                 Click="Convert_Click" IsEnabled="False" Margin="0,20,0,0"/>
                     </StackPanel>
@@ -177,7 +191,7 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <TextBlock Text="{DynamicResource ui_log_label}" FontWeight="Bold" Foreground="#AAAAAA" Margin="0,0,0,8"/>
-                        <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
+                        <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto" 
                                  FontFamily="Consolas" FontSize="13" TextWrapping="Wrap"
                                  Background="#151515" BorderThickness="0" Padding="5"/>
                     </Grid>
@@ -190,7 +204,8 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="200"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="StatusLabel" Text="{DynamicResource ui_status_ready}"
+
+                <TextBlock x:Name="StatusLabel" Text="{DynamicResource ui_status_ready}" 
                            Foreground="#888888" VerticalAlignment="Center" Margin="15,0" FontSize="12"/>
                 <ProgressBar x:Name="StatusProgressBar" Grid.Column="1" Margin="10,0,15,0" Height="4" VerticalAlignment="Center" Value="0" Maximum="1"/>
             </Grid>
