@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using TxtConverter.Core.Enums;
 using TxtConverter.Core.Logic.Godot;
+using TxtConverter.Core.Logic.Unity;
+using TxtConverter.Core.Logic.Csharp; // Добавлен namespace
 
 namespace TxtConverter.Core.Logic;
 
@@ -67,32 +69,32 @@ public class ContextBuilder
     {
         string ext = Path.GetExtension(filePath).ToLower();
 
-        // Godot Special Optimization
-        if (_compression == CompressionLevel.Maximum && (ext == ".tscn" || ext == ".tres"))
+        if (_compression == CompressionLevel.Maximum)
         {
-            try
+            if (ext == ".tscn" || ext == ".tres")
             {
-                return GodotCompactConverter.Convert(content, Path.GetFileName(filePath));
+                try { return GodotCompactConverter.Convert(content, Path.GetFileName(filePath)); }
+                catch { return content; }
             }
-            catch
+            if (ext == ".unity" || ext == ".prefab")
             {
-                return content; // Fallback
+                try { return UnityCompactConverter.Convert(content); }
+                catch { return content; }
+            }
+            if (ext == ".cs")
+            {
+                try { return CsCompactConverter.Convert(content); }
+                catch { return content; }
             }
         }
 
-        // General Smart Compression
         if (_compression == CompressionLevel.Smart || _compression == CompressionLevel.Maximum)
         {
-            // Remove excessive newlines
             content = Regex.Replace(content, @"\n{3,}", "\n\n");
 
-            // Remove comments for Maximum compression (simple regex, can be improved)
             if (_compression == CompressionLevel.Maximum && ext != ".md" && ext != ".txt")
             {
-                // Block comments
                 content = Regex.Replace(content, @"/\*[\s\S]*?\*/", "");
-                // Line comments (basic C-style and Python/Godot style)
-                // Note: This is aggressive and might strip URLs, but valid for Maximum
                 var lines = content.Split('\n');
                 var sb = new StringBuilder();
                 foreach (var line in lines)
@@ -103,7 +105,6 @@ public class ContextBuilder
                 }
                 return sb.ToString().Trim();
             }
-
             return content.Trim();
         }
 

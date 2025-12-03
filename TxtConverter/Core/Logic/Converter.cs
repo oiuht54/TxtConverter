@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using TxtConverter.Core.Enums;
 using TxtConverter.Core.Logic.Godot;
+using TxtConverter.Core.Logic.Unity;
+using TxtConverter.Core.Logic.Csharp; // Добавлен namespace
 using TxtConverter.Services;
 
 namespace TxtConverter.Core.Logic;
@@ -21,8 +23,8 @@ public class Converter
     private static readonly Regex BlockCommentRegex = new(@"/\*[\s\S]*?\*/", RegexOptions.Compiled);
 
     public Converter(string sourceDirPath, List<string> filesToProcess, HashSet<string> filesSelectedForMerge,
-                     List<string> ignoredFolders, bool genStructure, bool compactMode,
-                     CompressionLevel compressionLevel, bool genMerged)
+        List<string> ignoredFolders, bool genStructure, bool compactMode,
+        CompressionLevel compressionLevel, bool genMerged)
     {
         _sourceDirPath = sourceDirPath;
         _filesToProcess = filesToProcess;
@@ -39,11 +41,11 @@ public class Converter
         await Task.Run(() =>
         {
             status.Report(Loc("task_preparing"));
-
             string outputDir = Path.Combine(_sourceDirPath, ProjectConstants.OutputDirName);
             PrepareOutputDirectory(outputDir);
 
             var processedFilesMap = new Dictionary<string, string>(); // SourcePath -> DestPath
+
             int total = _filesToProcess.Count;
             int count = 0;
 
@@ -63,18 +65,28 @@ public class Converter
                     try
                     {
                         string content = File.ReadAllText(sourceFile, Encoding.UTF8)
-                                             .Replace("\r\n", "\n")
-                                             .Replace('\r', '\n');
+                            .Replace("\r\n", "\n")
+                            .Replace('\r', '\n');
 
                         string compressed;
-                        if (_compressionLevel == CompressionLevel.Maximum && IsGodotFile(fileName))
+
+                        // === UPDATED LOGIC ===
+                        if (_compressionLevel == CompressionLevel.Maximum)
                         {
-                            compressed = GodotCompactConverter.Convert(content, fileName);
+                            if (IsGodotFile(fileName))
+                                compressed = GodotCompactConverter.Convert(content, fileName);
+                            else if (IsUnityYamlFile(fileName))
+                                compressed = UnityCompactConverter.Convert(content);
+                            else if (IsCSharpFile(fileName)) // C# Processing
+                                compressed = CsCompactConverter.Convert(content);
+                            else
+                                compressed = ApplyCompression(content, sourceFile);
                         }
                         else
                         {
                             compressed = ApplyCompression(content, sourceFile);
                         }
+
                         File.WriteAllText(destFile, compressed, Encoding.UTF8);
                     }
                     catch
@@ -86,6 +98,7 @@ public class Converter
                 {
                     File.Copy(sourceFile, destFile, true);
                 }
+
                 processedFilesMap[sourceFile] = destFile;
             }
 
@@ -116,13 +129,14 @@ public class Converter
         {
             return Regex.Replace(content, @"\n{3,}", "\n\n").Trim();
         }
+
         return content;
     }
 
     private string CompressMax(string content, string filePath)
     {
         content = BlockCommentRegex.Replace(content, "");
-        var lines = content.Split('\n'); // Split только по \n, т.к. нормализовали
+        var lines = content.Split('\n');
         var sb = new StringBuilder(content.Length / 2);
 
         bool isSensitive = IsWhitespaceSensitive(filePath);
@@ -134,10 +148,11 @@ public class Converter
             if (trimmed.StartsWith("//") || trimmed.StartsWith("#")) continue;
 
             if (isSensitive)
-                sb.Append(line.TrimEnd()).Append('\n'); // Используем явный \n
+                sb.Append(line.TrimEnd()).Append('\n');
             else
-                sb.Append(trimmed).Append('\n'); // Используем явный \n
+                sb.Append(trimmed).Append('\n');
         }
+
         return sb.ToString().Trim();
     }
 
@@ -151,6 +166,17 @@ public class Converter
     {
         string lower = fileName.ToLower();
         return lower.EndsWith(".tscn") || lower.EndsWith(".tres");
+    }
+
+    private bool IsUnityYamlFile(string fileName)
+    {
+        string lower = fileName.ToLower();
+        return lower.EndsWith(".unity") || lower.EndsWith(".prefab");
+    }
+
+    private bool IsCSharpFile(string fileName)
+    {
+        return fileName.ToLower().EndsWith(".cs");
     }
 
     private void PrepareOutputDirectory(string path)
@@ -198,6 +224,7 @@ public class Converter
                 string rootName = new DirectoryInfo(rootPath).Name;
                 sb.Append(_compressionLevel == CompressionLevel.Smart ? $"{rootName}/\n" : $"[ROOT] {rootName}\n");
             }
+
             bool simpleTree = (_compressionLevel == CompressionLevel.Smart);
             WalkDirectoryTree(rootPath, "", sb, processedFiles.Keys.ToHashSet(), simpleTree);
         }
@@ -210,12 +237,11 @@ public class Converter
     private void GenerateFlatStructure(string currentDir, StringBuilder sb, HashSet<string> processedSet)
     {
         var dirInfo = new DirectoryInfo(currentDir);
-
         foreach (var file in dirInfo.GetFiles("*", SearchOption.AllDirectories))
         {
             if (!ShouldIncludeInStructure(file.FullName, currentDir)) continue;
-
             bool isProcessed = processedSet.Contains(file.FullName);
+
             if (_compactMode && !isProcessed) continue;
 
             string relPath = Path.GetRelativePath(currentDir, file.FullName).Replace('\\', '/');
@@ -290,7 +316,6 @@ public class Converter
                 .Select(g => $"{g.Key}({g.Count()})");
 
             string statsStr = string.Join(", ", extStats);
-
             if (simpleTree)
             {
                 sb.Append($"{prefix}  ... ({filesToCollapse.Count}: {statsStr})\n");
@@ -343,17 +368,16 @@ public class Converter
         string destPath = Path.Combine(outputDir, outputFileName);
 
         var sb = new StringBuilder();
+
         if (_compressionLevel != CompressionLevel.None)
         {
             sb.Append($"# Project: {projectName}\n");
-            // Добавляем предупреждение в заголовок
             sb.Append(Loc("report_stub_warning")).Append("\n\n");
         }
         else
         {
             sb.Append(string.Format(Loc("report_merged_header"), projectName)).Append('\n');
             sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append('\n');
-            // Добавляем предупреждение в заголовок
             sb.Append(Loc("report_stub_warning")).Append("\n\n");
         }
 
@@ -386,7 +410,6 @@ public class Converter
             }
             else
             {
-                // Заменяем (Stub) на локализованное сообщение-инструкцию
                 sb.Append(Loc("report_omitted")).Append("\n\n");
             }
         }
