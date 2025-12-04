@@ -24,11 +24,11 @@
 
     <s:String x:Key="ui_log_label">Лог выполнения:</s:String>
     <s:String x:Key="ui_compression_label">Сжатие токенов:</s:String>
+
     <s:String x:Key="ui_comp_none">Нет (Оригинал)</s:String>
     <s:String x:Key="ui_comp_smart">Умное (Безопасно)</s:String>
     <s:String x:Key="ui_comp_max">Максимум (уникальный алгоритм сжатия)</s:String>
 
-    <!-- Исправлено: Убрали эмодзи, оставили только текст -->
     <s:String x:Key="ui_ai_select_btn">AI Выбор</s:String>
 
     <!-- Status -->
@@ -43,12 +43,16 @@
     <!-- Settings Window -->
     <s:String x:Key="ui_settings_general">Общие</s:String>
     <s:String x:Key="ui_settings_ai">ИИ (Gemini)</s:String>
+
     <s:String x:Key="ui_settings_lang">Язык интерфейса:</s:String>
+    <s:String x:Key="ui_settings_telemetry">Отправлять анонимную статистику</s:String>
+
     <s:String x:Key="ui_settings_apikey">API Ключ:</s:String>
     <s:String x:Key="ui_settings_model">Модель:</s:String>
     <s:String x:Key="ui_settings_thinking">Размышление (Thinking):</s:String>
     <s:String x:Key="ui_settings_tokens">Бюджет токенов:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Включить размышление</s:String>
+
     <s:String x:Key="ui_settings_close">Закрыть</s:String>
 
     <!-- Log Messages -->

@@ -21,10 +21,12 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
         UpdateMergedCheckboxLabel();
         SetupCompressionCombo();
         SetupPresets();
         LoadPreferences();
+
         Log(Loc("log_app_ready"));
     }
 
@@ -146,6 +148,7 @@ public partial class MainWindow : Window
             Log($"🤖 Auto-detected project type: {detected}");
             PresetCombo.SelectedItem = detected;
         }
+
         Rescan_Click(this, new RoutedEventArgs());
     }
 
@@ -194,7 +197,6 @@ public partial class MainWindow : Window
 
             var scanner = new FileScanner(exts, ignored);
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
-
             _filesSelectedForMerge = new HashSet<string>(_allFoundFiles);
 
             Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
@@ -243,6 +245,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() == true && dialog.ResultPaths != null)
         {
             _filesSelectedForMerge = new HashSet<string>(dialog.ResultPaths);
+
             Log("✨ AI Selection Applied:");
             Log($"   Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
             Log($"   Selected: {_filesSelectedForMerge.Count} files.");
@@ -251,6 +254,13 @@ public partial class MainWindow : Window
             if (_filesSelectedForMerge.Count > 5) Log("   ...");
 
             MessageBox.Show($"AI selected {_filesSelectedForMerge.Count} files based on your task.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            // Telemetry: Track AI Usage
+            TelemetryService.Instance.TrackEvent("ai_used", new Dictionary<string, object> {
+                { "files_selected", _filesSelectedForMerge.Count },
+                { "total_files_in_project", _allFoundFiles.Count },
+                { "model", PreferenceManager.Instance.GetAiModel() }
+            });
         }
     }
 
@@ -269,6 +279,8 @@ public partial class MainWindow : Window
         StatusProgressBar.IsIndeterminate = false;
         StatusProgressBar.Value = 0;
 
+        DateTime startTime = DateTime.Now;
+
         try
         {
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
@@ -277,7 +289,6 @@ public partial class MainWindow : Window
             if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
                 compLevel = lvl;
 
-            // Updated to use the new Orchestrator
             var orchestrator = new ConversionOrchestrator(
                 SourceDirBox.Text,
                 _allFoundFiles,
@@ -298,12 +309,29 @@ public partial class MainWindow : Window
             Log(Loc("log_conversion_success"));
             Log("====================");
             Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
+
             StatusLabel.Text = Loc("ui_status_done");
+
+            // Telemetry: Track Conversion Success
+            TimeSpan duration = DateTime.Now - startTime;
+            TelemetryService.Instance.TrackEvent("conversion_completed", new Dictionary<string, object> {
+                { "files_processed", _allFoundFiles.Count },
+                { "files_merged", _filesSelectedForMerge.Count },
+                { "duration_ms", (long)duration.TotalMilliseconds },
+                { "preset", PresetCombo.SelectedItem?.ToString() ?? "Unknown" },
+                { "compression", compLevel.ToString() }
+            });
+
         }
         catch (Exception ex)
         {
             Log(string.Format(Loc("log_conversion_error"), ex.Message));
             StatusLabel.Text = Loc("ui_status_error");
+
+            // Telemetry: Track Error
+            TelemetryService.Instance.TrackEvent("conversion_failed", new Dictionary<string, object> {
+                { "error_message", ex.Message }
+            });
         }
         finally
         {
@@ -330,6 +358,7 @@ public partial class MainWindow : Window
     {
         bool hasFiles = _allFoundFiles.Count > 0;
         bool hasDir = !string.IsNullOrEmpty(SourceDirBox.Text);
+
         RescanBtn.IsEnabled = hasDir;
         SelectFilesBtn.IsEnabled = hasFiles;
         AiSelectBtn.IsEnabled = hasFiles;
@@ -344,6 +373,7 @@ public partial class MainWindow : Window
             string projName = Path.GetFileName(SourceDirBox.Text);
             fileName = "_" + projName + ProjectConstants.MergedFileSuffix;
         }
+
         string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
         if (baseStr.Contains("{0}"))
             MergedCb.Content = string.Format(baseStr, fileName);
@@ -369,6 +399,7 @@ public partial class MainWindow : Window
         var settingsWin = new SettingsWindow();
         settingsWin.Owner = this;
         settingsWin.ShowDialog();
+
         UpdateManualTexts();
     }
 

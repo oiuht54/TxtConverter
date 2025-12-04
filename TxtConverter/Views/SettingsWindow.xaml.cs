@@ -21,7 +21,7 @@ public partial class SettingsWindow : Window
     {
         _ignoreChanges = true;
 
-        // Languages
+        // Language
         LanguageCombo.Items.Add(new ComboBoxItem { Content = "English", Tag = ProjectConstants.LangEn });
         LanguageCombo.Items.Add(new ComboBoxItem { Content = "Русский", Tag = ProjectConstants.LangRu });
 
@@ -35,20 +35,18 @@ public partial class SettingsWindow : Window
             }
         }
 
-        // AI Settings
-        ApiKeyBox.Password = PreferenceManager.Instance.GetAiApiKey();
+        // Telemetry
+        TelemetryCb.IsChecked = PreferenceManager.Instance.GetTelemetryEnabled();
 
-        // Model
-        // Сначала ставим текст, чтобы он был виден сразу
+        // AI
+        ApiKeyBox.Password = PreferenceManager.Instance.GetAiApiKey();
         string savedModel = PreferenceManager.Instance.GetAiModel();
         ModelCombo.Text = savedModel;
-
         ThinkingCb.IsChecked = PreferenceManager.Instance.GetAiThinkingEnabled();
         BudgetBox.Text = PreferenceManager.Instance.GetAiThinkingBudget().ToString();
 
         _ignoreChanges = false;
 
-        // Auto-fetch models if key exists
         if (!string.IsNullOrEmpty(ApiKeyBox.Password))
         {
             FetchModels(savedModel);
@@ -67,7 +65,7 @@ public partial class SettingsWindow : Window
         ModelCombo.IsEnabled = false;
 
         var client = new GeminiClient();
-        // Temporarily set key in manager so client can use it if changed
+        // Temporarily set key in manager so client picks it up if changed but not saved
         PreferenceManager.Instance.SetAiApiKey(ApiKeyBox.Password);
 
         var models = await client.GetAvailableModelsAsync();
@@ -80,7 +78,6 @@ public partial class SettingsWindow : Window
                 ModelCombo.Items.Add(m);
             }
 
-            // Пытаемся восстановить выбор через SelectedItem, затем через Text
             var match = models.FirstOrDefault(m => m.Equals(currentSelection, StringComparison.OrdinalIgnoreCase));
             if (match != null)
             {
@@ -98,7 +95,6 @@ public partial class SettingsWindow : Window
     private void LanguageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_ignoreChanges) return;
-
         if (LanguageCombo.SelectedItem is ComboBoxItem item)
         {
             string code = item.Tag.ToString() ?? ProjectConstants.LangEn;
@@ -120,11 +116,11 @@ public partial class SettingsWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e)
     {
-        SaveAiSettings();
+        SaveSettings();
         this.Close();
     }
 
-    private void SaveAiSettings()
+    private void SaveSettings()
     {
         PreferenceManager.Instance.SetAiModel(ModelCombo.Text);
         PreferenceManager.Instance.SetAiThinkingEnabled(ThinkingCb.IsChecked == true);
@@ -133,6 +129,8 @@ public partial class SettingsWindow : Window
         {
             PreferenceManager.Instance.SetAiThinkingBudget(budget);
         }
+
+        PreferenceManager.Instance.SetTelemetryEnabled(TelemetryCb.IsChecked == true);
     }
 
     private void Link_MouseDown(object sender, MouseButtonEventArgs e)

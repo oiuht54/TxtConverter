@@ -1,5 +1,5 @@
 ﻿using System.IO;
-using System.Security.Cryptography; // Для DPAPI
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using TxtConverter.Core;
@@ -17,13 +17,15 @@ public class AppSettings
     public bool GenerateMerged { get; set; } = true;
     public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
 
-    // В JSON файле это поле будет содержать ЗАШИФРОВАННУЮ строку.
-    // В памяти приложения оно хранит РАСШИФРОВАННУЮ строку для работы.
+    // AI Settings
     public string AiApiKey { get; set; } = string.Empty;
-
     public string AiModel { get; set; } = ProjectConstants.DefaultAiModel;
     public int AiThinkingBudget { get; set; } = ProjectConstants.DefaultThinkingBudget;
     public bool AiThinkingEnabled { get; set; } = true;
+
+    // Telemetry Settings
+    public string InstallationId { get; set; } = string.Empty;
+    public bool IsTelemetryEnabled { get; set; } = true;
 }
 
 public class PreferenceManager
@@ -33,9 +35,6 @@ public class PreferenceManager
 
     private AppSettings _settings;
     private readonly string _settingsPath;
-
-    // Entropy (соль) делает шифрование уникальным для этого приложения,
-    // чтобы другие приложения от того же пользователя не могли расшифровать ключ.
     private static readonly byte[] s_entropy = Encoding.UTF8.GetBytes("Tartarus_TxtConverter_Secure_Key");
 
     private PreferenceManager()
@@ -55,33 +54,31 @@ public class PreferenceManager
             {
                 string json = File.ReadAllText(_settingsPath);
                 var loaded = JsonSerializer.Deserialize<AppSettings>(json);
-
                 if (loaded != null)
                 {
                     _settings = loaded;
-
-                    // Попытка расшифровать API ключ при загрузке
+                    // Decrypt API Key
                     if (!string.IsNullOrEmpty(_settings.AiApiKey))
                     {
                         try
                         {
                             _settings.AiApiKey = DecryptString(_settings.AiApiKey);
                         }
-                        catch
-                        {
-                            // Если произошла ошибка (CryptographicException или FormatException),
-                            // значит в файле хранится старый, незашифрованный ключ.
-                            // Мы просто оставляем его как есть. 
-                            // При следующем Save() он будет зашифрован.
-                        }
+                        catch { /* Ignore decryption errors */ }
                     }
                 }
             }
             catch
             {
-                // Ошибка чтения файла (например, битый JSON), сброс к дефолтным
                 _settings = new AppSettings();
             }
+        }
+
+        // Ensure Installation ID exists (First Run Logic)
+        if (string.IsNullOrEmpty(_settings.InstallationId))
+        {
+            _settings.InstallationId = Guid.NewGuid().ToString();
+            Save(); // Save immediately to persist ID
         }
     }
 
@@ -89,27 +86,23 @@ public class PreferenceManager
     {
         try
         {
-            // 1. Сохраняем "чистый" ключ во временную переменную
+            // Temporary encrypt sensitive data
             string plainKey = _settings.AiApiKey;
-
-            // 2. Шифруем ключ перед сериализацией, если он есть
             if (!string.IsNullOrEmpty(plainKey))
             {
                 _settings.AiApiKey = EncryptString(plainKey);
             }
 
-            // 3. Сериализуем и пишем в файл
             var options = new JsonSerializerOptions { WriteIndented = true };
             string json = JsonSerializer.Serialize(_settings, options);
             File.WriteAllText(_settingsPath, json);
 
-            // 4. ВАЖНО: Возвращаем "чистый" ключ обратно в объект в памяти, 
-            // чтобы приложение могло продолжать работать без перезагрузки
+            // Restore plain text for runtime usage
             _settings.AiApiKey = plainKey;
         }
         catch
         {
-            // Логирование ошибки сохранения, если необходимо
+            // Silently fail on save errors
         }
     }
 
@@ -119,7 +112,6 @@ public class PreferenceManager
         try
         {
             byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
-            // DataProtectionScope.CurrentUser означает, что расшифровать может только текущий пользователь Windows
             byte[] cipherBytes = ProtectedData.Protect(plainBytes, s_entropy, DataProtectionScope.CurrentUser);
             return Convert.ToBase64String(cipherBytes);
         }
@@ -132,12 +124,19 @@ public class PreferenceManager
     private string DecryptString(string cipherText)
     {
         if (string.IsNullOrEmpty(cipherText)) return cipherText;
-        // Здесь мы не ловим исключения намеренно, чтобы Load() мог определить,
-        // что это старый формат (plain text), и поймать ошибку уровнем выше.
-        byte[] cipherBytes = Convert.FromBase64String(cipherText);
-        byte[] plainBytes = ProtectedData.Unprotect(cipherBytes, s_entropy, DataProtectionScope.CurrentUser);
-        return Encoding.UTF8.GetString(plainBytes);
+        try
+        {
+            byte[] cipherBytes = Convert.FromBase64String(cipherText);
+            byte[] plainBytes = ProtectedData.Unprotect(cipherBytes, s_entropy, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(plainBytes);
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
+
+    // --- Getters / Setters ---
 
     public string GetLanguage() => _settings.Language;
     public void SetLanguage(string lang) { _settings.Language = lang; Save(); }
@@ -171,4 +170,9 @@ public class PreferenceManager
 
     public bool GetAiThinkingEnabled() => _settings.AiThinkingEnabled;
     public void SetAiThinkingEnabled(bool enabled) { _settings.AiThinkingEnabled = enabled; Save(); }
+
+    // Telemetry
+    public string GetInstallationId() => _settings.InstallationId;
+    public bool GetTelemetryEnabled() => _settings.IsTelemetryEnabled;
+    public void SetTelemetryEnabled(bool enabled) { _settings.IsTelemetryEnabled = enabled; Save(); }
 }

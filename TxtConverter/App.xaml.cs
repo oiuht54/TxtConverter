@@ -9,11 +9,17 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Инициализация сервисов
+        // 1. Load Settings
         PreferenceManager.Instance.Load();
 
-        // Применение сохраненного языка
+        // 2. Set Language
         var savedLang = PreferenceManager.Instance.GetLanguage();
         LanguageManager.Instance.SetLanguage(savedLang);
+
+        // 3. Telemetry Hook: App Launch
+        // We track this event to count daily active users (DAU)
+        TelemetryService.Instance.TrackEvent("app_launch", new Dictionary<string, object> {
+            { "app_version", "2.0.0" }
+        });
     }
 }

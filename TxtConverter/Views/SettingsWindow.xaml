@@ -2,17 +2,21 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" ResizeMode="NoResize"
-        Width="450" Height="480"
+        Width="460" Height="580"
         WindowStartupLocation="CenterOwner"
         Title="Settings" Background="{StaticResource Brush_WindowBg}">
+
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
     </WindowChrome.WindowChrome>
+
     <Border BorderBrush="#333333" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <!-- Title Bar -->
                 <RowDefinition Height="*"/>
+                <!-- Content -->
             </Grid.RowDefinitions>
 
             <!-- Title Bar -->
@@ -21,78 +25,88 @@
                 <Button Style="{StaticResource CloseButton}" HorizontalAlignment="Right" Click="Close_Click" Content="X" WindowChrome.IsHitTestVisibleInChrome="True"/>
             </Grid>
 
-            <!-- Content -->
+            <!-- Main Layout -->
             <Grid Grid.Row="1" Margin="20">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
+                    <!-- Scrollable Content -->
                     <RowDefinition Height="Auto"/>
+                    <!-- Footer/Button -->
                 </Grid.RowDefinitions>
 
-                <StackPanel>
-                    <!-- General Settings -->
-                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,15">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource ui_settings_general}" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+                <!-- ScrollViewer: Защита от переполнения контента -->
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,10,0">
+                    <StackPanel>
+                        <!-- General Settings -->
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource ui_settings_general}" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
 
-                            <TextBlock Text="{DynamicResource ui_settings_lang}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
-                            <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged" HorizontalAlignment="Stretch"/>
-                        </StackPanel>
-                    </Border>
+                                <TextBlock Text="{DynamicResource ui_settings_lang}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
+                                <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged" HorizontalAlignment="Stretch" Margin="0,0,0,10"/>
 
-                    <!-- AI Settings -->
-                    <Border Style="{StaticResource CardBorder}">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource ui_settings_ai}" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+                                <!-- Telemetry Toggle -->
+                                <CheckBox x:Name="TelemetryCb" Content="{DynamicResource ui_settings_telemetry}" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Border>
 
-                            <!-- API Key -->
-                            <TextBlock Text="{DynamicResource ui_settings_apikey}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
-                            <PasswordBox x:Name="ApiKeyBox" PasswordChar="•" 
-                                         Background="#151515" Foreground="White" BorderBrush="#333333" BorderThickness="1" 
-                                         Padding="8,6" VerticalContentAlignment="Center" FontSize="14"
-                                         PasswordChanged="ApiKeyBox_PasswordChanged"/>
-                            <TextBlock Text="https://aistudio.google.com/app/apikey" FontSize="11" Foreground="#555555" Margin="0,2,0,10" Cursor="Hand" MouseDown="Link_MouseDown"/>
+                        <!-- AI Settings -->
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,5">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource ui_settings_ai}" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
 
-                            <!-- Model -->
-                            <TextBlock Text="{DynamicResource ui_settings_model}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
-                            <Grid Margin="0,0,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
+                                <!-- API Key -->
+                                <TextBlock Text="{DynamicResource ui_settings_apikey}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
+                                <PasswordBox x:Name="ApiKeyBox" PasswordChar="•" 
+                                             Background="#151515" Foreground="White" BorderBrush="#333333" BorderThickness="1"
+                                             Padding="8,6" VerticalContentAlignment="Center" FontSize="14"
+                                             PasswordChanged="ApiKeyBox_PasswordChanged"/>
+                                <TextBlock Text="https://aistudio.google.com/app/apikey" FontSize="11" Foreground="#555555" Margin="0,2,0,10" Cursor="Hand" MouseDown="Link_MouseDown"/>
 
-                                <!-- Editable ComboBox for Model -->
-                                <ComboBox x:Name="ModelCombo" IsEditable="True" 
-                                          Background="#151515" Foreground="White" BorderBrush="#444"/>
+                                <!-- Model -->
+                                <TextBlock Text="{DynamicResource ui_settings_model}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Editable ComboBox for Model -->
+                                    <ComboBox x:Name="ModelCombo" IsEditable="True" 
+                                              Background="#151515" Foreground="White" BorderBrush="#444"/>
+                                    <Button Grid.Column="1" Content="↻" Click="RefreshModels_Click" Width="30" Margin="5,0,0,0" 
+                                            ToolTip="Fetch models from API" Background="#333" BorderBrush="#555"/>
+                                </Grid>
 
-                                <Button Grid.Column="1" Content="↻" Click="RefreshModels_Click" Width="30" Margin="5,0,0,0" 
-                                        ToolTip="Fetch models from API" Background="#333" BorderBrush="#555"/>
-                            </Grid>
+                                <!-- Thinking Config -->
+                                <TextBlock Text="{DynamicResource ui_settings_thinking}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox x:Name="ThinkingCb" Content="{DynamicResource ui_settings_enable_reasoning}" VerticalAlignment="Center"/>
+                                </Grid>
 
-                            <!-- Thinking Config -->
-                            <TextBlock Text="{DynamicResource ui_settings_thinking}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
-                            <Grid Margin="0,0,0,5">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <CheckBox x:Name="ThinkingCb" Content="{DynamicResource ui_settings_enable_reasoning}" VerticalAlignment="Center"/>
-                            </Grid>
+                                <!-- Budget -->
+                                <Grid IsEnabled="{Binding IsChecked, ElementName=ThinkingCb}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource ui_settings_tokens}" Style="{StaticResource FieldLabel}" Margin="0,0,10,0"/>
+                                    <TextBox x:Name="BudgetBox" Grid.Column="1" Text="24000"/>
+                                </Grid>
 
-                            <!-- Budget -->
-                            <Grid IsEnabled="{Binding IsChecked, ElementName=ThinkingCb}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{DynamicResource ui_settings_tokens}" Style="{StaticResource FieldLabel}" Margin="0,0,10,0"/>
-                                <TextBox x:Name="BudgetBox" Grid.Column="1" Text="24000"/>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
-                <!-- Footer -->
-                <Button Grid.Row="1" Content="{DynamicResource ui_settings_close}" HorizontalAlignment="Right" Width="100" Click="Close_Click" Style="{StaticResource AccentButton}"/>
+                <!-- Footer with Top Margin -->
+                <Button Grid.Row="1" Content="{DynamicResource ui_settings_close}" 
+                        HorizontalAlignment="Right" Width="100" 
+                        Click="Close_Click" Style="{StaticResource AccentButton}"
+                        Margin="0,20,0,0"/>
             </Grid>
         </Grid>
     </Border>

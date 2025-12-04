@@ -24,11 +24,11 @@
 
     <s:String x:Key="ui_log_label">Execution Log:</s:String>
     <s:String x:Key="ui_compression_label">Token Compression:</s:String>
+
     <s:String x:Key="ui_comp_none">None (Original)</s:String>
     <s:String x:Key="ui_comp_smart">Smart (Safe)</s:String>
     <s:String x:Key="ui_comp_max">Maximum (unique comression)</s:String>
 
-    <!-- Исправлено: Убрали эмодзи, оставили только текст -->
     <s:String x:Key="ui_ai_select_btn">AI Select</s:String>
 
     <!-- Status -->
@@ -43,12 +43,16 @@
     <!-- Settings Window -->
     <s:String x:Key="ui_settings_general">General</s:String>
     <s:String x:Key="ui_settings_ai">AI (Gemini)</s:String>
+
     <s:String x:Key="ui_settings_lang">Interface Language:</s:String>
+    <s:String x:Key="ui_settings_telemetry">Send anonymous usage statistics</s:String>
+
     <s:String x:Key="ui_settings_apikey">API Key:</s:String>
     <s:String x:Key="ui_settings_model">Model:</s:String>
     <s:String x:Key="ui_settings_thinking">Reasoning / Thinking:</s:String>
     <s:String x:Key="ui_settings_tokens">Token Budget:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Enable Thinking</s:String>
+
     <s:String x:Key="ui_settings_close">Close</s:String>
 
     <!-- Log Messages -->
