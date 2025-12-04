@@ -9,25 +9,18 @@
 		<ApplicationIcon>icon.ico</ApplicationIcon>
 		<RootNamespace>TxtConverter</RootNamespace>
 
-		<!-- === БЕЗОПАСНАЯ ОПТИМИЗАЦИЯ РАЗМЕРА (WPF Safe) === -->
+		<!-- === МАКСИМАЛЬНАЯ МИНИАТЮРИЗАЦИЯ (Требует установки .NET) === -->
 
-		<!-- 1. Публикация в один файл -->
+		<!-- 1. Отключаем Self-Contained. .NET НЕ будет включен в EXE. -->
+		<SelfContained>false</SelfContained>
+
+		<!-- 2. Все равно собираем в один файл для удобства -->
 		<PublishSingleFile>true</PublishSingleFile>
 
-		<!-- 2. Self-Contained (все библиотеки внутри) -->
-		<SelfContained>true</SelfContained>
+		<!-- 3. Указываем архитектуру (обязательно для SingleFile) -->
 		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
 
-		<!-- 3. ВАЖНО: Отключаем Trimming (из-за этого была ошибка) -->
-		<PublishTrimmed>false</PublishTrimmed>
-
-		<!-- 4. ВАЖНО: Включаем сжатие внутри EXE. Это даст основной выигрыш (аналог ZIP) -->
-		<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-
-		<!-- 5. Отключаем ReadyToRun (жертвуем долей секунды на запуске ради уменьшения веса на 30-40%) -->
-		<PublishReadyToRun>false</PublishReadyToRun>
-
-		<!-- 6. Убираем отладочную информацию -->
+		<!-- 4. Очистка от мусора -->
 		<DebugType>none</DebugType>
 		<DebugSymbols>false</DebugSymbols>
 
