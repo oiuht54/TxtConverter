@@ -8,9 +8,29 @@
 		<UseWPF>true</UseWPF>
 		<ApplicationIcon>icon.ico</ApplicationIcon>
 		<RootNamespace>TxtConverter</RootNamespace>
-		<!-- В релизе отключаем отладочную информацию для уменьшения веса -->
+
+		<!-- === БЕЗОПАСНАЯ ОПТИМИЗАЦИЯ РАЗМЕРА (WPF Safe) === -->
+
+		<!-- 1. Публикация в один файл -->
+		<PublishSingleFile>true</PublishSingleFile>
+
+		<!-- 2. Self-Contained (все библиотеки внутри) -->
+		<SelfContained>true</SelfContained>
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+
+		<!-- 3. ВАЖНО: Отключаем Trimming (из-за этого была ошибка) -->
+		<PublishTrimmed>false</PublishTrimmed>
+
+		<!-- 4. ВАЖНО: Включаем сжатие внутри EXE. Это даст основной выигрыш (аналог ZIP) -->
+		<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+
+		<!-- 5. Отключаем ReadyToRun (жертвуем долей секунды на запуске ради уменьшения веса на 30-40%) -->
+		<PublishReadyToRun>false</PublishReadyToRun>
+
+		<!-- 6. Убираем отладочную информацию -->
 		<DebugType>none</DebugType>
 		<DebugSymbols>false</DebugSymbols>
+
 	</PropertyGroup>
 
 	<ItemGroup>
