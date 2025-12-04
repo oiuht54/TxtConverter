@@ -13,22 +13,17 @@
     <s:String x:Key="ui_ignored">Ignored Folders (comma separated):</s:String>
     <s:String x:Key="ui_ignored_prompt">Example: Library, Temp, obj</s:String>
     <s:String x:Key="ui_rescan_btn">Rescan</s:String>
-
     <s:String x:Key="ui_structure_cb">Generate Structure File</s:String>
     <s:String x:Key="ui_compact_structure_cb">Compact Mode (Collapse ignored files)</s:String>
     <s:String x:Key="ui_token_compression_cb">Smart Token Compression (Remove visual noise)</s:String>
     <s:String x:Key="ui_merged_cb">Generate Merged File with All Code ({0})</s:String>
-
     <s:String x:Key="ui_select_files_btn">Select Files...</s:String>
     <s:String x:Key="ui_convert_btn">START CONVERSION</s:String>
-
     <s:String x:Key="ui_log_label">Execution Log:</s:String>
     <s:String x:Key="ui_compression_label">Token Compression:</s:String>
-
     <s:String x:Key="ui_comp_none">None (Original)</s:String>
     <s:String x:Key="ui_comp_smart">Smart (Safe)</s:String>
     <s:String x:Key="ui_comp_max">Maximum (unique comression)</s:String>
-
     <s:String x:Key="ui_ai_select_btn">AI Select</s:String>
 
     <!-- Status -->
@@ -43,16 +38,13 @@
     <!-- Settings Window -->
     <s:String x:Key="ui_settings_general">General</s:String>
     <s:String x:Key="ui_settings_ai">AI (Gemini)</s:String>
-
     <s:String x:Key="ui_settings_lang">Interface Language:</s:String>
     <s:String x:Key="ui_settings_telemetry">Send anonymous usage statistics</s:String>
-
     <s:String x:Key="ui_settings_apikey">API Key:</s:String>
     <s:String x:Key="ui_settings_model">Model:</s:String>
     <s:String x:Key="ui_settings_thinking">Reasoning / Thinking:</s:String>
     <s:String x:Key="ui_settings_tokens">Token Budget:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Enable Thinking</s:String>
-
     <s:String x:Key="ui_settings_close">Close</s:String>
 
     <!-- Log Messages -->
@@ -76,8 +68,9 @@
     <s:String x:Key="report_generated_date">Date generated: {0}</s:String>
     <s:String x:Key="report_file_header">FILE: {0}</s:String>
     <s:String x:Key="report_read_error">!!! READ ERROR: {0} !!!</s:String>
-    <s:String x:Key="report_stub_warning">*** SYSTEM INSTRUCTION: Files marked as (Stub) have content omitted to save tokens. If the task requires code from these files, you MUST request it from the user. Do not hallucinate the implementation. ***</s:String>
-    <s:String x:Key="report_omitted">(Stub)</s:String>
+
+    <s:String x:Key="report_stub_warning">*** SYSTEM INSTRUCTION: Files marked with [CONTENT EXCLUDED] exist in the actual project but were omitted from this context to save tokens. They are NOT empty or todo-items. DO NOT hallucinate their implementation. If you strictly need their content to solve the task, REQUEST them from the user. ***</s:String>
+    <s:String x:Key="report_omitted">*** [EXISTING FILE - CONTENT EXCLUDED FROM CONTEXT TO SAVE TOKENS] ***</s:String>
 
     <!-- Task Messages -->
     <s:String x:Key="task_preparing">Preparing for conversion...</s:String>

@@ -9,25 +9,16 @@
 		<ApplicationIcon>icon.ico</ApplicationIcon>
 		<RootNamespace>TxtConverter</RootNamespace>
 
-		<!-- === МАКСИМАЛЬНАЯ МИНИАТЮРИЗАЦИЯ (Требует установки .NET) === -->
-
-		<!-- 1. Отключаем Self-Contained. .NET НЕ будет включен в EXE. -->
+		<!-- === МАКСИМАЛЬНАЯ МИНИАТЮРИЗАЦИЯ === -->
 		<SelfContained>false</SelfContained>
-
-		<!-- 2. Все равно собираем в один файл для удобства -->
 		<PublishSingleFile>true</PublishSingleFile>
-
-		<!-- 3. Указываем архитектуру (обязательно для SingleFile) -->
 		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
-
-		<!-- 4. Очистка от мусора -->
 		<DebugType>none</DebugType>
 		<DebugSymbols>false</DebugSymbols>
-
 	</PropertyGroup>
 
+	<!-- Зависимость удалена для облегчения сборки и portability -->
 	<ItemGroup>
-		<PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
 	</ItemGroup>
 
 </Project>

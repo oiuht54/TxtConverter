@@ -1,5 +1,4 @@
 ﻿using System.IO;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using TxtConverter.Core;
@@ -17,13 +16,11 @@ public class AppSettings
     public bool GenerateMerged { get; set; } = true;
     public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
 
-    // AI Settings
     public string AiApiKey { get; set; } = string.Empty;
     public string AiModel { get; set; } = ProjectConstants.DefaultAiModel;
     public int AiThinkingBudget { get; set; } = ProjectConstants.DefaultThinkingBudget;
     public bool AiThinkingEnabled { get; set; } = true;
 
-    // Telemetry Settings
     public string InstallationId { get; set; } = string.Empty;
     public bool IsTelemetryEnabled { get; set; } = true;
 }
@@ -35,7 +32,6 @@ public class PreferenceManager
 
     private AppSettings _settings;
     private readonly string _settingsPath;
-    private static readonly byte[] s_entropy = Encoding.UTF8.GetBytes("Tartarus_TxtConverter_Secure_Key");
 
     private PreferenceManager()
     {
@@ -57,14 +53,10 @@ public class PreferenceManager
                 if (loaded != null)
                 {
                     _settings = loaded;
-                    // Decrypt API Key
+                    // Decode key if present
                     if (!string.IsNullOrEmpty(_settings.AiApiKey))
                     {
-                        try
-                        {
-                            _settings.AiApiKey = DecryptString(_settings.AiApiKey);
-                        }
-                        catch { /* Ignore decryption errors */ }
+                        _settings.AiApiKey = FromBase64(_settings.AiApiKey);
                     }
                 }
             }
@@ -74,11 +66,10 @@ public class PreferenceManager
             }
         }
 
-        // Ensure Installation ID exists (First Run Logic)
         if (string.IsNullOrEmpty(_settings.InstallationId))
         {
             _settings.InstallationId = Guid.NewGuid().ToString();
-            Save(); // Save immediately to persist ID
+            Save();
         }
     }
 
@@ -86,57 +77,51 @@ public class PreferenceManager
     {
         try
         {
-            // Temporary encrypt sensitive data
+            // Simple obfuscation to avoid plain text in JSON (Portability over Security)
             string plainKey = _settings.AiApiKey;
             if (!string.IsNullOrEmpty(plainKey))
             {
-                _settings.AiApiKey = EncryptString(plainKey);
+                _settings.AiApiKey = ToBase64(plainKey);
             }
 
             var options = new JsonSerializerOptions { WriteIndented = true };
             string json = JsonSerializer.Serialize(_settings, options);
             File.WriteAllText(_settingsPath, json);
 
-            // Restore plain text for runtime usage
+            // Restore plain key in memory
             _settings.AiApiKey = plainKey;
         }
         catch
         {
-            // Silently fail on save errors
+            // Ignore save errors
         }
     }
 
-    private string EncryptString(string plainText)
+    // Removed DPAPI to avoid NuGet dependency on System.Security.Cryptography.ProtectedData
+    private string ToBase64(string plainText)
     {
         if (string.IsNullOrEmpty(plainText)) return plainText;
         try
         {
-            byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
-            byte[] cipherBytes = ProtectedData.Protect(plainBytes, s_entropy, DataProtectionScope.CurrentUser);
-            return Convert.ToBase64String(cipherBytes);
+            byte[] bytes = Encoding.UTF8.GetBytes(plainText);
+            return Convert.ToBase64String(bytes);
         }
-        catch
-        {
-            return string.Empty;
-        }
+        catch { return plainText; }
     }
 
-    private string DecryptString(string cipherText)
+    private string FromBase64(string base64Text)
     {
-        if (string.IsNullOrEmpty(cipherText)) return cipherText;
+        if (string.IsNullOrEmpty(base64Text)) return base64Text;
         try
         {
-            byte[] cipherBytes = Convert.FromBase64String(cipherText);
-            byte[] plainBytes = ProtectedData.Unprotect(cipherBytes, s_entropy, DataProtectionScope.CurrentUser);
-            return Encoding.UTF8.GetString(plainBytes);
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
+            // Check if string is likely base64 before trying
+            if (base64Text.Trim().Length % 4 != 0) return base64Text;
 
-    // --- Getters / Setters ---
+            byte[] bytes = Convert.FromBase64String(base64Text);
+            return Encoding.UTF8.GetString(bytes);
+        }
+        catch { return base64Text; }
+    }
 
     public string GetLanguage() => _settings.Language;
     public void SetLanguage(string lang) { _settings.Language = lang; Save(); }
@@ -171,8 +156,8 @@ public class PreferenceManager
     public bool GetAiThinkingEnabled() => _settings.AiThinkingEnabled;
     public void SetAiThinkingEnabled(bool enabled) { _settings.AiThinkingEnabled = enabled; Save(); }
 
-    // Telemetry
     public string GetInstallationId() => _settings.InstallationId;
+
     public bool GetTelemetryEnabled() => _settings.IsTelemetryEnabled;
     public void SetTelemetryEnabled(bool enabled) { _settings.IsTelemetryEnabled = enabled; Save(); }
 }

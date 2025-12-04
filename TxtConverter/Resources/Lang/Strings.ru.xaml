@@ -13,22 +13,17 @@
     <s:String x:Key="ui_ignored">Игнорируемые папки (через запятую):</s:String>
     <s:String x:Key="ui_ignored_prompt">Например: Library, Temp, obj</s:String>
     <s:String x:Key="ui_rescan_btn">Пересканировать</s:String>
-
     <s:String x:Key="ui_structure_cb">Создавать файл структуры</s:String>
     <s:String x:Key="ui_compact_structure_cb">Компактный режим (Свернуть лишнее)</s:String>
     <s:String x:Key="ui_token_compression_cb">Умное сжатие (Убрать визуальный шум)</s:String>
     <s:String x:Key="ui_merged_cb">Создавать единый файл со всем кодом ({0})</s:String>
-
     <s:String x:Key="ui_select_files_btn">Выбрать файлы...</s:String>
     <s:String x:Key="ui_convert_btn">НАЧАТЬ КОНВЕРТАЦИЮ</s:String>
-
     <s:String x:Key="ui_log_label">Лог выполнения:</s:String>
     <s:String x:Key="ui_compression_label">Сжатие токенов:</s:String>
-
     <s:String x:Key="ui_comp_none">Нет (Оригинал)</s:String>
     <s:String x:Key="ui_comp_smart">Умное (Безопасно)</s:String>
     <s:String x:Key="ui_comp_max">Максимум (уникальный алгоритм сжатия)</s:String>
-
     <s:String x:Key="ui_ai_select_btn">AI Выбор</s:String>
 
     <!-- Status -->
@@ -43,16 +38,13 @@
     <!-- Settings Window -->
     <s:String x:Key="ui_settings_general">Общие</s:String>
     <s:String x:Key="ui_settings_ai">ИИ (Gemini)</s:String>
-
     <s:String x:Key="ui_settings_lang">Язык интерфейса:</s:String>
     <s:String x:Key="ui_settings_telemetry">Отправлять анонимную статистику</s:String>
-
     <s:String x:Key="ui_settings_apikey">API Ключ:</s:String>
     <s:String x:Key="ui_settings_model">Модель:</s:String>
     <s:String x:Key="ui_settings_thinking">Размышление (Thinking):</s:String>
     <s:String x:Key="ui_settings_tokens">Бюджет токенов:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Включить размышление</s:String>
-
     <s:String x:Key="ui_settings_close">Закрыть</s:String>
 
     <!-- Log Messages -->
@@ -76,8 +68,9 @@
     <s:String x:Key="report_generated_date">Дата генерации: {0}</s:String>
     <s:String x:Key="report_file_header">ФАЙЛ: {0}</s:String>
     <s:String x:Key="report_read_error">!!! ОШИБКА ЧТЕНИЯ: {0} !!!</s:String>
-    <s:String x:Key="report_stub_warning">*** СИСТЕМНАЯ ИНСТРУКЦИЯ: Файлы с пометкой (Stub) не содержат кода для экономии контекста. Если логика задачи требует кода из этих файлов, ТЫ ОБЯЗАН запросить его у пользователя. Не додумывай реализацию. ***</s:String>
-    <s:String x:Key="report_omitted">(Stub)</s:String>
+
+    <s:String x:Key="report_stub_warning">*** СИСТЕМНАЯ ИНСТРУКЦИЯ: Файлы с пометкой [CONTENT EXCLUDED] существуют в проекте, но их содержимое скрыто для экономии контекста. Это НЕ пустые файлы. НЕ придумывай их реализацию. Если код из них критически важен, ЗАПРОСИ его у пользователя. ***</s:String>
+    <s:String x:Key="report_omitted">*** [ФАЙЛ СУЩЕСТВУЕТ - СОДЕРЖИМОЕ СКРЫТО ДЛЯ ЭКОНОМИИ] ***</s:String>
 
     <!-- Task Messages -->
     <s:String x:Key="task_preparing">Подготовка к конвертации...</s:String>

@@ -5,10 +5,6 @@ using TxtConverter.Services;
 
 namespace TxtConverter.Core.Logic.Reporting;
 
-/// <summary>
-/// Responsible for generating the _FileStructure.md file.
-/// Supports both Tree view and Flat view.
-/// </summary>
 public class StructureReportGenerator
 {
     private readonly string _rootPath;
@@ -26,7 +22,6 @@ public class StructureReportGenerator
         CompressionLevel compressionLevel,
         bool compactMode)
     {
-
         _rootPath = rootPath;
         _processedFiles = processedFiles;
         _filesSelectedForMerge = filesSelectedForMerge;
@@ -40,7 +35,6 @@ public class StructureReportGenerator
         string reportPath = Path.Combine(outputDir, ProjectConstants.ReportStructureFile);
         var sb = new StringBuilder();
 
-        // 1. Header
         sb.Append(Loc("report_structure_header")).Append('\n');
         sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append("\n\n");
 
@@ -48,7 +42,8 @@ public class StructureReportGenerator
         {
             sb.Append("### Legend / Легенда:\n");
             sb.Append("- `[ M ]` Merged: Full content included.\n");
-            sb.Append("- `[ S ]` Stub: File included as a stub.\n\n");
+            // CHANGED: "Stub" changed to "Omitted" to prevent LLM hallucinations about missing code
+            sb.Append("- `[ S ]` Omitted: Content excluded (Context Saver).\n\n");
             sb.Append("```text\n");
         }
         else
@@ -56,7 +51,6 @@ public class StructureReportGenerator
             sb.Append(_compressionLevel == CompressionLevel.Maximum ? "(Flat Structure Mode)\n" : "(Compact Tree Mode)\n");
         }
 
-        // 2. Body Generation
         if (_compressionLevel == CompressionLevel.Maximum)
         {
             GenerateFlatStructure(sb);
@@ -70,29 +64,24 @@ public class StructureReportGenerator
             }
 
             bool simpleTree = (_compressionLevel == CompressionLevel.Smart);
-            // We use WalkDirectoryTree to traverse the actual file system but filter based on processed files
             WalkDirectoryTree(_rootPath, "", sb, simpleTree);
         }
 
         if (_compressionLevel == CompressionLevel.None) sb.Append("```\n");
 
-        // 3. Write
         File.WriteAllText(reportPath, sb.ToString(), Encoding.UTF8);
     }
 
     private void GenerateFlatStructure(StringBuilder sb)
     {
-        // In Flat Mode, we mostly show what was processed
-        // But we might iterate real files to show ignored ones if compact mode is off
         var dirInfo = new DirectoryInfo(_rootPath);
-
         foreach (var file in dirInfo.GetFiles("*", SearchOption.AllDirectories))
         {
             if (!ShouldIncludeInStructure(file.FullName, _rootPath)) continue;
 
             bool isProcessed = _processedFiles.Contains(file.FullName);
 
-            // If CompactMode is ON, we only show files that are actually in the output
+            // In compact mode, we skip ignored files entirely in the flat list
             if (_compactMode && !isProcessed) continue;
 
             string relPath = Path.GetRelativePath(_rootPath, file.FullName).Replace('\\', '/');
@@ -127,7 +116,6 @@ public class StructureReportGenerator
             }
             else if (child is FileInfo fi)
             {
-                // Determine if we show this file explicitly
                 if (_processedFiles.Contains(child.FullName))
                 {
                     nodesToShow.Add(child);
@@ -139,7 +127,7 @@ public class StructureReportGenerator
             }
         }
 
-        // Collapse Logic: If we have many ignored files, group them
+        // Logic to collapse ignored files if there are too many (only in full tree mode)
         if (!_compactMode && filesToCollapse.Count > 0 && filesToCollapse.Count <= 5)
         {
             nodesToShow.AddRange(filesToCollapse);
@@ -165,7 +153,6 @@ public class StructureReportGenerator
             currentIndex++;
         }
 
-        // Print collapsed summary if any
         if (filesToCollapse.Count > 0)
         {
             var extStats = filesToCollapse
@@ -191,7 +178,6 @@ public class StructureReportGenerator
     {
         if (simpleTree)
         {
-            // Smart/Compact Tree Style
             string currentIndent = prefix + "  ";
             if (node is DirectoryInfo di)
             {
@@ -205,7 +191,6 @@ public class StructureReportGenerator
         }
         else
         {
-            // Detailed Tree Style (Original)
             string connector = isLast ? "└── " : "├── ";
             string childPrefix = prefix + (isLast ? "    " : "│   ");
 
@@ -226,7 +211,6 @@ public class StructureReportGenerator
     private bool ShouldIncludeInStructure(string path, string rootOfWalk)
     {
         string name = Path.GetFileName(path);
-        // Standard filters
         if (name == ProjectConstants.OutputDirName) return false;
         if (name.EndsWith(".import") || name.EndsWith(".tmp") || name.EndsWith(".uid")) return false;
         if (name.StartsWith(".") && name != ".gitignore") return false;
@@ -235,13 +219,14 @@ public class StructureReportGenerator
         {
             if (_ignoredFolders.Contains(name.ToLower())) return false;
         }
+
         return true;
     }
 
     private string GetFileStatus(string path)
     {
         if (_filesSelectedForMerge.Contains(path)) return "[ M ]"; // Merged
-        if (_processedFiles.Contains(path)) return "[ S ]"; // Stub
+        if (_processedFiles.Contains(path)) return "[ S ]"; // Stub / Omitted
         return "[ - ]";
     }
 
