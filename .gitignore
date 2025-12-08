@@ -27,6 +27,8 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+
+.ai-bridge
 _ConvertedToTxt/
 _ReleaseBuilds
 build_release.bat

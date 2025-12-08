@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System.ComponentModel;
 using System.IO;
 using System.Text;
@@ -12,69 +12,58 @@ using TxtConverter.Services;
 
 namespace TxtConverter.Views;
 
-public partial class MainWindow : Window
-{
+public partial class MainWindow : Window {
     private List<string> _allFoundFiles = new();
     private HashSet<string> _filesSelectedForMerge = new();
     private bool _isProcessing;
 
-    public MainWindow()
-    {
+    public MainWindow() {
         InitializeComponent();
-
         UpdateMergedCheckboxLabel();
         SetupCompressionCombo();
         SetupPresets();
         LoadPreferences();
-
         Log(Loc("log_app_ready"));
     }
 
-    private void Window_Loaded(object sender, RoutedEventArgs e)
-    {
-        if (!string.IsNullOrWhiteSpace(SourceDirBox.Text) && Directory.Exists(SourceDirBox.Text))
-        {
+    private void Window_Loaded(object sender, RoutedEventArgs e) {
+        if (!string.IsNullOrWhiteSpace(SourceDirBox.Text) && Directory.Exists(SourceDirBox.Text)) {
             Log("🔄 Auto-scan on startup initiated...");
             Rescan_Click(this, new RoutedEventArgs());
         }
     }
 
-    protected override void OnClosing(CancelEventArgs e)
-    {
-        if (_isProcessing)
-        {
-            e.Cancel = true; // Block closing if busy
+    protected override void OnClosing(CancelEventArgs e) {
+        if (_isProcessing) {
+            e.Cancel = true; 
             return;
         }
         SavePreferences();
         base.OnClosing(e);
     }
 
-    private void SavePreferences()
-    {
+    private void SavePreferences() {
         var prefs = PreferenceManager.Instance;
         prefs.SetLastSourceDir(SourceDirBox.Text);
+        
         if (PresetCombo.SelectedItem is string preset)
             prefs.SetLastPreset(preset);
-
+        
         prefs.SetGenerateStructure(StructCb.IsChecked == true);
         prefs.SetCompactMode(CompactCb.IsChecked == true);
         prefs.SetGenerateMerged(MergedCb.IsChecked == true);
-
-        if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
-        {
+        
+        if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl) {
             prefs.SetCompressionLevel(lvl);
         }
+        
         prefs.Save();
     }
 
-    private void LoadPreferences()
-    {
+    private void LoadPreferences() {
         var prefs = PreferenceManager.Instance;
-
         string lastDir = prefs.GetLastSourceDir();
-        if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir))
-        {
+        if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir)) {
             SourceDirBox.Text = lastDir;
             UpdateMergedCheckboxLabel();
             RescanBtn.IsEnabled = true;
@@ -91,85 +80,66 @@ public partial class MainWindow : Window
         MergedCb.IsChecked = prefs.GetGenerateMerged();
 
         CompressionLevel savedComp = prefs.GetCompressionLevel();
-        foreach (ComboBoxItem item in CompressionCombo.Items)
-        {
-            if (item.Tag is CompressionLevel lvl && lvl == savedComp)
-            {
+        foreach (ComboBoxItem item in CompressionCombo.Items) {
+            if (item.Tag is CompressionLevel lvl && lvl == savedComp) {
                 CompressionCombo.SelectedItem = item;
                 break;
             }
         }
     }
 
-    private void SetupCompressionCombo()
-    {
+    private void SetupCompressionCombo() {
         CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_none"), Tag = CompressionLevel.None });
         CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_smart"), Tag = CompressionLevel.Smart });
         CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_max"), Tag = CompressionLevel.Maximum });
         CompressionCombo.SelectedIndex = 1;
     }
 
-    private void SetupPresets()
-    {
-        foreach (var preset in PresetManager.Instance.GetPresetNames())
-        {
+    private void SetupPresets() {
+        foreach (var preset in PresetManager.Instance.GetPresetNames()) {
             PresetCombo.Items.Add(preset);
         }
     }
 
-    private void SelectSource_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFolderDialog
-        {
+    private void SelectSource_Click(object sender, RoutedEventArgs e) {
+        var dialog = new OpenFolderDialog {
             Title = Loc("ui_source_dir"),
             Multiselect = false
         };
-
-        if (Directory.Exists(SourceDirBox.Text))
-        {
+        if (Directory.Exists(SourceDirBox.Text)) {
             dialog.InitialDirectory = SourceDirBox.Text;
         }
 
-        if (dialog.ShowDialog() == true)
-        {
+        if (dialog.ShowDialog() == true) {
             SetSourceDirectory(dialog.FolderName);
         }
     }
 
-    private void SetSourceDirectory(string path)
-    {
+    private void SetSourceDirectory(string path) {
         SourceDirBox.Text = path;
         Log(string.Format(Loc("log_dir_selected"), path));
         UpdateMergedCheckboxLabel();
 
         string? detected = PresetManager.Instance.AutoDetectPreset(path);
-        if (detected != null)
-        {
+        if (detected != null) {
             Log($"🤖 Auto-detected project type: {detected}");
             PresetCombo.SelectedItem = detected;
         }
-
         Rescan_Click(this, new RoutedEventArgs());
     }
 
-    private void Window_Drop(object sender, DragEventArgs e)
-    {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
-        {
+    private void Window_Drop(object sender, DragEventArgs e) {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)) {
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            if (files != null && files.Length == 1 && Directory.Exists(files[0]))
-            {
+            if (files != null && files.Length == 1 && Directory.Exists(files[0])) {
                 SetSourceDirectory(files[0]);
             }
         }
     }
 
-    private void Preset_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (PresetCombo.SelectedItem is string presetName)
-        {
-            if (presetName != "Manual")
-            {
+    private void Preset_SelectionChanged(object sender, SelectionChangedEventArgs e) {
+        if (PresetCombo.SelectedItem is string presetName) {
+            if (presetName != "Manual") {
                 ExtensionsBox.Text = PresetManager.Instance.GetExtensionsFor(presetName);
                 IgnoredBox.Text = PresetManager.Instance.GetIgnoredFoldersFor(presetName);
             }
@@ -177,10 +147,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void Rescan_Click(object sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(SourceDirBox.Text))
-        {
+    private async void Rescan_Click(object sender, RoutedEventArgs e) {
+        if (string.IsNullOrWhiteSpace(SourceDirBox.Text)) {
             Log(Loc("log_error_no_dir"));
             return;
         }
@@ -190,62 +158,53 @@ public partial class MainWindow : Window
         Log(Loc("log_scanning_start"));
         StatusProgressBar.IsIndeterminate = true;
 
-        try
-        {
+        try {
             var exts = ExtensionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-
             var scanner = new FileScanner(exts, ignored);
+            
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
             _filesSelectedForMerge = new HashSet<string>(_allFoundFiles);
 
             Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
             UpdateButtonsState();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             Log(string.Format(Loc("log_scan_error"), ex.Message));
         }
-        finally
-        {
+        finally {
             SetUiBlocked(false);
             StatusProgressBar.IsIndeterminate = false;
             StatusLabel.Text = Loc("ui_status_waiting");
         }
     }
 
-    private void SelectFiles_Click(object sender, RoutedEventArgs e)
-    {
+    private void SelectFiles_Click(object sender, RoutedEventArgs e) {
         if (_allFoundFiles.Count == 0) return;
 
         var dialog = new SelectionWindow(_allFoundFiles, _filesSelectedForMerge, SourceDirBox.Text);
         dialog.Owner = this;
-
-        if (dialog.ShowDialog() == true && dialog.Result != null)
-        {
+        if (dialog.ShowDialog() == true && dialog.Result != null) {
             _filesSelectedForMerge = dialog.Result;
             Log(string.Format(Loc("log_files_selected"), _filesSelectedForMerge.Count, _allFoundFiles.Count));
         }
     }
 
-    private void AiSelect_Click(object sender, RoutedEventArgs e)
-    {
+    private void AiSelect_Click(object sender, RoutedEventArgs e) {
         if (_allFoundFiles.Count == 0) return;
 
-        if (string.IsNullOrWhiteSpace(PreferenceManager.Instance.GetAiApiKey()))
-        {
-            MessageBox.Show("Please set your Google Gemini API Key in Settings first.", "API Key Missing", MessageBoxButton.OK, MessageBoxImage.Information);
-            Settings_Click(null, null); // Open settings
+        // GetAiApiKey now smartly returns the key for the selected provider
+        if (string.IsNullOrWhiteSpace(PreferenceManager.Instance.GetAiApiKey())) {
+            var provider = PreferenceManager.Instance.GetAiProvider();
+            MessageBox.Show($"Please set your API Key for {provider} in Settings first.", "API Key Missing", MessageBoxButton.OK, MessageBoxImage.Information);
+            Settings_Click(null, null); 
             return;
         }
 
         var dialog = new AiTaskWindow(SourceDirBox.Text, _allFoundFiles);
         dialog.Owner = this;
-
-        if (dialog.ShowDialog() == true && dialog.ResultPaths != null)
-        {
+        if (dialog.ShowDialog() == true && dialog.ResultPaths != null) {
             _filesSelectedForMerge = new HashSet<string>(dialog.ResultPaths);
-
             Log("✨ AI Selection Applied:");
             Log($"   Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
             Log($"   Selected: {_filesSelectedForMerge.Count} files.");
@@ -254,20 +213,17 @@ public partial class MainWindow : Window
             if (_filesSelectedForMerge.Count > 5) Log("   ...");
 
             MessageBox.Show($"AI selected {_filesSelectedForMerge.Count} files based on your task.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-
-            // Telemetry: Track AI Usage
+            
             TelemetryService.Instance.TrackEvent("ai_used", new Dictionary<string, object> {
                 { "files_selected", _filesSelectedForMerge.Count },
                 { "total_files_in_project", _allFoundFiles.Count },
-                { "model", PreferenceManager.Instance.GetAiModel() }
+                { "provider", PreferenceManager.Instance.GetAiProvider().ToString() }
             });
         }
     }
 
-    private async void Convert_Click(object sender, RoutedEventArgs e)
-    {
-        if (_allFoundFiles.Count == 0)
-        {
+    private async void Convert_Click(object sender, RoutedEventArgs e) {
+        if (_allFoundFiles.Count == 0) {
             Log(Loc("log_no_files"));
             return;
         }
@@ -281,10 +237,8 @@ public partial class MainWindow : Window
 
         DateTime startTime = DateTime.Now;
 
-        try
-        {
+        try {
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-
             CompressionLevel compLevel = CompressionLevel.Smart;
             if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
                 compLevel = lvl;
@@ -309,10 +263,8 @@ public partial class MainWindow : Window
             Log(Loc("log_conversion_success"));
             Log("====================");
             Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
-
             StatusLabel.Text = Loc("ui_status_done");
 
-            // Telemetry: Track Conversion Success
             TimeSpan duration = DateTime.Now - startTime;
             TelemetryService.Instance.TrackEvent("conversion_completed", new Dictionary<string, object> {
                 { "files_processed", _allFoundFiles.Count },
@@ -321,27 +273,21 @@ public partial class MainWindow : Window
                 { "preset", PresetCombo.SelectedItem?.ToString() ?? "Unknown" },
                 { "compression", compLevel.ToString() }
             });
-
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             Log(string.Format(Loc("log_conversion_error"), ex.Message));
             StatusLabel.Text = Loc("ui_status_error");
-
-            // Telemetry: Track Error
             TelemetryService.Instance.TrackEvent("conversion_failed", new Dictionary<string, object> {
                 { "error_message", ex.Message }
             });
         }
-        finally
-        {
+        finally {
             SetUiBlocked(false);
             StatusProgressBar.Value = 1;
         }
     }
 
-    private void SetUiBlocked(bool isBlocked)
-    {
+    private void SetUiBlocked(bool isBlocked) {
         _isProcessing = isBlocked;
         SelectSourceBtn.IsEnabled = !isBlocked;
         PresetCombo.IsEnabled = !isBlocked;
@@ -354,26 +300,22 @@ public partial class MainWindow : Window
         else Mouse.OverrideCursor = null;
     }
 
-    private void UpdateButtonsState()
-    {
+    private void UpdateButtonsState() {
         bool hasFiles = _allFoundFiles.Count > 0;
         bool hasDir = !string.IsNullOrEmpty(SourceDirBox.Text);
-
+        
         RescanBtn.IsEnabled = hasDir;
         SelectFilesBtn.IsEnabled = hasFiles;
         AiSelectBtn.IsEnabled = hasFiles;
         ConvertBtn.IsEnabled = hasFiles;
     }
 
-    private void UpdateMergedCheckboxLabel()
-    {
+    private void UpdateMergedCheckboxLabel() {
         string fileName = "_MergedOutput.txt";
-        if (!string.IsNullOrEmpty(SourceDirBox.Text))
-        {
+        if (!string.IsNullOrEmpty(SourceDirBox.Text)) {
             string projName = Path.GetFileName(SourceDirBox.Text);
             fileName = "_" + projName + ProjectConstants.MergedFileSuffix;
         }
-
         string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
         if (baseStr.Contains("{0}"))
             MergedCb.Content = string.Format(baseStr, fileName);
@@ -381,32 +323,26 @@ public partial class MainWindow : Window
             MergedCb.Content = baseStr + $" ({fileName})";
     }
 
-    private void Log(string message)
-    {
+    private void Log(string message) {
         LogBox.AppendText(message + Environment.NewLine);
         LogBox.ScrollToEnd();
     }
 
     private string Loc(string key) => LanguageManager.Instance.GetString(key);
 
-    private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
-    {
+    private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e) {
         if (e.ChangedButton == MouseButton.Left) DragMove();
     }
 
-    private void Settings_Click(object sender, RoutedEventArgs e)
-    {
+    private void Settings_Click(object sender, RoutedEventArgs e) {
         var settingsWin = new SettingsWindow();
         settingsWin.Owner = this;
         settingsWin.ShowDialog();
-
         UpdateManualTexts();
     }
 
-    private void UpdateManualTexts()
-    {
-        if (CompressionCombo.Items.Count >= 3)
-        {
+    private void UpdateManualTexts() {
+        if (CompressionCombo.Items.Count >= 3) {
             ((ComboBoxItem)CompressionCombo.Items[0]).Content = Loc("ui_comp_none");
             ((ComboBoxItem)CompressionCombo.Items[1]).Content = Loc("ui_comp_smart");
             ((ComboBoxItem)CompressionCombo.Items[2]).Content = Loc("ui_comp_max");
@@ -415,8 +351,5 @@ public partial class MainWindow : Window
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-    private void Close_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
-    }
+    private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }

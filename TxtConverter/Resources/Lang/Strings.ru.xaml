@@ -1,8 +1,8 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:s="clr-namespace:System;assembly=mscorlib">
     <s:String x:Key="app_title">TXT Конвертер Файлов</s:String>
-
+    
     <!-- Main Window -->
     <s:String x:Key="ui_settings">Настройки</s:String>
     <s:String x:Key="ui_source_dir">Папка с исходниками:</s:String>
@@ -13,12 +13,14 @@
     <s:String x:Key="ui_ignored">Игнорируемые папки (через запятую):</s:String>
     <s:String x:Key="ui_ignored_prompt">Например: Library, Temp, obj</s:String>
     <s:String x:Key="ui_rescan_btn">Пересканировать</s:String>
+    
     <s:String x:Key="ui_structure_cb">Создавать файл структуры</s:String>
     <s:String x:Key="ui_compact_structure_cb">Компактный режим (Свернуть лишнее)</s:String>
     <s:String x:Key="ui_token_compression_cb">Умное сжатие (Убрать визуальный шум)</s:String>
     <s:String x:Key="ui_merged_cb">Создавать единый файл со всем кодом ({0})</s:String>
     <s:String x:Key="ui_select_files_btn">Выбрать файлы...</s:String>
     <s:String x:Key="ui_convert_btn">НАЧАТЬ КОНВЕРТАЦИЮ</s:String>
+
     <s:String x:Key="ui_log_label">Лог выполнения:</s:String>
     <s:String x:Key="ui_compression_label">Сжатие токенов:</s:String>
     <s:String x:Key="ui_comp_none">Нет (Оригинал)</s:String>
@@ -37,14 +39,16 @@
 
     <!-- Settings Window -->
     <s:String x:Key="ui_settings_general">Общие</s:String>
-    <s:String x:Key="ui_settings_ai">ИИ (Gemini)</s:String>
+    <s:String x:Key="ui_settings_ai">Искусственный Интеллект (AI)</s:String>
     <s:String x:Key="ui_settings_lang">Язык интерфейса:</s:String>
     <s:String x:Key="ui_settings_telemetry">Отправлять анонимную статистику</s:String>
+    
+    <s:String x:Key="ui_settings_provider">Провайдер:</s:String>
     <s:String x:Key="ui_settings_apikey">API Ключ:</s:String>
     <s:String x:Key="ui_settings_model">Модель:</s:String>
     <s:String x:Key="ui_settings_thinking">Размышление (Thinking):</s:String>
     <s:String x:Key="ui_settings_tokens">Бюджет токенов:</s:String>
-    <s:String x:Key="ui_settings_enable_reasoning">Включить размышление</s:String>
+    <s:String x:Key="ui_settings_enable_reasoning">Включить размышление (только Gemini)</s:String>
     <s:String x:Key="ui_settings_close">Закрыть</s:String>
 
     <!-- Log Messages -->
@@ -61,14 +65,13 @@
     <s:String x:Key="log_conversion_success">КОНВЕРТАЦИЯ УСПЕШНА</s:String>
     <s:String x:Key="log_result_path">Результат в папке: {0}</s:String>
     <s:String x:Key="log_conversion_error">КРИТИЧЕСКАЯ ОШИБКА КОНВЕРТАЦИИ: {0}</s:String>
-
+    
     <!-- Report Messages -->
     <s:String x:Key="report_structure_header"># Структура скопированных файлов</s:String>
     <s:String x:Key="report_merged_header">Единый файл с полным кодом проекта ({0})</s:String>
     <s:String x:Key="report_generated_date">Дата генерации: {0}</s:String>
     <s:String x:Key="report_file_header">ФАЙЛ: {0}</s:String>
     <s:String x:Key="report_read_error">!!! ОШИБКА ЧТЕНИЯ: {0} !!!</s:String>
-
     <s:String x:Key="report_stub_warning">*** СИСТЕМНАЯ ИНСТРУКЦИЯ: Файлы с пометкой [CONTENT EXCLUDED] существуют в проекте, но их содержимое скрыто для экономии контекста. Это НЕ пустые файлы. НЕ придумывай их реализацию. Если код из них критически важен, ЗАПРОСИ его у пользователя. ***</s:String>
     <s:String x:Key="report_omitted">*** [ФАЙЛ СУЩЕСТВУЕТ - СОДЕРЖИМОЕ СКРЫТО ДЛЯ ЭКОНОМИИ] ***</s:String>
 

@@ -1,29 +1,40 @@
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using TxtConverter.Services.Ai;
 
-namespace TxtConverter.Services;
+namespace TxtConverter.Services.Ai;
 
-public class GeminiClient : IAiClient {
+public class NvidiaClient : IAiClient {
     private readonly string _apiKey;
     private readonly string _defaultModel;
-    private readonly bool _thinkingEnabled;
-    private readonly int _defaultTokenBudget;
+    private readonly int _maxTokens;
+    private readonly double _temperature;
+    private readonly double _topP;
+    private readonly bool _reasoningEnabled;
     private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public GeminiClient(string apiKey, string defaultModel, bool thinkingEnabled, int tokenBudget) {
+    // ИСПРАВЛЕНО: Только официальный эндпоинт NVIDIA
+    private const string BaseUrl = "https://integrate.api.nvidia.com/v1";
+
+    public NvidiaClient(string apiKey, string defaultModel, int maxTokens, double temperature, double topP, bool reasoningEnabled) {
         _apiKey = apiKey;
         _defaultModel = defaultModel;
-        _thinkingEnabled = thinkingEnabled;
-        _defaultTokenBudget = tokenBudget;
+        _maxTokens = maxTokens;
+        _temperature = temperature;
+        _topP = topP;
+        _reasoningEnabled = reasoningEnabled;
 
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromMinutes(10);
+        
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
         _jsonOptions = new JsonSerializerOptions {
             WriteIndented = true,
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
@@ -33,61 +44,45 @@ public class GeminiClient : IAiClient {
     public async Task<List<string>> GetAvailableModelsAsync() {
         if (string.IsNullOrWhiteSpace(_apiKey)) return new List<string>();
 
-        string url = $"https://generativelanguage.googleapis.com/v1beta/models?key={_apiKey}";
+        string url = $"{BaseUrl}/models";
         try {
             var response = await _httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode) return new List<string>();
 
             string json = await response.Content.ReadAsStringAsync();
             var root = JsonNode.Parse(json);
-            var modelsNode = root?["models"]?.AsArray();
+            var dataNode = root?["data"]?.AsArray();
 
             var result = new List<string>();
-            if (modelsNode != null) {
-                foreach (var node in modelsNode) {
-                    string name = node?["name"]?.ToString() ?? "";
-                    if (name.StartsWith("models/")) name = name.Substring(7);
-
-                    var methods = node?["supportedGenerationMethods"]?.AsArray();
-                    bool supportsGenerate = false;
-                    if (methods != null) {
-                        foreach (var m in methods) {
-                            if (m?.ToString() == "generateContent") {
-                                supportsGenerate = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (supportsGenerate && !string.IsNullOrEmpty(name)) {
-                        result.Add(name);
+            if (dataNode != null) {
+                foreach (var node in dataNode) {
+                    string id = node?["id"]?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(id)) {
+                        result.Add(id);
                     }
                 }
             }
-            result.Sort((a, b) => {
-                bool aGemini = a.Contains("gemini");
-                bool bGemini = b.Contains("gemini");
-                if (aGemini && !bGemini) return -1;
-                if (!aGemini && bGemini) return 1;
-                return string.Compare(b, a, StringComparison.Ordinal);
-            });
+            result.Sort();
             return result;
         }
         catch {
-            return new List<string>();
+            // Fallback список, если API моделей недоступно
+            return new List<string> { 
+                _defaultModel, 
+                "minimaxai/minimax-m2",
+                "meta/llama-3.1-70b-instruct", 
+                "deepseek-ai/deepseek-r1" 
+            };
         }
     }
 
     public async Task<AiAnalysisResult> AnalyzeProjectAsync(string userPrompt, string projectContext, string? overrideModel = null, int? overrideBudget = null) {
         if (string.IsNullOrWhiteSpace(_apiKey))
-            throw new Exception("Gemini API Key is missing. Please check Settings.");
+            throw new Exception("NVIDIA API Key is missing. Please check Settings.");
 
         string modelToUse = !string.IsNullOrWhiteSpace(overrideModel) ? overrideModel : _defaultModel;
-        int budgetToUse = (overrideBudget.HasValue && overrideBudget.Value > 0) ? overrideBudget.Value : _defaultTokenBudget;
 
-        string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelToUse}:generateContent?key={_apiKey}";
-
-        // --- ВОССТАНОВЛЕННАЯ ПОЛНАЯ ИНСТРУКЦИЯ ---
+        // --- SYSTEM INSTRUCTION (RESTORED) ---
         var sbSys = new StringBuilder();
         sbSys.AppendLine("You are a **Static Code Analysis Engine**.");
         sbSys.AppendLine("Your goal is to build a complete execution environment for a specific task.");
@@ -113,60 +108,58 @@ public class GeminiClient : IAiClient {
         sbSys.AppendLine("### OUTPUT FORMAT:");
         sbSys.AppendLine("[\"path/to/target.gd\", \"path/to/dependency.gd\", \"path/to/resource.tres\"]");
         sbSys.AppendLine("(Return ONLY JSON)");
-        // ------------------------------------------
+        // -------------------------------------
 
-        var sbFull = new StringBuilder();
-        sbFull.AppendLine("--- SYSTEM INSTRUCTION ---");
-        sbFull.Append(sbSys.ToString());
-        sbFull.AppendLine();
-        sbFull.AppendLine("--- TASK DESCRIPTION (TARGET) ---");
-        sbFull.AppendLine(userPrompt);
-        sbFull.AppendLine();
-        sbFull.AppendLine("--- PROJECT FILE INDEX & CONTENT ---");
-        sbFull.AppendLine(projectContext);
-
-        string fullText = sbFull.ToString();
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine("--- TASK DESCRIPTION ---");
+        sbUser.AppendLine(userPrompt);
+        sbUser.AppendLine();
+        sbUser.AppendLine("--- PROJECT CONTEXT ---");
+        sbUser.AppendLine(projectContext);
 
         var payload = new JsonObject();
-        var parts = new JsonArray();
-        parts.Add(new JsonObject { ["text"] = fullText });
+        payload["model"] = modelToUse;
+        payload["temperature"] = _temperature; 
+        payload["top_p"] = _topP;
+        payload["max_tokens"] = _maxTokens > 0 ? _maxTokens : 4096; 
+        payload["stream"] = false;
 
-        var contentObj = new JsonObject();
-        contentObj["role"] = "user";
-        contentObj["parts"] = parts;
-        payload["contents"] = new JsonArray { contentObj };
-
-        var genConfig = new JsonObject();
-        genConfig["temperature"] = 0.0;
-        
-        if (_thinkingEnabled) {
-            var thinkingConfig = new JsonObject();
-            thinkingConfig["thinkingBudget"] = budgetToUse;
-            genConfig["thinkingConfig"] = thinkingConfig;
-        } else {
-            genConfig["responseMimeType"] = "application/json";
-            genConfig["maxOutputTokens"] = budgetToUse > 0 ? budgetToUse : 8192;
+        if (_reasoningEnabled) {
+            var templateKwargs = new JsonObject();
+            templateKwargs["thinking"] = true;
+            templateKwargs["effort"] = "high";         
+            templateKwargs["reasoning_effort"] = "high"; 
+            
+            payload["chat_template_kwargs"] = templateKwargs;
+            payload["reasoning_effort"] = "high"; 
+            payload["effort"] = "high"; 
         }
-        
-        payload["generationConfig"] = genConfig;
+
+        var messages = new JsonArray();
+        messages.Add(new JsonObject { ["role"] = "system", ["content"] = sbSys.ToString() });
+        messages.Add(new JsonObject { ["role"] = "user", ["content"] = sbUser.ToString() });
+        payload["messages"] = messages;
 
         string requestJson = payload.ToJsonString(_jsonOptions);
-        
+
+        // --- DEBUG INFO ---
         var debugSb = new StringBuilder();
-        string maskedUrl = url.Replace(_apiKey, "API_KEY_HIDDEN");
-        debugSb.AppendLine($"POST {maskedUrl}");
+        string maskedKey = _apiKey.Length > 8 ? _apiKey.Substring(0, 4) + "..." + _apiKey.Substring(_apiKey.Length - 4) : "***";
+        debugSb.AppendLine($"POST {BaseUrl}/chat/completions");
+        debugSb.AppendLine($"Authorization: Bearer {maskedKey}");
         debugSb.AppendLine("Content-Type: application/json");
         debugSb.AppendLine();
         debugSb.AppendLine(requestJson);
+        // ------------------
 
         var result = new AiAnalysisResult {
             RequestJson = debugSb.ToString(),
-            CleanRequestText = fullText,
-            ProviderName = "Google Gemini"
+            CleanRequestText = sbSys.ToString() + "\n\n" + sbUser.ToString(),
+            ProviderName = "NVIDIA NIM"
         };
 
-        var jsonContent = new StringContent(requestJson, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync(url, jsonContent);
+        var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync($"{BaseUrl}/chat/completions", content);
         string responseBody = await response.Content.ReadAsStringAsync();
 
         try {
@@ -178,7 +171,7 @@ public class GeminiClient : IAiClient {
         }
 
         if (!response.IsSuccessStatusCode) {
-            throw new Exception($"Gemini API Error ({response.StatusCode}): {ExtractErrorMessage(responseBody)}");
+            throw new Exception($"NVIDIA API Error ({response.StatusCode}): {ExtractErrorMessage(responseBody)}");
         }
 
         ParseResponse(responseBody, result);
@@ -196,20 +189,14 @@ public class GeminiClient : IAiClient {
     private void ParseResponse(string json, AiAnalysisResult result) {
         try {
             var root = JsonNode.Parse(json);
-            var candidates = root?["candidates"]?.AsArray();
-            if (candidates == null || candidates.Count == 0) return;
+            var choices = root?["choices"]?.AsArray();
+            if (choices == null || choices.Count == 0) return;
 
-            var parts = candidates[0]?["content"]?["parts"]?.AsArray();
-            if (parts == null) return;
+            var content = choices[0]?["message"]?["content"]?.ToString();
+            if (string.IsNullOrEmpty(content)) return;
 
-            var sb = new StringBuilder();
-            foreach (var part in parts) {
-                var text = part?["text"]?.ToString();
-                if (!string.IsNullOrEmpty(text)) sb.Append(text);
-            }
-
-            result.RawContentText = sb.ToString();
-            string jsonText = CleanJsonText(result.RawContentText);
+            result.RawContentText = content;
+            string jsonText = CleanJsonText(content);
             
             var paths = JsonSerializer.Deserialize<List<string>>(jsonText);
             if (paths != null) result.SelectedFiles = paths;

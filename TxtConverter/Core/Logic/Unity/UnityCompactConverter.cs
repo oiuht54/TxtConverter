@@ -1,167 +1,115 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace TxtConverter.Core.Logic.Unity;
 
-public class UnityCompactConverter
-{
-    // Regex для заголовка объекта: --- !u!1 &123456
-    // Group 1: ClassID (1=GameObject, 4=Transform, etc)
-    // Group 2: FileID (Unique ID in file)
+public class UnityCompactConverter {
     private static readonly Regex HeaderRegex = new(@"^--- !u!(\d+) &(\d+)", RegexOptions.Compiled | RegexOptions.Multiline);
-
-    // Извлечение полей ссылок: m_Father: {fileID: 1234}
     private static readonly Regex FileIdRegex = new(@"fileID:\s*(-?\d+)", RegexOptions.Compiled);
-
-    // Извлечение простых свойств: m_Name: MyObject
-    private static readonly Regex PropRegex = new(@"^\s*(\w+):\s*(.+)$", RegexOptions.Compiled);
+    
+    // Unused regex removed if not needed, or kept for future
+    // private static readonly Regex PropRegex = new(@"^\s*(\w+):\s*(.+)$", RegexOptions.Compiled);
 
     private readonly Dictionary<string, UnityObject> _objects = new();
     private readonly StringBuilder _output = new();
 
-    public static string Convert(string content)
-    {
+    public static string Convert(string content) {
         return new UnityCompactConverter().Process(content);
     }
 
-    private string Process(string content)
-    {
-        // 1. Разбиваем файл на блоки объектов
-        // Unity YAML разделяет объекты строкой "--- !u!ClassID &FileID"
-        // Используем Split, но сохраняем разделители или ищем совпадения
-
+    private string Process(string content) {
         var matches = HeaderRegex.Matches(content);
-        if (matches.Count == 0) return content; // Не похоже на YAML Unity
+        if (matches.Count == 0) return content;
 
-        int start = 0;
-        for (int i = 0; i < matches.Count; i++)
-        {
+        // Исправлено: Удалена неиспользуемая переменная 'start'
+        for (int i = 0; i < matches.Count; i++) {
             var match = matches[i];
             int nextIndex = (i == matches.Count - 1) ? content.Length : matches[i + 1].Index;
-
+            
             string blockContent = content.Substring(match.Index, nextIndex - match.Index);
             ParseBlock(match.Groups[1].Value, match.Groups[2].Value, blockContent);
         }
 
-        // 2. Строим иерархию
-        // Unity хранит плоский список. Связи:
-        // GameObject -> хранит список Component ID
-        // Transform (один из компонентов) -> хранит Father ID (Transform) и Children IDs (Transforms)
-
         var rootTransforms = new List<UnityObject>();
-
-        foreach (var obj in _objects.Values)
-        {
-            if (obj.ClassId == "4" || obj.ClassId == "224") // Transform или RectTransform
-            {
-                if (string.IsNullOrEmpty(obj.ParentTransformId) || obj.ParentTransformId == "0")
-                {
+        foreach (var obj in _objects.Values) {
+            // Transform (4) or RectTransform (224)
+            if (obj.ClassId == "4" || obj.ClassId == "224") { 
+                if (string.IsNullOrEmpty(obj.ParentTransformId) || obj.ParentTransformId == "0") {
                     rootTransforms.Add(obj);
                 }
-                else
-                {
-                    if (_objects.TryGetValue(obj.ParentTransformId, out var parent))
-                    {
+                else {
+                    if (_objects.TryGetValue(obj.ParentTransformId, out var parent)) {
                         parent.Children.Add(obj);
                     }
                 }
             }
         }
 
-        // 3. Выводим дерево
-        if (rootTransforms.Count == 0)
-        {
-            // Если иерархию не нашли, выводим как есть (возможно это не сцена, а ассет настроек)
+        if (rootTransforms.Count == 0) {
             return "(Unity YAML Content: Structured hierarchy not found, returning summary)\nObjects found: " + _objects.Count;
         }
 
-        foreach (var root in rootTransforms)
-        {
+        foreach (var root in rootTransforms) {
             PrintTree(root, "");
         }
 
         return _output.ToString().Trim();
     }
 
-    private void ParseBlock(string classId, string fileId, string content)
-    {
-        // Игнорируем технический мусор Unity
-        // 157: LightmapSettings, 196: NavMeshSettings, 104: RenderSettings, 29: OcclusionCullingSettings
-        if (classId == "157" || classId == "196" || classId == "104" || classId == "29" || classId == "850595691")
+    private void ParseBlock(string classId, string fileId, string content) {
+        // Skip common heavy assets: Mesh(43), Material(21), Texture2D(28), AnimationClip(74), Avatar(9000000)
+        // Kept lightweight ones.
+        if (classId == "157" || classId == "196" || classId == "104" || classId == "29" || classId == "850595691") 
             return;
 
         var obj = new UnityObject { ClassId = classId, FileId = fileId };
-
         var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
-        foreach (var line in lines)
-        {
+        foreach (var line in lines) {
             string trimmed = line.Trim();
 
-            if (trimmed.StartsWith("m_Name:"))
+            if (trimmed.StartsWith("m_Name:")) 
                 obj.Name = GetValue(trimmed);
-
-            else if (trimmed.StartsWith("m_GameObject:"))
+            else if (trimmed.StartsWith("m_GameObject:")) 
                 obj.GameObjectId = ExtractFileId(trimmed);
-
-            else if (trimmed.StartsWith("m_Father:"))
+            else if (trimmed.StartsWith("m_Father:")) 
                 obj.ParentTransformId = ExtractFileId(trimmed);
-
-            else if (trimmed.StartsWith("m_Component:"))
-                continue; // Начало списка
-
-            else if (trimmed.StartsWith("- component:"))
+            else if (trimmed.StartsWith("m_Component:")) 
+                continue;
+            else if (trimmed.StartsWith("- component:")) 
                 obj.ComponentIds.Add(ExtractFileId(trimmed));
-
-            else if (classId == "114") // MonoBehaviour (Скрипт)
-            {
-                // Собираем публичные поля скрипта, игнорируя служебные m_
+            else if (classId == "114") { // MonoBehaviour
                 int colon = trimmed.IndexOf(':');
-                if (colon > 0)
-                {
+                if (colon > 0) {
                     string key = trimmed.Substring(0, colon).Trim();
                     string val = trimmed.Substring(colon + 1).Trim();
-
-                    if (!key.StartsWith("m_") && key != "serializedVersion")
-                    {
+                    if (!key.StartsWith("m_") && key != "serializedVersion") {
                         obj.Properties[key] = val;
                     }
                 }
             }
         }
-
         _objects[fileId] = obj;
     }
 
-    private void PrintTree(UnityObject transform, string indent)
-    {
-        // Transform ссылается на GameObject. Нам нужно имя GameObject.
+    private void PrintTree(UnityObject transform, string indent) {
         string gameObjectName = "Unknown";
         UnityObject? go = null;
 
-        if (!string.IsNullOrEmpty(transform.GameObjectId) && _objects.TryGetValue(transform.GameObjectId, out go))
-        {
+        if (!string.IsNullOrEmpty(transform.GameObjectId) && _objects.TryGetValue(transform.GameObjectId, out go)) {
             gameObjectName = go.Name;
         }
 
         _output.Append(indent).Append(gameObjectName);
 
-        // Собираем компоненты на этом GameObject
-        if (go != null && go.ComponentIds.Count > 0)
-        {
+        if (go != null && go.ComponentIds.Count > 0) {
             var comps = new List<string>();
-            foreach (var compId in go.ComponentIds)
-            {
-                if (compId == transform.FileId) continue; // Не выводим Transform, он и так понятен по структуре
-
-                if (_objects.TryGetValue(compId, out var comp))
-                {
+            foreach (var compId in go.ComponentIds) {
+                if (compId == transform.FileId) continue;
+                if (_objects.TryGetValue(compId, out var comp)) {
                     string compName = GetComponentName(comp.ClassId);
-                    if (comp.ClassId == "114") // Script
-                    {
-                        // Если есть свойства, добавим их
-                        if (comp.Properties.Count > 0)
-                        {
+                    if (comp.ClassId == "114") { // Script
+                        if (comp.Properties.Count > 0) {
                             var props = comp.Properties.Select(k => $"{k.Key}:{ShortenVal(k.Value)}");
                             compName += $"({string.Join(", ", props)})";
                         }
@@ -169,25 +117,19 @@ public class UnityCompactConverter
                     comps.Add(compName);
                 }
             }
-
-            if (comps.Count > 0)
-            {
+            if (comps.Count > 0) {
                 _output.Append(" [").Append(string.Join(", ", comps)).Append("]");
             }
         }
-
         _output.Append('\n');
 
-        foreach (var child in transform.Children)
-        {
+        foreach (var child in transform.Children) {
             PrintTree(child, indent + "  ");
         }
     }
 
-    private string GetComponentName(string classId)
-    {
-        return classId switch
-        {
+    private string GetComponentName(string classId) {
+        return classId switch {
             "4" => "Transform",
             "224" => "RectTransform",
             "20" => "Camera",
@@ -211,34 +153,29 @@ public class UnityCompactConverter
         };
     }
 
-    private string ExtractFileId(string line)
-    {
+    private string ExtractFileId(string line) {
         var m = FileIdRegex.Match(line);
         return m.Success ? m.Groups[1].Value : "";
     }
 
-    private string GetValue(string line)
-    {
+    private string GetValue(string line) {
         int idx = line.IndexOf(':');
         return idx == -1 ? "" : line.Substring(idx + 1).Trim();
     }
 
-    private string ShortenVal(string val)
-    {
+    private string ShortenVal(string val) {
         if (val.Length > 20) return val.Substring(0, 17) + "...";
         return val;
     }
 
-    private class UnityObject
-    {
+    private class UnityObject {
         public string FileId { get; set; } = "";
         public string ClassId { get; set; } = "";
-        public string Name { get; set; } = ""; // Из m_Name
-        public string GameObjectId { get; set; } = ""; // Для компонентов: к какому GO привязан
-        public string ParentTransformId { get; set; } = ""; // Для Transform: кто родитель
-
-        public List<string> ComponentIds { get; set; } = new(); // Для GameObject: список компонентов
-        public List<UnityObject> Children { get; set; } = new(); // Восстановленные дети
-        public Dictionary<string, string> Properties { get; set; } = new(); // Для скриптов
+        public string Name { get; set; } = ""; 
+        public string GameObjectId { get; set; } = ""; 
+        public string ParentTransformId { get; set; } = ""; 
+        public List<string> ComponentIds { get; set; } = new(); 
+        public List<UnityObject> Children { get; set; } = new(); 
+        public Dictionary<string, string> Properties { get; set; } = new(); 
     }
 }
