@@ -52,10 +52,10 @@ public partial class MainWindow : Window {
         prefs.SetGenerateStructure(StructCb.IsChecked == true);
         prefs.SetCompactMode(CompactCb.IsChecked == true);
         prefs.SetGenerateMerged(MergedCb.IsChecked == true);
-        prefs.SetGeneratePdf(PdfCb.IsChecked == true); // Save PDF Preference
+        prefs.SetGeneratePdf(PdfCb.IsChecked == true);
 
-        if (PdfModeCombo.SelectedItem is ComboBoxItem item && item.Tag is bool isCompact) {
-            prefs.SetPdfCompactMode(isCompact);
+        if (PdfModeCombo.SelectedItem is ComboBoxItem item && item.Tag is PdfMode mode) {
+            prefs.SetPdfMode(mode);
         }
 
         if (CompressionCombo.SelectedItem is ComboBoxItem cItem && cItem.Tag is CompressionLevel lvl) {
@@ -82,10 +82,15 @@ public partial class MainWindow : Window {
         StructCb.IsChecked = prefs.GetGenerateStructure();
         CompactCb.IsChecked = prefs.GetCompactMode();
         MergedCb.IsChecked = prefs.GetGenerateMerged();
-        PdfCb.IsChecked = prefs.GetGeneratePdf(); // Load PDF Preference
+        PdfCb.IsChecked = prefs.GetGeneratePdf();
 
-        bool isCompact = prefs.GetPdfCompactMode();
-        PdfModeCombo.SelectedIndex = isCompact ? 1 : 0; // 0 = Std, 1 = Compact
+        PdfMode savedMode = prefs.GetPdfMode();
+        foreach (ComboBoxItem item in PdfModeCombo.Items) {
+            if (item.Tag is PdfMode m && m == savedMode) {
+                PdfModeCombo.SelectedItem = item;
+                break;
+            }
+        }
 
         CompressionLevel savedComp = prefs.GetCompressionLevel();
         foreach (ComboBoxItem item in CompressionCombo.Items) {
@@ -105,8 +110,9 @@ public partial class MainWindow : Window {
 
     private void SetupPdfCombo() {
         PdfModeCombo.Items.Clear();
-        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_std"), Tag = false });
-        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_compact"), Tag = true });
+        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_std"), Tag = PdfMode.Standard });
+        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_compact"), Tag = PdfMode.Compact });
+        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_extreme"), Tag = PdfMode.Extreme });
     }
 
     private void SetupPresets() {
@@ -254,9 +260,9 @@ public partial class MainWindow : Window {
             if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
                 compLevel = lvl;
 
-            bool pdfCompact = false;
-            if (PdfModeCombo.SelectedItem is ComboBoxItem pi && pi.Tag is bool val) 
-                pdfCompact = val;
+            PdfMode pdfMode = PdfMode.Standard;
+            if (PdfModeCombo.SelectedItem is ComboBoxItem pi && pi.Tag is PdfMode val) 
+                pdfMode = val;
 
             var orchestrator = new ConversionOrchestrator(
                 SourceDirBox.Text,
@@ -267,8 +273,8 @@ public partial class MainWindow : Window {
                 CompactCb.IsChecked == true,
                 compLevel,
                 MergedCb.IsChecked == true,
-                PdfCb.IsChecked == true, // Pass PDF Flag
-                pdfCompact // Pass PDF Mode
+                PdfCb.IsChecked == true,
+                pdfMode
             );
 
             var progress = new Progress<double>(p => StatusProgressBar.Value = p);
@@ -289,7 +295,8 @@ public partial class MainWindow : Window {
                 { "duration_ms", (long)duration.TotalMilliseconds },
                 { "preset", PresetCombo.SelectedItem?.ToString() ?? "Unknown" },
                 { "compression", compLevel.ToString() },
-                { "pdf_generated", PdfCb.IsChecked == true }
+                { "pdf_generated", PdfCb.IsChecked == true },
+                { "pdf_mode", pdfMode.ToString() }
             });
         }
         catch (Exception ex) {
@@ -366,9 +373,10 @@ public partial class MainWindow : Window {
             ((ComboBoxItem)CompressionCombo.Items[2]).Content = Loc("ui_comp_max");
         }
         UpdateMergedCheckboxLabel();
-        if (PdfModeCombo.Items.Count >= 2) {
+        if (PdfModeCombo.Items.Count >= 3) {
             ((ComboBoxItem)PdfModeCombo.Items[0]).Content = Loc("ui_pdf_mode_std");
             ((ComboBoxItem)PdfModeCombo.Items[1]).Content = Loc("ui_pdf_mode_compact");
+            ((ComboBoxItem)PdfModeCombo.Items[2]).Content = Loc("ui_pdf_mode_extreme");
         }
     }
 

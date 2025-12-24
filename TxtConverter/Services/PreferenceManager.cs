@@ -13,8 +13,8 @@ public class AppSettings {
     public bool GenerateStructure { get; set; } = false;
     public bool CompactMode { get; set; } = true;
     public bool GenerateMerged { get; set; } = true;
-    public bool GeneratePdf { get; set; } = true; // New Default
-    public bool PdfCompactMode { get; set; } = false; // New Default
+    public bool GeneratePdf { get; set; } = true;
+    public PdfMode PdfMode { get; set; } = PdfMode.Standard; // Replaced boolean with Enum
 
     public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
 
@@ -134,8 +134,8 @@ public class PreferenceManager {
     public bool GetGeneratePdf() => _settings.GeneratePdf;
     public void SetGeneratePdf(bool val) { _settings.GeneratePdf = val; Save(); }
 
-    public bool GetPdfCompactMode() => _settings.PdfCompactMode;
-    public void SetPdfCompactMode(bool val) { _settings.PdfCompactMode = val; Save(); }
+    public PdfMode GetPdfMode() => _settings.PdfMode;
+    public void SetPdfMode(PdfMode val) { _settings.PdfMode = val; Save(); }
 
     public CompressionLevel GetCompressionLevel() => _settings.Compression;
     public void SetCompressionLevel(CompressionLevel level) { _settings.Compression = level; Save(); }

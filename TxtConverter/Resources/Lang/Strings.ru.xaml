@@ -23,7 +23,8 @@
     <!-- PDF Strings -->
     <s:String x:Key="ui_pdf_cb">Создавать PDF отчет</s:String>
     <s:String x:Key="ui_pdf_mode_std">Стандарт (Оптимизация для ИИ Vision)</s:String>
-    <s:String x:Key="ui_pdf_mode_compact">Компакт (Экономия страниц / Архив)</s:String>
+    <s:String x:Key="ui_pdf_mode_compact">Компакт (Экономия страниц)</s:String>
+    <s:String x:Key="ui_pdf_mode_extreme">Экстрим (Минимум страниц, без полей)</s:String>
 
     <s:String x:Key="ui_select_files_btn">Выбрать файлы...</s:String>
     <s:String x:Key="ui_convert_btn">НАЧАТЬ КОНВЕРТАЦИЮ</s:String>

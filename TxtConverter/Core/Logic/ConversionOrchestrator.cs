@@ -22,8 +22,8 @@ public class ConversionOrchestrator {
     private readonly bool _compactMode;
     private readonly CompressionLevel _compressionLevel;
     private readonly bool _genMerged;
-    private readonly bool _genPdf; // NEW
-    private readonly bool _pdfCompactMode; // NEW
+    private readonly bool _genPdf;
+    private readonly PdfMode _pdfMode;
 
     // Services
     private readonly FileContentProcessor _processor;
@@ -37,8 +37,8 @@ public class ConversionOrchestrator {
         bool compactMode,
         CompressionLevel compressionLevel,
         bool genMerged,
-        bool genPdf = false, // NEW
-        bool pdfCompactMode = false) { // NEW
+        bool genPdf,
+        PdfMode pdfMode) {
 
         _sourceDirPath = sourceDirPath;
         _filesToProcess = filesToProcess;
@@ -49,7 +49,7 @@ public class ConversionOrchestrator {
         _compressionLevel = compressionLevel;
         _genMerged = genMerged;
         _genPdf = genPdf;
-        _pdfCompactMode = pdfCompactMode;
+        _pdfMode = pdfMode;
 
         _processor = new FileContentProcessor(_compressionLevel);
     }
@@ -124,7 +124,7 @@ public class ConversionOrchestrator {
                 mergedGen.Generate(destPath);
             }
 
-            // 5. Generate PDF Report (NEW)
+            // 5. Generate PDF Report
             if (_genPdf && processedFilesMap.Count > 0) {
                 status.Report(Loc("task_pdf"));
                 string pdfName = "_" + projectName + "_Report.pdf";
@@ -136,7 +136,7 @@ public class ConversionOrchestrator {
                         structureContent,
                         processedFilesMap,
                         _filesSelectedForMerge,
-                        _pdfCompactMode // Pass flag
+                        _pdfMode
                     );
                     pdfGen.Generate(pdfPath);
                 }

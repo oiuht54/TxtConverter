@@ -23,7 +23,8 @@
     <!-- PDF Strings -->
     <s:String x:Key="ui_pdf_cb">Generate PDF Report</s:String>
     <s:String x:Key="ui_pdf_mode_std">Standard (Optimized for AI Vision)</s:String>
-    <s:String x:Key="ui_pdf_mode_compact">Compact (Page saver / Archive)</s:String>
+    <s:String x:Key="ui_pdf_mode_compact">Compact (Page saver)</s:String>
+    <s:String x:Key="ui_pdf_mode_extreme">Extreme (Min pages, no margins)</s:String>
 
     <s:String x:Key="ui_select_files_btn">Select Files...</s:String>
     <s:String x:Key="ui_convert_btn">START CONVERSION</s:String>
