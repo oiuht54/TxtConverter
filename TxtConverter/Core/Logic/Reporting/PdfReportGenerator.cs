@@ -9,7 +9,7 @@ namespace TxtConverter.Core.Logic.Reporting;
 
 /// <summary>
 /// Generates a PDF report tailored for LLM Vision analysis or Archiving.
-/// Uses QuestPDF to handle complex layouting like "Keep Together" vs "Compact Flow".
+/// Uses QuestPDF to handle complex layouting.
 /// </summary>
 public class PdfReportGenerator {
     private readonly string _projectName;
@@ -46,9 +46,9 @@ public class PdfReportGenerator {
                 break;
             case PdfMode.Extreme:
                 // Экстремальная экономия:
-                // Шрифт 2pt (читаемо при зуме 400%+), поля 0.3см
-                margin = 0.3f; 
-                fontSize = 2f; 
+                // Шрифт 2pt, поля 0.3см, интерлиньяж 0.9 (чуть свободнее чем 0.8 во избежание наслоений строк)
+                margin = 0.05f; 
+                fontSize = 1f; 
                 lineHeight = 0.8f; 
                 break;
             case PdfMode.Standard:
@@ -67,7 +67,7 @@ public class PdfReportGenerator {
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(x => x.FontSize(fontSize).FontFamily(Fonts.CourierNew).LineHeight(lineHeight));
 
-                // Header
+                // Header (Page Title)
                 // In Extreme mode, we skip page header entirely
                 if (_mode != PdfMode.Extreme) {
                     page.Header()
@@ -79,8 +79,8 @@ public class PdfReportGenerator {
                         });
                 }
 
-                // Footer
-                // In Extreme mode, skip footer (page numbers) to save bottom margin
+                // Footer (Page Numbers)
+                // In Extreme mode, skip footer
                 if (_mode != PdfMode.Extreme) {
                     page.Footer()
                         .AlignCenter()
@@ -94,22 +94,24 @@ public class PdfReportGenerator {
                 page.Content()
                     .Column(column => {
                         // 1. Structure
-                        column.Item().Text(t => {
-                            t.Span("Project Structure").FontSize(fontSize + ( _mode == PdfMode.Extreme ? 2 : 4 )).Bold();
-                            // No empty line in Extreme
-                            if (_mode != PdfMode.Extreme) t.EmptyLine();
-                        });
+                        // В режиме Extreme убираем заголовок "Project Structure" полностью, чтобы не наслаивался
+                        if (_mode != PdfMode.Extreme) {
+                            column.Item().Text(t => {
+                                t.Span("Project Structure").FontSize(fontSize + 4).Bold();
+                                t.EmptyLine();
+                            });
+                        }
 
-                        // Structure block padding
+                        // Structure content
                         float structPadding = _mode == PdfMode.Extreme ? 0 : 5;
                         column.Item().Background(Colors.Grey.Lighten4).Padding(structPadding).Text(_structureContent).FontSize(fontSize);
                         
-                        // Separator logic
+                        // Separator
                         if (_mode == PdfMode.Standard) {
                             column.Item().PageBreak();
                         }
                         else {
-                            // In Extreme/Compact: just a thin line separator
+                            // In Extreme/Compact: simple separator
                             float bottomPad = _mode == PdfMode.Extreme ? 2 : 10;
                             column.Item().PaddingBottom(bottomPad).LineHorizontal(0.5f).LineColor(Colors.Black);
                         }
@@ -134,12 +136,13 @@ public class PdfReportGenerator {
 
                             if (_mode == PdfMode.Extreme) {
                                 // === EXTREME MODE RENDERER ===
-                                // Minimal vertical space.
-                                // Header is just bold text.
+                                // Strict REGULAR font (no bold), text-based headers
                                 column.Item().PaddingTop(2).Column(c => {
                                     c.Item().Text(t => {
-                                        t.Span($">>> {fileName}").Bold();
-                                        if (isStub) t.Span(" (Stub)").Italic();
+                                        // Plain text header, no bold
+                                        string headerText = $">>> {fileName}";
+                                        if (isStub) headerText += " (Stub)";
+                                        t.Span(headerText); 
                                     });
                                     c.Item().Text(content);
                                 });
@@ -147,7 +150,6 @@ public class PdfReportGenerator {
                             else if (_mode == PdfMode.Compact) {
                                 // === COMPACT MODE RENDERER ===
                                 column.Item().PaddingTop(5).Column(c => {
-                                    // Minimal Header Box
                                     c.Item().Background(Colors.Grey.Lighten3).BorderBottom(1).BorderColor(Colors.Black).Padding(2).Row(row => {
                                         row.RelativeItem().Text(t => {
                                             t.Span(fileName).Bold();
@@ -187,7 +189,7 @@ public class PdfReportGenerator {
             });
         });
 
-        // Content with generous spacing
+        // Content
         column.Item().PaddingTop(5).PaddingBottom(10).Text(content);
     }
 }
