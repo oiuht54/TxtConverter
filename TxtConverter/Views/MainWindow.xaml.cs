@@ -21,6 +21,7 @@ public partial class MainWindow : Window {
         InitializeComponent();
         UpdateMergedCheckboxLabel();
         SetupCompressionCombo();
+        SetupPdfCombo();
         SetupPresets();
         LoadPreferences();
         Log(Loc("log_app_ready"));
@@ -35,7 +36,7 @@ public partial class MainWindow : Window {
 
     protected override void OnClosing(CancelEventArgs e) {
         if (_isProcessing) {
-            e.Cancel = true; 
+            e.Cancel = true;
             return;
         }
         SavePreferences();
@@ -45,18 +46,21 @@ public partial class MainWindow : Window {
     private void SavePreferences() {
         var prefs = PreferenceManager.Instance;
         prefs.SetLastSourceDir(SourceDirBox.Text);
-        
         if (PresetCombo.SelectedItem is string preset)
             prefs.SetLastPreset(preset);
-        
+
         prefs.SetGenerateStructure(StructCb.IsChecked == true);
         prefs.SetCompactMode(CompactCb.IsChecked == true);
         prefs.SetGenerateMerged(MergedCb.IsChecked == true);
-        
-        if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl) {
+        prefs.SetGeneratePdf(PdfCb.IsChecked == true);
+
+        if (PdfModeCombo.SelectedItem is ComboBoxItem item && item.Tag is PdfMode mode) {
+            prefs.SetPdfMode(mode);
+        }
+
+        if (CompressionCombo.SelectedItem is ComboBoxItem cItem && cItem.Tag is CompressionLevel lvl) {
             prefs.SetCompressionLevel(lvl);
         }
-        
         prefs.Save();
     }
 
@@ -78,6 +82,15 @@ public partial class MainWindow : Window {
         StructCb.IsChecked = prefs.GetGenerateStructure();
         CompactCb.IsChecked = prefs.GetCompactMode();
         MergedCb.IsChecked = prefs.GetGenerateMerged();
+        PdfCb.IsChecked = prefs.GetGeneratePdf();
+
+        PdfMode savedMode = prefs.GetPdfMode();
+        foreach (ComboBoxItem item in PdfModeCombo.Items) {
+            if (item.Tag is PdfMode m && m == savedMode) {
+                PdfModeCombo.SelectedItem = item;
+                break;
+            }
+        }
 
         CompressionLevel savedComp = prefs.GetCompressionLevel();
         foreach (ComboBoxItem item in CompressionCombo.Items) {
@@ -93,6 +106,13 @@ public partial class MainWindow : Window {
         CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_smart"), Tag = CompressionLevel.Smart });
         CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_max"), Tag = CompressionLevel.Maximum });
         CompressionCombo.SelectedIndex = 1;
+    }
+
+    private void SetupPdfCombo() {
+        PdfModeCombo.Items.Clear();
+        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_std"), Tag = PdfMode.Standard });
+        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_compact"), Tag = PdfMode.Compact });
+        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_extreme"), Tag = PdfMode.Extreme });
     }
 
     private void SetupPresets() {
@@ -152,7 +172,6 @@ public partial class MainWindow : Window {
             Log(Loc("log_error_no_dir"));
             return;
         }
-
         SetUiBlocked(true);
         StatusLabel.Text = Loc("ui_status_scanning");
         Log(Loc("log_scanning_start"));
@@ -161,8 +180,8 @@ public partial class MainWindow : Window {
         try {
             var exts = ExtensionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+
             var scanner = new FileScanner(exts, ignored);
-            
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
             _filesSelectedForMerge = new HashSet<string>(_allFoundFiles);
 
@@ -181,7 +200,6 @@ public partial class MainWindow : Window {
 
     private void SelectFiles_Click(object sender, RoutedEventArgs e) {
         if (_allFoundFiles.Count == 0) return;
-
         var dialog = new SelectionWindow(_allFoundFiles, _filesSelectedForMerge, SourceDirBox.Text);
         dialog.Owner = this;
         if (dialog.ShowDialog() == true && dialog.Result != null) {
@@ -193,11 +211,10 @@ public partial class MainWindow : Window {
     private void AiSelect_Click(object sender, RoutedEventArgs e) {
         if (_allFoundFiles.Count == 0) return;
 
-        // GetAiApiKey now smartly returns the key for the selected provider
         if (string.IsNullOrWhiteSpace(PreferenceManager.Instance.GetAiApiKey())) {
             var provider = PreferenceManager.Instance.GetAiProvider();
             MessageBox.Show($"Please set your API Key for {provider} in Settings first.", "API Key Missing", MessageBoxButton.OK, MessageBoxImage.Information);
-            Settings_Click(null, null); 
+            Settings_Click(null, null);
             return;
         }
 
@@ -213,7 +230,7 @@ public partial class MainWindow : Window {
             if (_filesSelectedForMerge.Count > 5) Log("   ...");
 
             MessageBox.Show($"AI selected {_filesSelectedForMerge.Count} files based on your task.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-            
+
             TelemetryService.Instance.TrackEvent("ai_used", new Dictionary<string, object> {
                 { "files_selected", _filesSelectedForMerge.Count },
                 { "total_files_in_project", _allFoundFiles.Count },
@@ -243,6 +260,10 @@ public partial class MainWindow : Window {
             if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
                 compLevel = lvl;
 
+            PdfMode pdfMode = PdfMode.Standard;
+            if (PdfModeCombo.SelectedItem is ComboBoxItem pi && pi.Tag is PdfMode val) 
+                pdfMode = val;
+
             var orchestrator = new ConversionOrchestrator(
                 SourceDirBox.Text,
                 _allFoundFiles,
@@ -251,7 +272,9 @@ public partial class MainWindow : Window {
                 StructCb.IsChecked == true,
                 CompactCb.IsChecked == true,
                 compLevel,
-                MergedCb.IsChecked == true
+                MergedCb.IsChecked == true,
+                PdfCb.IsChecked == true,
+                pdfMode
             );
 
             var progress = new Progress<double>(p => StatusProgressBar.Value = p);
@@ -271,7 +294,9 @@ public partial class MainWindow : Window {
                 { "files_merged", _filesSelectedForMerge.Count },
                 { "duration_ms", (long)duration.TotalMilliseconds },
                 { "preset", PresetCombo.SelectedItem?.ToString() ?? "Unknown" },
-                { "compression", compLevel.ToString() }
+                { "compression", compLevel.ToString() },
+                { "pdf_generated", PdfCb.IsChecked == true },
+                { "pdf_mode", pdfMode.ToString() }
             });
         }
         catch (Exception ex) {
@@ -303,7 +328,6 @@ public partial class MainWindow : Window {
     private void UpdateButtonsState() {
         bool hasFiles = _allFoundFiles.Count > 0;
         bool hasDir = !string.IsNullOrEmpty(SourceDirBox.Text);
-        
         RescanBtn.IsEnabled = hasDir;
         SelectFilesBtn.IsEnabled = hasFiles;
         AiSelectBtn.IsEnabled = hasFiles;
@@ -316,6 +340,7 @@ public partial class MainWindow : Window {
             string projName = Path.GetFileName(SourceDirBox.Text);
             fileName = "_" + projName + ProjectConstants.MergedFileSuffix;
         }
+
         string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
         if (baseStr.Contains("{0}"))
             MergedCb.Content = string.Format(baseStr, fileName);
@@ -348,6 +373,11 @@ public partial class MainWindow : Window {
             ((ComboBoxItem)CompressionCombo.Items[2]).Content = Loc("ui_comp_max");
         }
         UpdateMergedCheckboxLabel();
+        if (PdfModeCombo.Items.Count >= 3) {
+            ((ComboBoxItem)PdfModeCombo.Items[0]).Content = Loc("ui_pdf_mode_std");
+            ((ComboBoxItem)PdfModeCombo.Items[1]).Content = Loc("ui_pdf_mode_compact");
+            ((ComboBoxItem)PdfModeCombo.Items[2]).Content = Loc("ui_pdf_mode_extreme");
+        }
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

@@ -1,12 +1,11 @@
-﻿using System.IO;
+using System.IO;
 using System.Text;
 using TxtConverter.Core.Enums;
 using TxtConverter.Services;
 
 namespace TxtConverter.Core.Logic.Reporting;
 
-public class StructureReportGenerator
-{
+public class StructureReportGenerator {
     private readonly string _rootPath;
     private readonly HashSet<string> _processedFiles; // Files that were actually converted
     private readonly HashSet<string> _filesSelectedForMerge; // Files selected by user for full content
@@ -20,8 +19,7 @@ public class StructureReportGenerator
         HashSet<string> filesSelectedForMerge,
         List<string> ignoredFolders,
         CompressionLevel compressionLevel,
-        bool compactMode)
-    {
+        bool compactMode) {
         _rootPath = rootPath;
         _processedFiles = processedFiles;
         _filesSelectedForMerge = filesSelectedForMerge;
@@ -30,53 +28,50 @@ public class StructureReportGenerator
         _compactMode = compactMode;
     }
 
-    public void Generate(string outputDir)
-    {
+    /// <summary>
+    /// Generates the structure report.
+    /// Returns the content as a string for further use (e.g., PDF generation).
+    /// </summary>
+    public string Generate(string outputDir) {
         string reportPath = Path.Combine(outputDir, ProjectConstants.ReportStructureFile);
         var sb = new StringBuilder();
 
         sb.Append(Loc("report_structure_header")).Append('\n');
         sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append("\n\n");
 
-        if (_compressionLevel == CompressionLevel.None)
-        {
+        if (_compressionLevel == CompressionLevel.None) {
             sb.Append("### Legend / Легенда:\n");
             sb.Append("- `[ M ]` Merged: Full content included.\n");
-            // CHANGED: "Stub" changed to "Omitted" to prevent LLM hallucinations about missing code
             sb.Append("- `[ S ]` Omitted: Content excluded (Context Saver).\n\n");
             sb.Append("```text\n");
         }
-        else
-        {
+        else {
             sb.Append(_compressionLevel == CompressionLevel.Maximum ? "(Flat Structure Mode)\n" : "(Compact Tree Mode)\n");
         }
 
-        if (_compressionLevel == CompressionLevel.Maximum)
-        {
+        if (_compressionLevel == CompressionLevel.Maximum) {
             GenerateFlatStructure(sb);
         }
-        else
-        {
-            if (_compressionLevel != CompressionLevel.None)
-            {
+        else {
+            if (_compressionLevel != CompressionLevel.None) {
                 string rootName = new DirectoryInfo(_rootPath).Name;
                 sb.Append(_compressionLevel == CompressionLevel.Smart ? $"{rootName}/\n" : $"[ROOT] {rootName}\n");
             }
-
             bool simpleTree = (_compressionLevel == CompressionLevel.Smart);
             WalkDirectoryTree(_rootPath, "", sb, simpleTree);
         }
 
         if (_compressionLevel == CompressionLevel.None) sb.Append("```\n");
 
-        File.WriteAllText(reportPath, sb.ToString(), Encoding.UTF8);
+        string finalContent = sb.ToString();
+        File.WriteAllText(reportPath, finalContent, Encoding.UTF8);
+
+        return finalContent;
     }
 
-    private void GenerateFlatStructure(StringBuilder sb)
-    {
+    private void GenerateFlatStructure(StringBuilder sb) {
         var dirInfo = new DirectoryInfo(_rootPath);
-        foreach (var file in dirInfo.GetFiles("*", SearchOption.AllDirectories))
-        {
+        foreach (var file in dirInfo.GetFiles("*", SearchOption.AllDirectories)) {
             if (!ShouldIncludeInStructure(file.FullName, _rootPath)) continue;
 
             bool isProcessed = _processedFiles.Contains(file.FullName);
@@ -85,7 +80,6 @@ public class StructureReportGenerator
             if (_compactMode && !isProcessed) continue;
 
             string relPath = Path.GetRelativePath(_rootPath, file.FullName).Replace('\\', '/');
-
             if (isProcessed)
                 sb.Append(relPath).Append('\n');
             else
@@ -93,12 +87,10 @@ public class StructureReportGenerator
         }
     }
 
-    private void WalkDirectoryTree(string currentDirPath, string prefix, StringBuilder sb, bool simpleTree)
-    {
+    private void WalkDirectoryTree(string currentDirPath, string prefix, StringBuilder sb, bool simpleTree) {
         var dirInfo = new DirectoryInfo(currentDirPath);
         FileSystemInfo[] children;
-        try
-        {
+        try {
             children = dirInfo.GetFileSystemInfos();
         }
         catch { return; }
@@ -106,30 +98,24 @@ public class StructureReportGenerator
         var nodesToShow = new List<FileSystemInfo>();
         var filesToCollapse = new List<FileInfo>();
 
-        foreach (var child in children)
-        {
+        foreach (var child in children) {
             if (!ShouldIncludeInStructure(child.FullName, currentDirPath)) continue;
 
-            if (child is DirectoryInfo)
-            {
+            if (child is DirectoryInfo) {
                 nodesToShow.Add(child);
             }
-            else if (child is FileInfo fi)
-            {
-                if (_processedFiles.Contains(child.FullName))
-                {
+            else if (child is FileInfo fi) {
+                if (_processedFiles.Contains(child.FullName)) {
                     nodesToShow.Add(child);
                 }
-                else if (!_compactMode)
-                {
+                else if (!_compactMode) {
                     filesToCollapse.Add(fi);
                 }
             }
         }
 
         // Logic to collapse ignored files if there are too many (only in full tree mode)
-        if (!_compactMode && filesToCollapse.Count > 0 && filesToCollapse.Count <= 5)
-        {
+        if (!_compactMode && filesToCollapse.Count > 0 && filesToCollapse.Count <= 5) {
             nodesToShow.AddRange(filesToCollapse);
             filesToCollapse.Clear();
         }
@@ -146,15 +132,13 @@ public class StructureReportGenerator
         int totalItems = nodesToShow.Count + (filesToCollapse.Count > 0 ? 1 : 0);
         int currentIndex = 0;
 
-        foreach (var node in nodesToShow)
-        {
+        foreach (var node in nodesToShow) {
             bool isLast = (currentIndex == totalItems - 1);
             PrintTreeNode(node, prefix, isLast, sb, simpleTree);
             currentIndex++;
         }
 
-        if (filesToCollapse.Count > 0)
-        {
+        if (filesToCollapse.Count > 0) {
             var extStats = filesToCollapse
                 .GroupBy(f => f.Extension)
                 .OrderByDescending(g => g.Count())
@@ -162,45 +146,35 @@ public class StructureReportGenerator
                 .Select(g => $"{g.Key}({g.Count()})");
 
             string statsStr = string.Join(", ", extStats);
-
-            if (simpleTree)
-            {
+            if (simpleTree) {
                 sb.Append($"{prefix}  ... ({filesToCollapse.Count}: {statsStr})\n");
             }
-            else
-            {
+            else {
                 sb.Append($"{prefix}└── [ ... {filesToCollapse.Count} ignored: {statsStr} ... ]\n");
             }
         }
     }
 
-    private void PrintTreeNode(FileSystemInfo node, string prefix, bool isLast, StringBuilder sb, bool simpleTree)
-    {
-        if (simpleTree)
-        {
+    private void PrintTreeNode(FileSystemInfo node, string prefix, bool isLast, StringBuilder sb, bool simpleTree) {
+        if (simpleTree) {
             string currentIndent = prefix + "  ";
-            if (node is DirectoryInfo di)
-            {
+            if (node is DirectoryInfo di) {
                 sb.Append($"{currentIndent}{node.Name}/\n");
                 WalkDirectoryTree(di.FullName, currentIndent, sb, true);
             }
-            else
-            {
+            else {
                 sb.Append($"{currentIndent}{node.Name}\n");
             }
         }
-        else
-        {
+        else {
             string connector = isLast ? "└── " : "├── ";
             string childPrefix = prefix + (isLast ? "    " : "│   ");
 
-            if (node is DirectoryInfo di)
-            {
+            if (node is DirectoryInfo di) {
                 sb.Append($"{prefix}{connector}[DIR] {node.Name}\n");
                 WalkDirectoryTree(di.FullName, childPrefix, sb, false);
             }
-            else
-            {
+            else {
                 string size = FormatSize(((FileInfo)node).Length);
                 string status = GetFileStatus(node.FullName);
                 sb.Append($"{prefix}{connector}[FILE] {node.Name} ({size}) {status}\n");
@@ -208,30 +182,25 @@ public class StructureReportGenerator
         }
     }
 
-    private bool ShouldIncludeInStructure(string path, string rootOfWalk)
-    {
+    private bool ShouldIncludeInStructure(string path, string rootOfWalk) {
         string name = Path.GetFileName(path);
         if (name == ProjectConstants.OutputDirName) return false;
         if (name.EndsWith(".import") || name.EndsWith(".tmp") || name.EndsWith(".uid")) return false;
         if (name.StartsWith(".") && name != ".gitignore") return false;
 
-        if (Directory.Exists(path))
-        {
+        if (Directory.Exists(path)) {
             if (_ignoredFolders.Contains(name.ToLower())) return false;
         }
-
         return true;
     }
 
-    private string GetFileStatus(string path)
-    {
+    private string GetFileStatus(string path) {
         if (_filesSelectedForMerge.Contains(path)) return "[ M ]"; // Merged
         if (_processedFiles.Contains(path)) return "[ S ]"; // Stub / Omitted
         return "[ - ]";
     }
 
-    private string FormatSize(long bytes)
-    {
+    private string FormatSize(long bytes) {
         if (bytes < 1024) return bytes + " B";
         return (bytes / 1024) + " KB";
     }

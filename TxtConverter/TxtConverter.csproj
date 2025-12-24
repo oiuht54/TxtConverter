@@ -17,8 +17,10 @@
 		<DebugSymbols>false</DebugSymbols>
 	</PropertyGroup>
 
-	<!-- Зависимость удалена для облегчения сборки и portability -->
 	<ItemGroup>
+	  <PackageReference Include="QuestPDF" Version="2025.12.0" />
 	</ItemGroup>
+
+	<!-- Зависимость удалена для облегчения сборки и portability -->
 
 </Project>

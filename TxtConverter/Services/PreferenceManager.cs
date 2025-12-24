@@ -8,13 +8,14 @@ namespace TxtConverter.Services;
 
 public class AppSettings {
     public string Language { get; set; } = ProjectConstants.LangEn;
-    
     public string LastSourceDir { get; set; } = string.Empty;
     public string LastPreset { get; set; } = "Unity Engine";
-    
     public bool GenerateStructure { get; set; } = false;
     public bool CompactMode { get; set; } = true;
     public bool GenerateMerged { get; set; } = true;
+    public bool GeneratePdf { get; set; } = true;
+    public PdfMode PdfMode { get; set; } = PdfMode.Standard; // Replaced boolean with Enum
+
     public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
 
     // AI Common
@@ -23,15 +24,15 @@ public class AppSettings {
     public int AiThinkingBudget { get; set; } = ProjectConstants.DefaultThinkingBudget;
 
     // Gemini Specific
-    public string AiApiKey { get; set; } = string.Empty; 
+    public string AiApiKey { get; set; } = string.Empty;
     public string AiModel { get; set; } = ProjectConstants.DefaultGeminiModel;
 
     // Nvidia Specific
     public string NvidiaApiKey { get; set; } = string.Empty;
     public string NvidiaModel { get; set; } = ProjectConstants.DefaultNvidiaModel;
-    public int NvidiaMaxTokens { get; set; } = 4096; 
-    public double NvidiaTemperature { get; set; } = 0.5; 
-    public double NvidiaTopP { get; set; } = 0.7; // Новое: Top P
+    public int NvidiaMaxTokens { get; set; } = 4096;
+    public double NvidiaTemperature { get; set; } = 0.5;
+    public double NvidiaTopP { get; set; } = 0.7;
     public bool NvidiaReasoningEnabled { get; set; } = false;
 
     public string InstallationId { get; set; } = string.Empty;
@@ -68,7 +69,6 @@ public class PreferenceManager {
                 _settings = new AppSettings();
             }
         }
-
         if (string.IsNullOrEmpty(_settings.InstallationId)) {
             _settings.InstallationId = Guid.NewGuid().ToString();
             Save();
@@ -113,7 +113,6 @@ public class PreferenceManager {
     }
 
     // --- Getters / Setters ---
-
     public string GetLanguage() => _settings.Language;
     public void SetLanguage(string lang) { _settings.Language = lang; Save(); }
 
@@ -132,13 +131,19 @@ public class PreferenceManager {
     public bool GetGenerateMerged() => _settings.GenerateMerged;
     public void SetGenerateMerged(bool val) { _settings.GenerateMerged = val; Save(); }
 
+    public bool GetGeneratePdf() => _settings.GeneratePdf;
+    public void SetGeneratePdf(bool val) { _settings.GeneratePdf = val; Save(); }
+
+    public PdfMode GetPdfMode() => _settings.PdfMode;
+    public void SetPdfMode(PdfMode val) { _settings.PdfMode = val; Save(); }
+
     public CompressionLevel GetCompressionLevel() => _settings.Compression;
     public void SetCompressionLevel(CompressionLevel level) { _settings.Compression = level; Save(); }
 
     // AI Common
     public AiProvider GetAiProvider() => _settings.AiProvider;
     public void SetAiProvider(AiProvider provider) { _settings.AiProvider = provider; Save(); }
-    
+
     // Smart Getters
     public string GetAiApiKey() => _settings.AiProvider == AiProvider.NvidiaNim ? _settings.NvidiaApiKey : _settings.AiApiKey;
     public string GetAiModel() => _settings.AiProvider == AiProvider.NvidiaNim ? _settings.NvidiaModel : _settings.AiModel;
@@ -162,16 +167,16 @@ public class PreferenceManager {
 
     public string GetNvidiaModel() => _settings.NvidiaModel;
     public void SetNvidiaModel(string model) { _settings.NvidiaModel = model; Save(); }
-    
+
     public int GetNvidiaMaxTokens() => _settings.NvidiaMaxTokens;
     public void SetNvidiaMaxTokens(int tokens) { _settings.NvidiaMaxTokens = tokens; Save(); }
-    
+
     public double GetNvidiaTemperature() => _settings.NvidiaTemperature;
     public void SetNvidiaTemperature(double temp) { _settings.NvidiaTemperature = temp; Save(); }
-    
+
     public double GetNvidiaTopP() => _settings.NvidiaTopP;
     public void SetNvidiaTopP(double topP) { _settings.NvidiaTopP = topP; Save(); }
-    
+
     public bool GetNvidiaReasoningEnabled() => _settings.NvidiaReasoningEnabled;
     public void SetNvidiaReasoningEnabled(bool enabled) { _settings.NvidiaReasoningEnabled = enabled; Save(); }
 
