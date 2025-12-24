@@ -34,25 +34,27 @@ public class PdfReportGenerator {
 
     public void Generate(string outputFilePath) {
         // Config based on mode
-        float margin = 1.5f;
-        int fontSize = 11;
-        float lineHeight = 1.2f;
+        float margin;
+        float fontSize;
+        float lineHeight;
 
         switch (_mode) {
             case PdfMode.Compact:
                 margin = 0.8f;
-                fontSize = 8;
+                fontSize = 8f;
                 lineHeight = 1.0f;
                 break;
             case PdfMode.Extreme:
-                margin = 0.5f;
-                fontSize = 6;
-                lineHeight = 0.95f;
+                // Экстремальная экономия:
+                // Шрифт 2pt (читаемо при зуме 400%+), поля 0.3см
+                margin = 0.3f; 
+                fontSize = 2f; 
+                lineHeight = 0.8f; 
                 break;
             case PdfMode.Standard:
             default:
                 margin = 1.5f;
-                fontSize = 11;
+                fontSize = 11f;
                 lineHeight = 1.2f;
                 break;
         }
@@ -66,7 +68,7 @@ public class PdfReportGenerator {
                 page.DefaultTextStyle(x => x.FontSize(fontSize).FontFamily(Fonts.CourierNew).LineHeight(lineHeight));
 
                 // Header
-                // In Extreme mode, we skip header entirely to save space on every page
+                // In Extreme mode, we skip page header entirely
                 if (_mode != PdfMode.Extreme) {
                     page.Header()
                         .PaddingBottom(5)
@@ -78,27 +80,39 @@ public class PdfReportGenerator {
                 }
 
                 // Footer
-                page.Footer()
-                    .AlignCenter()
-                    .Text(x => {
-                        x.Span("Page ");
-                        x.CurrentPageNumber();
-                    });
+                // In Extreme mode, skip footer (page numbers) to save bottom margin
+                if (_mode != PdfMode.Extreme) {
+                    page.Footer()
+                        .AlignCenter()
+                        .Text(x => {
+                            x.Span("Page ");
+                            x.CurrentPageNumber();
+                        });
+                }
 
                 // Content
                 page.Content()
                     .Column(column => {
                         // 1. Structure
                         column.Item().Text(t => {
-                            t.Span("Project Structure").FontSize(fontSize + 4).Bold();
-                            t.EmptyLine();
+                            t.Span("Project Structure").FontSize(fontSize + ( _mode == PdfMode.Extreme ? 2 : 4 )).Bold();
+                            // No empty line in Extreme
+                            if (_mode != PdfMode.Extreme) t.EmptyLine();
                         });
 
-                        column.Item().Background(Colors.Grey.Lighten4).Padding(5).Text(_structureContent).FontSize(fontSize - 1);
+                        // Structure block padding
+                        float structPadding = _mode == PdfMode.Extreme ? 0 : 5;
+                        column.Item().Background(Colors.Grey.Lighten4).Padding(structPadding).Text(_structureContent).FontSize(fontSize);
                         
-                        // Force break after structure only in Standard mode
-                        if (_mode == PdfMode.Standard) column.Item().PageBreak();
-                        else column.Item().PaddingBottom(10).LineHorizontal(1).LineColor(Colors.Black);
+                        // Separator logic
+                        if (_mode == PdfMode.Standard) {
+                            column.Item().PageBreak();
+                        }
+                        else {
+                            // In Extreme/Compact: just a thin line separator
+                            float bottomPad = _mode == PdfMode.Extreme ? 2 : 10;
+                            column.Item().PaddingBottom(bottomPad).LineHorizontal(0.5f).LineColor(Colors.Black);
+                        }
 
                         // 2. Files
                         var sortedFiles = _processedFilesMap.OrderBy(kvp => kvp.Key);
@@ -115,25 +129,36 @@ public class PdfReportGenerator {
                             } catch { content = "[Error reading file]"; }
 
                             if (isStub) {
-                                content = "[STUB] Content omitted.";
+                                content = "[STUB]";
                             }
 
-                            if (_mode != PdfMode.Standard) {
-                                // COMPACT & EXTREME: Flow logic
+                            if (_mode == PdfMode.Extreme) {
+                                // === EXTREME MODE RENDERER ===
+                                // Minimal vertical space.
+                                // Header is just bold text.
+                                column.Item().PaddingTop(2).Column(c => {
+                                    c.Item().Text(t => {
+                                        t.Span($">>> {fileName}").Bold();
+                                        if (isStub) t.Span(" (Stub)").Italic();
+                                    });
+                                    c.Item().Text(content);
+                                });
+                            }
+                            else if (_mode == PdfMode.Compact) {
+                                // === COMPACT MODE RENDERER ===
                                 column.Item().PaddingTop(5).Column(c => {
-                                    // Header
+                                    // Minimal Header Box
                                     c.Item().Background(Colors.Grey.Lighten3).BorderBottom(1).BorderColor(Colors.Black).Padding(2).Row(row => {
                                         row.RelativeItem().Text(t => {
                                             t.Span(fileName).Bold();
                                             if (isStub) t.Span(" (Stub)").Italic();
                                         });
                                     });
-                                    // Content
                                     c.Item().Text(content);
                                 });
                             }
                             else {
-                                // STANDARD MODE: Visual padding, KeepTogether logic
+                                // === STANDARD MODE RENDERER ===
                                 int lineCount = content.Count(c => c == '\n') + 1;
                                 bool isSmallFile = lineCount < 20;
 
@@ -153,7 +178,7 @@ public class PdfReportGenerator {
     }
 
     private void RenderStandardBlock(ColumnDescriptor column, string fileName, string content, bool isStub) {
-        // Visual Header
+        // Visual Header with blue background
         column.Item().Background(Colors.Blue.Lighten5).BorderBottom(1).BorderColor(Colors.Blue.Medium).Padding(5).Row(row => {
             row.RelativeItem().Text(t => {
                 t.Span("FILE: ").Bold();
@@ -162,7 +187,7 @@ public class PdfReportGenerator {
             });
         });
 
-        // Content
+        // Content with generous spacing
         column.Item().PaddingTop(5).PaddingBottom(10).Text(content);
     }
 }
