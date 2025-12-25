@@ -29,6 +29,9 @@ public class PresetManager
         _presets.Add("Java (Maven/Gradle)", "java, xml, properties, fxml, gradle, groovy");
         _presets.Add("Python", "py, requirements.txt, yaml, yml, json, toml, ini");
 
+        // Systems & Frameworks
+        _presets.Add("Rust / Tauri", "rs, toml, json, js, mjs, ts, jsx, tsx, html, css, scss, lock");
+
         // Web
         _presets.Add("Web (TypeScript / React)", "ts, tsx, jsx, html, css, scss, less, json, vue, svelte");
         _presets.Add("Web (JavaScript / Classic)", "js, mjs, html, css, json");
@@ -39,7 +42,6 @@ public class PresetManager
         string godotIgnored = ".godot, export_presets, .import";
         _ignoredFolderPresets.Add("Godot Engine", godotIgnored);
         _ignoredFolderPresets.Add("Godot Engine (GDExtension / C++)", godotIgnored + ", .scons_cache, bin, obj, build, out");
-
         _ignoredFolderPresets.Add("Unity Engine", "Library, Temp, obj, bin, ProjectSettings, Logs, UserSettings, .vs, .idea, Builds, Build, Fonts, StreamingAssets, TextMesh Pro, Plugins, Packages, Examples");
 
         _ignoredFolderPresets.Add("C# (.NET / Visual Studio)", "bin, obj, .vs, packages, TestResults, .git, .idea, .vscode, artifacts");
@@ -50,6 +52,9 @@ public class PresetManager
         _ignoredFolderPresets.Add("Web (TypeScript / React)", webIgnored);
 
         _ignoredFolderPresets.Add("Python", "__pycache__, venv, env, .venv, .git, .idea, .vscode, build, dist, egg-info");
+
+        // Rust uses 'target' for build artifacts
+        _ignoredFolderPresets.Add("Rust / Tauri", "target, node_modules, dist, build, .git, .vscode, .idea");
     }
 
     public IEnumerable<string> GetPresetNames() => _presets.Keys;
@@ -89,7 +94,20 @@ public class PresetManager
             return "Unity Engine";
         }
 
-        // 3. C# / .NET Check
+        // 3. Rust / Tauri Check
+        // Tauri projects often have src-tauri folder or tauri.conf.json
+        if (Directory.Exists(Path.Combine(rootPath, "src-tauri")) ||
+            File.Exists(Path.Combine(rootPath, "tauri.conf.json")))
+        {
+            return "Rust / Tauri";
+        }
+        // General Rust project check
+        if (File.Exists(Path.Combine(rootPath, "Cargo.toml")))
+        {
+            return "Rust / Tauri";
+        }
+
+        // 4. C# / .NET Check
         // Expanded logic: Check for project files first, then fallback to code files.
         if (HasFileByPattern(rootPath, "*.sln") ||
             HasFileByPattern(rootPath, "*.csproj") ||
@@ -99,7 +117,7 @@ public class PresetManager
             return "C# (.NET / Visual Studio)";
         }
 
-        // 4. Java Check
+        // 5. Java Check
         if (File.Exists(Path.Combine(rootPath, "pom.xml")) ||
             File.Exists(Path.Combine(rootPath, "build.gradle")) ||
             File.Exists(Path.Combine(rootPath, "build.gradle.kts")))
@@ -107,7 +125,7 @@ public class PresetManager
             return "Java (Maven/Gradle)";
         }
 
-        // 5. Python Check
+        // 6. Python Check
         if (File.Exists(Path.Combine(rootPath, "requirements.txt")) ||
             File.Exists(Path.Combine(rootPath, "pyproject.toml")) ||
             File.Exists(Path.Combine(rootPath, "setup.py")) ||
@@ -117,7 +135,7 @@ public class PresetManager
             return "Python";
         }
 
-        // 6. Web Ecosystem Check
+        // 7. Web Ecosystem Check
         if (File.Exists(Path.Combine(rootPath, "package.json")))
         {
             if (File.Exists(Path.Combine(rootPath, "tsconfig.json")) ||
@@ -141,6 +159,12 @@ public class PresetManager
         if (HasFileByPattern(rootPath, "*.py"))
         {
             return "Python";
+        }
+
+        // Fallback: Rust source files
+        if (HasFileByPattern(rootPath, "*.rs"))
+        {
+            return "Rust / Tauri";
         }
 
         return null;
