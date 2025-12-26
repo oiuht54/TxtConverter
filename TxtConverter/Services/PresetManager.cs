@@ -1,22 +1,19 @@
-﻿using System.IO;
+using System.IO;
 
 namespace TxtConverter.Services;
 
-public class PresetManager
-{
+public class PresetManager {
     private static PresetManager? _instance;
     public static PresetManager Instance => _instance ??= new PresetManager();
 
     private readonly Dictionary<string, string> _presets = new();
     private readonly Dictionary<string, string> _ignoredFolderPresets = new();
 
-    private PresetManager()
-    {
+    private PresetManager() {
         SetupPresets();
     }
 
-    private void SetupPresets()
-    {
+    private void SetupPresets() {
         _presets.Add("Manual", "");
 
         // Game Engines
@@ -28,9 +25,11 @@ public class PresetManager
         _presets.Add("C# (.NET / Visual Studio)", "cs, csproj, sln, xaml, config, json, cshtml, razor, sql, xml, props, targets, vb, fs");
         _presets.Add("Java (Maven/Gradle)", "java, xml, properties, fxml, gradle, groovy");
         _presets.Add("Python", "py, requirements.txt, yaml, yml, json, toml, ini");
-
+        
         // Systems & Frameworks
-        _presets.Add("Rust / Tauri", "rs, toml, json, js, mjs, ts, jsx, tsx, html, css, scss, lock");
+        // FIX: Removed 'lock' to avoid Cargo.lock/package-lock.json garbage.
+        // Kept 'json' for config, but user should be aware schemas might slip in if not in ignored folders.
+        _presets.Add("Rust / Tauri", "rs, toml, json, js, mjs, ts, jsx, tsx, html, css, scss");
 
         // Web
         _presets.Add("Web (TypeScript / React)", "ts, tsx, jsx, html, css, scss, less, json, vue, svelte");
@@ -43,18 +42,19 @@ public class PresetManager
         _ignoredFolderPresets.Add("Godot Engine", godotIgnored);
         _ignoredFolderPresets.Add("Godot Engine (GDExtension / C++)", godotIgnored + ", .scons_cache, bin, obj, build, out");
         _ignoredFolderPresets.Add("Unity Engine", "Library, Temp, obj, bin, ProjectSettings, Logs, UserSettings, .vs, .idea, Builds, Build, Fonts, StreamingAssets, TextMesh Pro, Plugins, Packages, Examples");
-
+        
         _ignoredFolderPresets.Add("C# (.NET / Visual Studio)", "bin, obj, .vs, packages, TestResults, .git, .idea, .vscode, artifacts");
         _ignoredFolderPresets.Add("Java (Maven/Gradle)", "target, .idea, build, .settings, bin, out, .gradle");
-
+        
         string webIgnored = "node_modules, dist, build, .next, .nuxt, coverage, .git, .vscode, .idea";
         _ignoredFolderPresets.Add("Web (JavaScript / Classic)", webIgnored);
         _ignoredFolderPresets.Add("Web (TypeScript / React)", webIgnored);
-
+        
         _ignoredFolderPresets.Add("Python", "__pycache__, venv, env, .venv, .git, .idea, .vscode, build, dist, egg-info");
-
-        // Rust uses 'target' for build artifacts
-        _ignoredFolderPresets.Add("Rust / Tauri", "target, node_modules, dist, build, .git, .vscode, .idea");
+        
+        // Rust / Tauri specific ignores
+        // Added: icons (binary assets), gen (generated code), .github (CI/CD noise), coverage
+        _ignoredFolderPresets.Add("Rust / Tauri", "target, node_modules, dist, build, .git, .vscode, .idea, icons, gen, .github, coverage");
     }
 
     public IEnumerable<string> GetPresetNames() => _presets.Keys;
@@ -70,58 +70,47 @@ public class PresetManager
     /// <summary>
     /// Analyzes the folder structure to determine the most likely project type.
     /// </summary>
-    public string? AutoDetectPreset(string rootPath)
-    {
+    public string? AutoDetectPreset(string rootPath) {
         if (string.IsNullOrWhiteSpace(rootPath) || !Directory.Exists(rootPath)) return null;
 
         // 1. Godot Engine Check
-        if (File.Exists(Path.Combine(rootPath, "project.godot")))
-        {
+        if (File.Exists(Path.Combine(rootPath, "project.godot"))) {
             if (File.Exists(Path.Combine(rootPath, "SConstruct")) ||
                 HasFileByPattern(rootPath, "*.gdextension") ||
-                HasFileByPattern(rootPath, "*.cpp"))
-            {
+                HasFileByPattern(rootPath, "*.cpp")) {
                 return "Godot Engine (GDExtension / C++)";
             }
             return "Godot Engine";
         }
 
         // 2. Unity Engine Check
-        // Unity projects always have Assets and ProjectSettings folders at the root.
         if (Directory.Exists(Path.Combine(rootPath, "Assets")) &&
-            Directory.Exists(Path.Combine(rootPath, "ProjectSettings")))
-        {
+            Directory.Exists(Path.Combine(rootPath, "ProjectSettings"))) {
             return "Unity Engine";
         }
-
+        
         // 3. Rust / Tauri Check
-        // Tauri projects often have src-tauri folder or tauri.conf.json
-        if (Directory.Exists(Path.Combine(rootPath, "src-tauri")) ||
-            File.Exists(Path.Combine(rootPath, "tauri.conf.json")))
-        {
+        // Priority check for Tauri configuration or Rust Cargo manifest
+        if (Directory.Exists(Path.Combine(rootPath, "src-tauri")) || 
+            File.Exists(Path.Combine(rootPath, "tauri.conf.json"))) {
             return "Rust / Tauri";
         }
-        // General Rust project check
-        if (File.Exists(Path.Combine(rootPath, "Cargo.toml")))
-        {
+        if (File.Exists(Path.Combine(rootPath, "Cargo.toml"))) {
             return "Rust / Tauri";
         }
 
         // 4. C# / .NET Check
-        // Expanded logic: Check for project files first, then fallback to code files.
         if (HasFileByPattern(rootPath, "*.sln") ||
             HasFileByPattern(rootPath, "*.csproj") ||
             HasFileByPattern(rootPath, "*.vbproj") ||
-            HasFileByPattern(rootPath, "*.fsproj"))
-        {
+            HasFileByPattern(rootPath, "*.fsproj")) {
             return "C# (.NET / Visual Studio)";
         }
 
         // 5. Java Check
         if (File.Exists(Path.Combine(rootPath, "pom.xml")) ||
             File.Exists(Path.Combine(rootPath, "build.gradle")) ||
-            File.Exists(Path.Combine(rootPath, "build.gradle.kts")))
-        {
+            File.Exists(Path.Combine(rootPath, "build.gradle.kts"))) {
             return "Java (Maven/Gradle)";
         }
 
@@ -130,55 +119,43 @@ public class PresetManager
             File.Exists(Path.Combine(rootPath, "pyproject.toml")) ||
             File.Exists(Path.Combine(rootPath, "setup.py")) ||
             Directory.Exists(Path.Combine(rootPath, "venv")) ||
-            Directory.Exists(Path.Combine(rootPath, ".venv")))
-        {
+            Directory.Exists(Path.Combine(rootPath, ".venv"))) {
             return "Python";
         }
 
         // 7. Web Ecosystem Check
-        if (File.Exists(Path.Combine(rootPath, "package.json")))
-        {
+        if (File.Exists(Path.Combine(rootPath, "package.json"))) {
             if (File.Exists(Path.Combine(rootPath, "tsconfig.json")) ||
                 File.Exists(Path.Combine(rootPath, "vite.config.ts")) ||
-                File.Exists(Path.Combine(rootPath, "next.config.js")))
-            {
+                File.Exists(Path.Combine(rootPath, "next.config.js"))) {
                 return "Web (TypeScript / React)";
             }
             return "Web (JavaScript / Classic)";
         }
 
-        // --- Fallbacks for folders containing code but no project files ---
-
-        // Fallback: If we see .cs files and it wasn't Godot or Unity, it's likely a C# script folder
-        if (HasFileByPattern(rootPath, "*.cs"))
-        {
+        // --- Fallbacks ---
+        
+        if (HasFileByPattern(rootPath, "*.cs")) {
             return "C# (.NET / Visual Studio)";
         }
 
-        // Fallback: If we see .py files and it wasn't caught above
-        if (HasFileByPattern(rootPath, "*.py"))
-        {
+        if (HasFileByPattern(rootPath, "*.py")) {
             return "Python";
         }
-
-        // Fallback: Rust source files
-        if (HasFileByPattern(rootPath, "*.rs"))
-        {
+        
+        // Fallback for pure Rust projects without Cargo.toml (rare, but possible scripts)
+        if (HasFileByPattern(rootPath, "*.rs")) {
             return "Rust / Tauri";
         }
 
         return null;
     }
 
-    private bool HasFileByPattern(string path, string pattern)
-    {
-        try
-        {
-            // EnumerateFiles is more efficient than GetFiles as it stops at the first match
+    private bool HasFileByPattern(string path, string pattern) {
+        try {
             return Directory.EnumerateFiles(path, pattern, SearchOption.TopDirectoryOnly).Any();
         }
-        catch
-        {
+        catch {
             return false;
         }
     }
