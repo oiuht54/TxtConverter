@@ -93,6 +93,8 @@ The application fully supports **English** and **Russian** languages.
 
 # 🇷🇺 TxtConverter (RU)
 
+## Видеоруководство: https://youtu.be/6TbXI-DpYO8
+
 **TxtConverter** — это профессиональная десктопная утилита для быстрой и безопасной подготовки исходного кода проектов к анализу нейросетями (LLM), архивации или отправке в чаты.
 
 **⚡ Полностью переписанная версия на .NET 10 (WPF)!**
