@@ -1,5 +1,7 @@
-﻿using System.IO;
+using System.IO;
+using System.Linq;
 using System.Text;
+using System;
 using TxtConverter.Core.Enums;
 using TxtConverter.Services;
 
@@ -9,76 +11,68 @@ namespace TxtConverter.Core.Logic.Reporting;
 /// Responsible for creating the big merged text file ("_Full_Source_code.txt").
 /// Combines processed files and stubs.
 /// </summary>
-public class MergedFileGenerator
-{
+public class MergedFileGenerator {
+    private readonly string _sourceDirPath;
     private readonly string _projectName;
     private readonly Dictionary<string, string> _processedFilesMap; // SourcePath -> DestPath (where processed file lives)
     private readonly HashSet<string> _filesSelectedForMerge; // Files that should be fully included
     private readonly CompressionLevel _compressionLevel;
 
     public MergedFileGenerator(
-        string projectName,
+        string sourceDirPath,
         Dictionary<string, string> processedFilesMap,
         HashSet<string> filesSelectedForMerge,
-        CompressionLevel compressionLevel)
-    {
-
-        _projectName = projectName;
+        CompressionLevel compressionLevel) {
+        
+        _sourceDirPath = sourceDirPath;
+        _projectName = Path.GetFileName(sourceDirPath);
         _processedFilesMap = processedFilesMap;
         _filesSelectedForMerge = filesSelectedForMerge;
         _compressionLevel = compressionLevel;
     }
 
-    public void Generate(string outputFilePath)
-    {
+    public void Generate(string outputFilePath) {
         var sb = new StringBuilder();
 
         // 1. Header
-        if (_compressionLevel != CompressionLevel.None)
-        {
+        if (_compressionLevel != CompressionLevel.None) {
             sb.Append($"# Project: {_projectName}\n");
             sb.Append(Loc("report_stub_warning")).Append("\n\n");
         }
-        else
-        {
+        else {
             sb.Append(string.Format(Loc("report_merged_header"), _projectName)).Append('\n');
             sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append('\n');
             sb.Append(Loc("report_stub_warning")).Append("\n\n");
         }
 
         // 2. Body
-        foreach (var entry in _processedFilesMap.OrderBy(e => e.Key))
-        {
+        foreach (var entry in _processedFilesMap.OrderBy(e => e.Key)) {
             string originalPath = entry.Key;
             string processedPath = entry.Value;
-            string fileName = Path.GetFileName(originalPath);
+            
+            // Using relative path for the header is much better for LLM context
+            string relPath = Path.GetRelativePath(_sourceDirPath, originalPath).Replace("\\", "/");
 
             // File Header
-            if (_compressionLevel != CompressionLevel.None)
-            {
-                sb.Append($"\n>>> {fileName}\n");
+            if (_compressionLevel != CompressionLevel.None) {
+                sb.Append($"\n>>> {relPath}\n");
             }
-            else
-            {
-                sb.Append($"\n--- {string.Format(Loc("report_file_header"), fileName)} ---\n");
+            else {
+                sb.Append($"\n--- {string.Format(Loc("report_file_header"), relPath)} ---\n");
             }
 
             // File Content (Full or Stub)
-            if (_filesSelectedForMerge.Contains(originalPath))
-            {
-                try
-                {
+            if (_filesSelectedForMerge.Contains(originalPath)) {
+                try {
                     // Read the file we already processed and saved in the output dir
                     string content = File.ReadAllText(processedPath, Encoding.UTF8);
                     sb.Append(content).Append('\n');
                 }
-                catch (Exception ex)
-                {
+                catch (Exception ex) {
                     sb.Append($"!!! Error: {ex.Message}\n");
                 }
             }
-            else
-            {
+            else {
                 // Stub marker
                 sb.Append(Loc("report_omitted")).Append("\n\n");
             }

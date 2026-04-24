@@ -1,4 +1,7 @@
 using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using System;
 using TxtConverter.Core.Enums;
 using TxtConverter.Core.Logic.Processing;
 using TxtConverter.Core.Logic.Reporting;
@@ -39,7 +42,6 @@ public class ConversionOrchestrator {
         bool genMerged,
         bool genPdf,
         PdfMode pdfMode) {
-
         _sourceDirPath = sourceDirPath;
         _filesToProcess = filesToProcess;
         _filesSelectedForMerge = filesSelectedForMerge;
@@ -50,7 +52,6 @@ public class ConversionOrchestrator {
         _genMerged = genMerged;
         _genPdf = genPdf;
         _pdfMode = pdfMode;
-
         _processor = new FileContentProcessor(_compressionLevel);
     }
 
@@ -61,8 +62,11 @@ public class ConversionOrchestrator {
             // 1. Prepare Output
             string outputDir = Path.Combine(_sourceDirPath, ProjectConstants.OutputDirName);
             PrepareOutputDirectory(outputDir);
-
             var processedFilesMap = new Dictionary<string, string>(); // SourcePath -> DestPath inside _ConvertedToTxt
+            
+            // Generate unique names to prevent overwriting of files with the same name
+            var uniqueNamesMap = GenerateUniqueFileNames(_filesToProcess);
+
             int total = _filesToProcess.Count;
             int count = 0;
 
@@ -70,11 +74,13 @@ public class ConversionOrchestrator {
             foreach (var sourceFile in _filesToProcess) {
                 count++;
                 progress.Report((double)count / total);
-                string fileName = Path.GetFileName(sourceFile);
-                status.Report(string.Format(Loc("task_processing"), fileName));
+                
+                string originalFileName = Path.GetFileName(sourceFile);
+                status.Report(string.Format(Loc("task_processing"), originalFileName));
 
-                // Determine destination path
-                string destFileName = fileName.ToLower().EndsWith(".md") ? fileName : fileName + ".txt";
+                // Determine destination path using the unique name mapping
+                string uniqueName = uniqueNamesMap[sourceFile];
+                string destFileName = uniqueName.ToLower().EndsWith(".md") ? uniqueName : uniqueName + ".txt";
                 string destFile = Path.Combine(outputDir, destFileName);
 
                 try {
@@ -85,7 +91,7 @@ public class ConversionOrchestrator {
                 catch (Exception ex) {
                     // Fallback: simple copy if processing fails completely
                     try { File.Copy(sourceFile, destFile, true); } catch { }
-                    System.Diagnostics.Debug.WriteLine($"Processing error for {fileName}: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Processing error for {originalFileName}: {ex.Message}");
                 }
 
                 processedFilesMap[sourceFile] = destFile;
@@ -103,20 +109,19 @@ public class ConversionOrchestrator {
                     _compressionLevel,
                     _compactMode
                 );
+                
                 // Modified to return string
                 structureContent = structureGen.Generate(outputDir);
             }
 
             // 4. Generate Merged File
             string projectName = Path.GetFileName(_sourceDirPath);
-
             if (_genMerged && processedFilesMap.Count > 0) {
                 status.Report(Loc("task_merging"));
                 string outputFileName = "_" + projectName + ProjectConstants.MergedFileSuffix;
                 string destPath = Path.Combine(outputDir, outputFileName);
-
                 var mergedGen = new MergedFileGenerator(
-                    projectName,
+                    _sourceDirPath,
                     processedFilesMap,
                     _filesSelectedForMerge,
                     _compressionLevel
@@ -129,10 +134,10 @@ public class ConversionOrchestrator {
                 status.Report(Loc("task_pdf"));
                 string pdfName = "_" + projectName + "_Report.pdf";
                 string pdfPath = Path.Combine(outputDir, pdfName);
-
+                
                 try {
                     var pdfGen = new PdfReportGenerator(
-                        projectName,
+                        _sourceDirPath,
                         structureContent,
                         processedFilesMap,
                         _filesSelectedForMerge,
@@ -149,6 +154,48 @@ public class ConversionOrchestrator {
             status.Report(Loc("task_done"));
             progress.Report(1.0);
         });
+    }
+
+    private Dictionary<string, string> GenerateUniqueFileNames(List<string> sourceFiles) {
+        var result = new Dictionary<string, string>();
+        var fileNameGroups = sourceFiles.GroupBy(f => Path.GetFileName(f)).ToList();
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in fileNameGroups) {
+            if (group.Count() == 1) {
+                // Unique file
+                string destName = group.Key;
+                int counter = 1;
+                while (usedNames.Contains(destName)) {
+                    destName = $"{Path.GetFileNameWithoutExtension(group.Key)}_{counter}{Path.GetExtension(group.Key)}";
+                    counter++;
+                }
+                result[group.First()] = destName;
+                usedNames.Add(destName);
+            } else {
+                // Collision
+                foreach (var file in group) {
+                    string baseName = group.Key;
+                    string dir = Path.GetDirectoryName(file) ?? string.Empty;
+                    string parentFolder = Path.GetFileName(dir);
+                    
+                    // Prepend parent folder name if available
+                    string destName = string.IsNullOrEmpty(parentFolder) ? baseName : $"{parentFolder}_{baseName}";
+
+                    // Fallback to counter if multiple files have the same name AND same parent folder name
+                    int counter = 1;
+                    string finalName = destName;
+                    while (usedNames.Contains(finalName)) {
+                        finalName = $"{Path.GetFileNameWithoutExtension(destName)}_{counter}{Path.GetExtension(destName)}";
+                        counter++;
+                    }
+
+                    result[file] = finalName;
+                    usedNames.Add(finalName);
+                }
+            }
+        }
+        return result;
     }
 
     private void PrepareOutputDirectory(string path) {

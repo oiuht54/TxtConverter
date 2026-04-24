@@ -1,4 +1,7 @@
 using System.IO;
+using System.Linq;
+using System;
+using System.Collections.Generic;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -12,6 +15,7 @@ namespace TxtConverter.Core.Logic.Reporting;
 /// Uses QuestPDF to handle complex layouting.
 /// </summary>
 public class PdfReportGenerator {
+    private readonly string _sourceDirPath;
     private readonly string _projectName;
     private readonly string _structureContent;
     private readonly Dictionary<string, string> _processedFilesMap;
@@ -19,13 +23,14 @@ public class PdfReportGenerator {
     private readonly PdfMode _mode;
 
     public PdfReportGenerator(
-        string projectName,
+        string sourceDirPath,
         string structureContent,
         Dictionary<string, string> processedFilesMap,
         HashSet<string> filesSelectedForMerge,
         PdfMode mode) {
         
-        _projectName = projectName;
+        _sourceDirPath = sourceDirPath;
+        _projectName = Path.GetFileName(sourceDirPath);
         _structureContent = structureContent;
         _processedFilesMap = processedFilesMap;
         _filesSelectedForMerge = filesSelectedForMerge;
@@ -47,9 +52,9 @@ public class PdfReportGenerator {
             case PdfMode.Extreme:
                 // Экстремальная экономия:
                 // Шрифт 2pt, поля 0.3см, интерлиньяж 0.9 (чуть свободнее чем 0.8 во избежание наслоений строк)
-                margin = 0.05f; 
-                fontSize = 1f; 
-                lineHeight = 0.8f; 
+                margin = 0.05f;
+                fontSize = 1f;
+                lineHeight = 0.8f;
                 break;
             case PdfMode.Standard:
             default:
@@ -105,7 +110,7 @@ public class PdfReportGenerator {
                         // Structure content
                         float structPadding = _mode == PdfMode.Extreme ? 0 : 5;
                         column.Item().Background(Colors.Grey.Lighten4).Padding(structPadding).Text(_structureContent).FontSize(fontSize);
-                        
+
                         // Separator
                         if (_mode == PdfMode.Standard) {
                             column.Item().PageBreak();
@@ -122,10 +127,13 @@ public class PdfReportGenerator {
                         foreach (var entry in sortedFiles) {
                             string originalPath = entry.Key;
                             string processedPath = entry.Value;
-                            string fileName = Path.GetFileName(originalPath);
+                            
+                            // Using relative path for the header is much better for LLM context
+                            string relPath = Path.GetRelativePath(_sourceDirPath, originalPath).Replace("\\", "/");
+                            
                             bool isStub = !_filesSelectedForMerge.Contains(originalPath);
-
                             string content;
+
                             try {
                                 content = File.ReadAllText(processedPath);
                             } catch { content = "[Error reading file]"; }
@@ -140,9 +148,9 @@ public class PdfReportGenerator {
                                 column.Item().PaddingTop(2).Column(c => {
                                     c.Item().Text(t => {
                                         // Plain text header, no bold
-                                        string headerText = $">>> {fileName}";
+                                        string headerText = $">>> {relPath}";
                                         if (isStub) headerText += " (Stub)";
-                                        t.Span(headerText); 
+                                        t.Span(headerText);
                                     });
                                     c.Item().Text(content);
                                 });
@@ -152,7 +160,7 @@ public class PdfReportGenerator {
                                 column.Item().PaddingTop(5).Column(c => {
                                     c.Item().Background(Colors.Grey.Lighten3).BorderBottom(1).BorderColor(Colors.Black).Padding(2).Row(row => {
                                         row.RelativeItem().Text(t => {
-                                            t.Span(fileName).Bold();
+                                            t.Span(relPath).Bold();
                                             if (isStub) t.Span(" (Stub)").Italic();
                                         });
                                     });
@@ -166,10 +174,10 @@ public class PdfReportGenerator {
 
                                 column.Item().PaddingTop(15).Element(block => {
                                     if (isSmallFile) {
-                                        block.ShowEntire().Column(c => RenderStandardBlock(c, fileName, content, isStub));
+                                        block.ShowEntire().Column(c => RenderStandardBlock(c, relPath, content, isStub));
                                     }
                                     else {
-                                        block.Column(c => RenderStandardBlock(c, fileName, content, isStub));
+                                        block.Column(c => RenderStandardBlock(c, relPath, content, isStub));
                                     }
                                 });
                             }
@@ -179,12 +187,12 @@ public class PdfReportGenerator {
         }).GeneratePdf(outputFilePath);
     }
 
-    private void RenderStandardBlock(ColumnDescriptor column, string fileName, string content, bool isStub) {
+    private void RenderStandardBlock(ColumnDescriptor column, string relPath, string content, bool isStub) {
         // Visual Header with blue background
         column.Item().Background(Colors.Blue.Lighten5).BorderBottom(1).BorderColor(Colors.Blue.Medium).Padding(5).Row(row => {
             row.RelativeItem().Text(t => {
                 t.Span("FILE: ").Bold();
-                t.Span(fileName).SemiBold();
+                t.Span(relPath).SemiBold();
                 if (isStub) t.Span(" (Stub)").FontColor(Colors.Grey.Darken2).Italic();
             });
         });
