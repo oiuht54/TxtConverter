@@ -25,7 +25,8 @@ public class PresetManager {
         _presets.Add("C# (.NET / Visual Studio)", "cs, csproj, sln, xaml, config, json, cshtml, razor, sql, xml, props, targets, vb, fs");
         _presets.Add("Java (Maven/Gradle)", "java, xml, properties, fxml, gradle, groovy");
         _presets.Add("Python", "py, requirements.txt, yaml, yml, json, toml, ini");
-        
+        _presets.Add("Go (Golang)", "go, mod, sum, yaml, yml, json, toml");
+
         // Systems & Frameworks
         // FIX: Removed 'lock' to avoid Cargo.lock/package-lock.json garbage.
         // Kept 'json' for config, but user should be aware schemas might slip in if not in ignored folders.
@@ -37,13 +38,15 @@ public class PresetManager {
 
         // Ignored Folders
         _ignoredFolderPresets.Add("Manual", "");
-
+        
         string godotIgnored = ".godot, export_presets, .import";
         _ignoredFolderPresets.Add("Godot Engine", godotIgnored);
         _ignoredFolderPresets.Add("Godot Engine (GDExtension / C++)", godotIgnored + ", .scons_cache, bin, obj, build, out");
+        
         _ignoredFolderPresets.Add("Unity Engine", "Library, Temp, obj, bin, ProjectSettings, Logs, UserSettings, .vs, .idea, Builds, Build, Fonts, StreamingAssets, TextMesh Pro, Plugins, Packages, Examples");
         
         _ignoredFolderPresets.Add("C# (.NET / Visual Studio)", "bin, obj, .vs, packages, TestResults, .git, .idea, .vscode, artifacts");
+        
         _ignoredFolderPresets.Add("Java (Maven/Gradle)", "target, .idea, build, .settings, bin, out, .gradle");
         
         string webIgnored = "node_modules, dist, build, .next, .nuxt, coverage, .git, .vscode, .idea";
@@ -51,7 +54,9 @@ public class PresetManager {
         _ignoredFolderPresets.Add("Web (TypeScript / React)", webIgnored);
         
         _ignoredFolderPresets.Add("Python", "__pycache__, venv, env, .venv, .git, .idea, .vscode, build, dist, egg-info");
-        
+
+        _ignoredFolderPresets.Add("Go (Golang)", "vendor, bin, pkg, .git, .idea, .vscode, coverage");
+
         // Rust / Tauri specific ignores
         // Added: icons (binary assets), gen (generated code), .github (CI/CD noise), coverage
         _ignoredFolderPresets.Add("Rust / Tauri", "target, node_modules, dist, build, .git, .vscode, .idea, icons, gen, .github, coverage");
@@ -88,10 +93,10 @@ public class PresetManager {
             Directory.Exists(Path.Combine(rootPath, "ProjectSettings"))) {
             return "Unity Engine";
         }
-        
+
         // 3. Rust / Tauri Check
         // Priority check for Tauri configuration or Rust Cargo manifest
-        if (Directory.Exists(Path.Combine(rootPath, "src-tauri")) || 
+        if (Directory.Exists(Path.Combine(rootPath, "src-tauri")) ||
             File.Exists(Path.Combine(rootPath, "tauri.conf.json"))) {
             return "Rust / Tauri";
         }
@@ -123,7 +128,12 @@ public class PresetManager {
             return "Python";
         }
 
-        // 7. Web Ecosystem Check
+        // 7. Go Check
+        if (File.Exists(Path.Combine(rootPath, "go.mod"))) {
+            return "Go (Golang)";
+        }
+
+        // 8. Web Ecosystem Check
         if (File.Exists(Path.Combine(rootPath, "package.json"))) {
             if (File.Exists(Path.Combine(rootPath, "tsconfig.json")) ||
                 File.Exists(Path.Combine(rootPath, "vite.config.ts")) ||
@@ -134,15 +144,16 @@ public class PresetManager {
         }
 
         // --- Fallbacks ---
-        
         if (HasFileByPattern(rootPath, "*.cs")) {
             return "C# (.NET / Visual Studio)";
         }
-
         if (HasFileByPattern(rootPath, "*.py")) {
             return "Python";
         }
-        
+        if (HasFileByPattern(rootPath, "*.go")) {
+            return "Go (Golang)";
+        }
+
         // Fallback for pure Rust projects without Cargo.toml (rare, but possible scripts)
         if (HasFileByPattern(rootPath, "*.rs")) {
             return "Rust / Tauri";
