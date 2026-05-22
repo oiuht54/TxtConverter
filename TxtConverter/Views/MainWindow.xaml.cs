@@ -29,7 +29,7 @@ public partial class MainWindow : Window {
 
     private void Window_Loaded(object sender, RoutedEventArgs e) {
         if (!string.IsNullOrWhiteSpace(SourceDirBox.Text) && Directory.Exists(SourceDirBox.Text)) {
-            Log("🔄 Auto-scan on startup initiated...");
+            Log("   Auto-scan on startup initiated...");
             Rescan_Click(this, new RoutedEventArgs());
         }
     }
@@ -48,16 +48,13 @@ public partial class MainWindow : Window {
         prefs.SetLastSourceDir(SourceDirBox.Text);
         if (PresetCombo.SelectedItem is string preset)
             prefs.SetLastPreset(preset);
-
         prefs.SetGenerateStructure(StructCb.IsChecked == true);
         prefs.SetCompactMode(CompactCb.IsChecked == true);
         prefs.SetGenerateMerged(MergedCb.IsChecked == true);
         prefs.SetGeneratePdf(PdfCb.IsChecked == true);
-
         if (PdfModeCombo.SelectedItem is ComboBoxItem item && item.Tag is PdfMode mode) {
             prefs.SetPdfMode(mode);
         }
-
         if (CompressionCombo.SelectedItem is ComboBoxItem cItem && cItem.Tag is CompressionLevel lvl) {
             prefs.SetCompressionLevel(lvl);
         }
@@ -72,18 +69,17 @@ public partial class MainWindow : Window {
             UpdateMergedCheckboxLabel();
             RescanBtn.IsEnabled = true;
         }
-
         string lastPreset = prefs.GetLastPreset();
         if (PresetManager.Instance.HasPreset(lastPreset))
             PresetCombo.SelectedItem = lastPreset;
         else
             PresetCombo.SelectedIndex = 0;
-
+            
         StructCb.IsChecked = prefs.GetGenerateStructure();
         CompactCb.IsChecked = prefs.GetCompactMode();
         MergedCb.IsChecked = prefs.GetGenerateMerged();
         PdfCb.IsChecked = prefs.GetGeneratePdf();
-
+        
         PdfMode savedMode = prefs.GetPdfMode();
         foreach (ComboBoxItem item in PdfModeCombo.Items) {
             if (item.Tag is PdfMode m && m == savedMode) {
@@ -91,7 +87,6 @@ public partial class MainWindow : Window {
                 break;
             }
         }
-
         CompressionLevel savedComp = prefs.GetCompressionLevel();
         foreach (ComboBoxItem item in CompressionCombo.Items) {
             if (item.Tag is CompressionLevel lvl && lvl == savedComp) {
@@ -116,6 +111,7 @@ public partial class MainWindow : Window {
     }
 
     private void SetupPresets() {
+        PresetCombo.Items.Clear();
         foreach (var preset in PresetManager.Instance.GetPresetNames()) {
             PresetCombo.Items.Add(preset);
         }
@@ -129,7 +125,6 @@ public partial class MainWindow : Window {
         if (Directory.Exists(SourceDirBox.Text)) {
             dialog.InitialDirectory = SourceDirBox.Text;
         }
-
         if (dialog.ShowDialog() == true) {
             SetSourceDirectory(dialog.FolderName);
         }
@@ -139,10 +134,9 @@ public partial class MainWindow : Window {
         SourceDirBox.Text = path;
         Log(string.Format(Loc("log_dir_selected"), path));
         UpdateMergedCheckboxLabel();
-
         string? detected = PresetManager.Instance.AutoDetectPreset(path);
         if (detected != null) {
-            Log($"🤖 Auto-detected project type: {detected}");
+            Log($"   Auto-detected project type: {detected}");
             PresetCombo.SelectedItem = detected;
         }
         Rescan_Click(this, new RoutedEventArgs());
@@ -164,7 +158,73 @@ public partial class MainWindow : Window {
                 IgnoredBox.Text = PresetManager.Instance.GetIgnoredFoldersFor(presetName);
             }
             Log(string.Format(Loc("log_preset_selected"), presetName));
+            UpdatePresetButtonsState(presetName);
         }
+    }
+
+    private void UpdatePresetButtonsState(string presetName) {
+        bool isBuiltIn = PresetManager.Instance.IsPresetBuiltIn(presetName);
+        DeletePresetBtn.IsEnabled = !isBuiltIn;
+        SavePresetBtn.IsEnabled = !isBuiltIn;
+    }
+
+    private void SavePreset_Click(object sender, RoutedEventArgs e) {
+        if (PresetCombo.SelectedItem is string presetName) {
+            if (PresetManager.Instance.IsPresetBuiltIn(presetName)) {
+                MessageBox.Show(Loc("msg_preset_builtin_error"), Loc("ui_status_error"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            PresetManager.Instance.AddOrUpdatePreset(presetName, ExtensionsBox.Text, IgnoredBox.Text);
+            Log($"Preset '{presetName}' saved successfully.");
+        }
+    }
+
+    private void AddPreset_Click(object sender, RoutedEventArgs e) {
+        var dialog = new PresetNameWindow();
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true) {
+            string newName = dialog.PresetName;
+            if (string.IsNullOrWhiteSpace(newName)) return;
+
+            if (PresetManager.Instance.HasPreset(newName)) {
+                MessageBox.Show(Loc("msg_preset_exists"), Loc("ui_status_error"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            PresetManager.Instance.AddOrUpdatePreset(newName, ExtensionsBox.Text, IgnoredBox.Text);
+            Log($"New custom preset '{newName}' created successfully.");
+            RefreshPresetsCombo(newName);
+        }
+    }
+
+    private void DeletePreset_Click(object sender, RoutedEventArgs e) {
+        if (PresetCombo.SelectedItem is string presetName) {
+            if (PresetManager.Instance.IsPresetBuiltIn(presetName)) return;
+
+            var confirmResult = MessageBox.Show(
+                string.Format(Loc("msg_preset_confirm_delete"), presetName),
+                Loc("ui_settings_close"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question
+            );
+
+            if (confirmResult == MessageBoxResult.Yes) {
+                PresetManager.Instance.DeletePreset(presetName);
+                Log($"Custom preset '{presetName}' deleted successfully.");
+                RefreshPresetsCombo("Manual");
+            }
+        }
+    }
+
+    private void RefreshPresetsCombo(string selectPresetName) {
+        PresetCombo.SelectionChanged -= Preset_SelectionChanged;
+        PresetCombo.Items.Clear();
+        foreach (var preset in PresetManager.Instance.GetPresetNames()) {
+            PresetCombo.Items.Add(preset);
+        }
+        PresetCombo.SelectedItem = selectPresetName;
+        PresetCombo.SelectionChanged += Preset_SelectionChanged;
+        UpdatePresetButtonsState(selectPresetName);
     }
 
     private async void Rescan_Click(object sender, RoutedEventArgs e) {
@@ -176,15 +236,20 @@ public partial class MainWindow : Window {
         StatusLabel.Text = Loc("ui_status_scanning");
         Log(Loc("log_scanning_start"));
         StatusProgressBar.IsIndeterminate = true;
-
         try {
-            var exts = ExtensionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-            var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+            var exts = ExtensionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
+            var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
+
+            // Merge local preset ignored folders list with global always ignored folders list
+            string globalIgnoredRaw = PreferenceManager.Instance.GetGlobalIgnoredFolders();
+            if (!string.IsNullOrWhiteSpace(globalIgnoredRaw)) {
+                var globalIgnored = globalIgnoredRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
+                ignored = ignored.Union(globalIgnored, StringComparer.OrdinalIgnoreCase).ToList();
+            }
 
             var scanner = new FileScanner(exts, ignored);
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
             _filesSelectedForMerge = new HashSet<string>(_allFoundFiles);
-
             Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
             UpdateButtonsState();
         }
@@ -210,7 +275,6 @@ public partial class MainWindow : Window {
 
     private void AiSelect_Click(object sender, RoutedEventArgs e) {
         if (_allFoundFiles.Count == 0) return;
-
         if (string.IsNullOrWhiteSpace(PreferenceManager.Instance.GetAiApiKey())) {
             var provider = PreferenceManager.Instance.GetAiProvider();
             MessageBox.Show($"Please set your API Key for {provider} in Settings first.", "API Key Missing", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -223,14 +287,12 @@ public partial class MainWindow : Window {
         if (dialog.ShowDialog() == true && dialog.ResultPaths != null) {
             _filesSelectedForMerge = new HashSet<string>(dialog.ResultPaths);
             Log("✨ AI Selection Applied:");
-            Log($"   Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
-            Log($"   Selected: {_filesSelectedForMerge.Count} files.");
+            Log($" Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
+            Log($" Selected: {_filesSelectedForMerge.Count} files.");
             foreach (var f in _filesSelectedForMerge.Take(5))
-                Log($"   - {Path.GetFileName(f)}");
-            if (_filesSelectedForMerge.Count > 5) Log("   ...");
-
+                Log($" - {Path.GetFileName(f)}");
+            if (_filesSelectedForMerge.Count > 5) Log(" ...");
             MessageBox.Show($"AI selected {_filesSelectedForMerge.Count} files based on your task.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-
             TelemetryService.Instance.TrackEvent("ai_used", new Dictionary<string, object> {
                 { "files_selected", _filesSelectedForMerge.Count },
                 { "total_files_in_project", _allFoundFiles.Count },
@@ -244,26 +306,30 @@ public partial class MainWindow : Window {
             Log(Loc("log_no_files"));
             return;
         }
-
         SetUiBlocked(true);
         LogBox.Clear();
         Log(Loc("log_conversion_start"));
         StatusLabel.Text = Loc("ui_status_converting");
         StatusProgressBar.IsIndeterminate = false;
         StatusProgressBar.Value = 0;
-
         DateTime startTime = DateTime.Now;
-
         try {
-            var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+            var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
+
+            // Merge local preset ignored folders list with global always ignored folders list
+            string globalIgnoredRaw = PreferenceManager.Instance.GetGlobalIgnoredFolders();
+            if (!string.IsNullOrWhiteSpace(globalIgnoredRaw)) {
+                var globalIgnored = globalIgnoredRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
+                ignored = ignored.Union(globalIgnored, StringComparer.OrdinalIgnoreCase).ToList();
+            }
+
             CompressionLevel compLevel = CompressionLevel.Smart;
             if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
                 compLevel = lvl;
-
             PdfMode pdfMode = PdfMode.Standard;
-            if (PdfModeCombo.SelectedItem is ComboBoxItem pi && pi.Tag is PdfMode val) 
+            if (PdfModeCombo.SelectedItem is ComboBoxItem pi && pi.Tag is PdfMode val)
                 pdfMode = val;
-
+                
             var orchestrator = new ConversionOrchestrator(
                 SourceDirBox.Text,
                 _allFoundFiles,
@@ -276,18 +342,14 @@ public partial class MainWindow : Window {
                 PdfCb.IsChecked == true,
                 pdfMode
             );
-
             var progress = new Progress<double>(p => StatusProgressBar.Value = p);
             var status = new Progress<string>(s => StatusLabel.Text = s);
-
             await orchestrator.RunAsync(progress, status);
-
             Log("====================");
             Log(Loc("log_conversion_success"));
             Log("====================");
             Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
             StatusLabel.Text = Loc("ui_status_done");
-
             TimeSpan duration = DateTime.Now - startTime;
             TelemetryService.Instance.TrackEvent("conversion_completed", new Dictionary<string, object> {
                 { "files_processed", _allFoundFiles.Count },
@@ -320,7 +382,6 @@ public partial class MainWindow : Window {
         ConvertBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
         SelectFilesBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
         AiSelectBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
-
         if (isBlocked) Mouse.OverrideCursor = Cursors.Wait;
         else Mouse.OverrideCursor = null;
     }
@@ -340,7 +401,6 @@ public partial class MainWindow : Window {
             string projName = Path.GetFileName(SourceDirBox.Text);
             fileName = "_" + projName + ProjectConstants.MergedFileSuffix;
         }
-
         string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
         if (baseStr.Contains("{0}"))
             MergedCb.Content = string.Format(baseStr, fileName);
