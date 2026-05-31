@@ -77,8 +77,8 @@
     <s:String x:Key="report_generated_date">Date generated: {0}</s:String>
     <s:String x:Key="report_file_header">FILE: {0}</s:String>
     <s:String x:Key="report_read_error">!!! READ ERROR: {0} !!!</s:String>
-    <s:String x:Key="report_stub_warning">*** SYSTEM INSTRUCTION: Files marked with "[Existing file - Content excluded from context to save tokens]" exist in the actual project but were omitted from this context to save tokens. They are NOT empty or todo-items. DO NOT hallucinate their implementation. If you strictly need their content to solve the task, REQUEST them from the user. ***</s:String>
-    <s:String x:Key="report_omitted">[Existing file - Content excluded from context to save tokens]</s:String>
+    <s:String x:Key="report_stub_warning">> Additional Information: Files marked with "[E]" (or listed as "[Existing file - Content excluded from context]") exist in the actual project but their content has been omitted from this dump because they are not directly relevant to the current task and to optimize token usage. They are NOT empty or todo-items. Do NOT hallucinate or assume their implementation. If you strictly require their content to complete the task, request them from the user.</s:String>
+    <s:String x:Key="report_omitted">[Existing file - Content excluded from context because it is not directly relevant to the task and to optimize token usage]</s:String>
     <s:String x:Key="report_stub_label"> (Excluded)</s:String>
     
     <!-- Task Messages -->

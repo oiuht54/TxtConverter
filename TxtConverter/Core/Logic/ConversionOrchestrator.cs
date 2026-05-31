@@ -11,8 +11,8 @@ namespace TxtConverter.Core.Logic;
 
 /// <summary>
 /// Orchestrates the conversion process.
-/// Replaces the old monolithic "Converter.cs".
 /// Coordinates Scanner -> Processor -> Generators.
+/// Embeds structure report inline to avoid separate messy files.
 /// </summary>
 public class ConversionOrchestrator {
     private readonly string _sourceDirPath;
@@ -59,22 +59,22 @@ public class ConversionOrchestrator {
         await Task.Run(() => {
             status.Report(Loc("task_preparing"));
 
-            // 1. Prepare Output
+            // 1. Prepare Output Folder
             string outputDir = Path.Combine(_sourceDirPath, ProjectConstants.OutputDirName);
             PrepareOutputDirectory(outputDir);
-            var processedFilesMap = new Dictionary<string, string>(); // SourcePath -> DestPath inside _ConvertedToTxt
-            
-            // Generate unique names to prevent overwriting of files with the same name
-            var uniqueNamesMap = GenerateUniqueFileNames(_filesToProcess);
 
+            var processedFilesMap = new Dictionary<string, string>(); // SourcePath -> DestPath inside _ConvertedToTxt
+
+            // Generate unique names to prevent overwriting of files with same names in different subfolders
+            var uniqueNamesMap = GenerateUniqueFileNames(_filesToProcess);
             int total = _filesToProcess.Count;
             int count = 0;
 
-            // 2. Process Files Loop
+            // 2. Processing Files Loop
             foreach (var sourceFile in _filesToProcess) {
                 count++;
                 progress.Report((double)count / total);
-                
+
                 string originalFileName = Path.GetFileName(sourceFile);
                 status.Report(string.Format(Loc("task_processing"), originalFileName));
 
@@ -89,7 +89,7 @@ public class ConversionOrchestrator {
                     File.WriteAllText(destFile, compressedContent, System.Text.Encoding.UTF8);
                 }
                 catch (Exception ex) {
-                    // Fallback: simple copy if processing fails completely
+                    // Fallback to simple copy if processing fails
                     try { File.Copy(sourceFile, destFile, true); } catch { }
                     System.Diagnostics.Debug.WriteLine($"Processing error for {originalFileName}: {ex.Message}");
                 }
@@ -97,21 +97,21 @@ public class ConversionOrchestrator {
                 processedFilesMap[sourceFile] = destFile;
             }
 
-            // 3. Generate Structure Report (Required for PDF too)
+            // 3. Generate Structure Report (Functional String only - no distinct md file)
             string structureContent = "";
-            if (_genStructure || _genPdf) {
+            if (_genStructure) {
                 status.Report(Loc("task_generating_structure"));
                 var structureGen = new StructureReportGenerator(
                     _sourceDirPath,
-                    processedFilesMap.Keys.ToHashSet(), // Set of successfully processed source paths
+                    processedFilesMap.Keys.ToHashSet(), // Successfully processed paths
                     _filesSelectedForMerge,
                     _ignoredFolders,
                     _compressionLevel,
                     _compactMode
                 );
                 
-                // Modified to return string
-                structureContent = structureGen.Generate(outputDir);
+                // Fetch the horizontally formatted wrapped layout
+                structureContent = structureGen.Generate();
             }
 
             // 4. Generate Merged File
@@ -120,11 +120,13 @@ public class ConversionOrchestrator {
                 status.Report(Loc("task_merging"));
                 string outputFileName = "_" + projectName + ProjectConstants.MergedFileSuffix;
                 string destPath = Path.Combine(outputDir, outputFileName);
+
                 var mergedGen = new MergedFileGenerator(
                     _sourceDirPath,
                     processedFilesMap,
                     _filesSelectedForMerge,
-                    _compressionLevel
+                    _compressionLevel,
+                    structureContent // Structured string is integrated directly
                 );
                 mergedGen.Generate(destPath);
             }
@@ -134,11 +136,11 @@ public class ConversionOrchestrator {
                 status.Report(Loc("task_pdf"));
                 string pdfName = "_" + projectName + "_Report.pdf";
                 string pdfPath = Path.Combine(outputDir, pdfName);
-                
+
                 try {
                     var pdfGen = new PdfReportGenerator(
                         _sourceDirPath,
-                        structureContent,
+                        structureContent, // Embedded structure gets written directly to PDF page 1
                         processedFilesMap,
                         _filesSelectedForMerge,
                         _pdfMode
@@ -147,7 +149,6 @@ public class ConversionOrchestrator {
                 }
                 catch (Exception ex) {
                     System.Diagnostics.Debug.WriteLine($"PDF Error: {ex.Message}");
-                    // Non-critical, just log
                 }
             }
 
@@ -163,7 +164,7 @@ public class ConversionOrchestrator {
 
         foreach (var group in fileNameGroups) {
             if (group.Count() == 1) {
-                // Unique file
+                // Unique file name
                 string destName = group.Key;
                 int counter = 1;
                 while (usedNames.Contains(destName)) {
@@ -173,28 +174,26 @@ public class ConversionOrchestrator {
                 result[group.First()] = destName;
                 usedNames.Add(destName);
             } else {
-                // Collision
+                // Name Collision
                 foreach (var file in group) {
                     string baseName = group.Key;
                     string dir = Path.GetDirectoryName(file) ?? string.Empty;
                     string parentFolder = Path.GetFileName(dir);
-                    
-                    // Prepend parent folder name if available
+
                     string destName = string.IsNullOrEmpty(parentFolder) ? baseName : $"{parentFolder}_{baseName}";
 
-                    // Fallback to counter if multiple files have the same name AND same parent folder name
                     int counter = 1;
                     string finalName = destName;
                     while (usedNames.Contains(finalName)) {
                         finalName = $"{Path.GetFileNameWithoutExtension(destName)}_{counter}{Path.GetExtension(destName)}";
                         counter++;
                     }
-
                     result[file] = finalName;
                     usedNames.Add(finalName);
                 }
             }
         }
+
         return result;
     }
 

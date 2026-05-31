@@ -11,8 +11,9 @@ using TxtConverter.Services;
 namespace TxtConverter.Core.Logic.Reporting;
 
 /// <summary>
-/// Generates a PDF report tailored for LLM Vision analysis or Archiving.
-/// Uses QuestPDF to handle complex layouting.
+/// Генератор PDF.
+/// Оптимизирован для сверхкомпактного представления без избыточных пустот.
+/// Поддерживает неразрывные элементы структуры.
 /// </summary>
 public class PdfReportGenerator {
     private readonly string _sourceDirPath;
@@ -37,14 +38,14 @@ public class PdfReportGenerator {
     }
 
     public void Generate(string outputFilePath) {
-        // Config based on mode
+        // Настройки плотности документа
         float margin;
         float fontSize;
         float lineHeight;
 
         switch (_mode) {
             case PdfMode.Compact:
-                margin = 0.8f;
+                margin = 0.6f;
                 fontSize = 8f;
                 lineHeight = 1.0f;
                 break;
@@ -55,28 +56,27 @@ public class PdfReportGenerator {
                 break;
             case PdfMode.Standard:
             default:
-                margin = 1.5f;
-                fontSize = 11f;
-                lineHeight = 1.2f;
+                margin = 1.0f;     // Уменьшено с 1.5 для расширения рабочей области
+                fontSize = 9.5f;   // Уменьшено с 11.0 для компактности кода
+                lineHeight = 1.1f; // Уменьшено с 1.2
                 break;
         }
 
-        // Получаем необходимые локализованные строки для правильного оформления заглушек
         string stubLabel = LanguageManager.Instance.GetString("report_stub_label");
         string stubMessage = LanguageManager.Instance.GetString("report_omitted");
+        string additionalInfoWarning = LanguageManager.Instance.GetString("report_stub_warning");
 
         Document.Create(container => {
             container.Page(page => {
-                // Settings
                 page.Size(PageSizes.A4);
                 page.Margin(margin, Unit.Centimetre);
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(x => x.FontSize(fontSize).FontFamily(Fonts.CourierNew).LineHeight(lineHeight));
 
-                // Header (Page Title)
+                // Шапка документа
                 if (_mode != PdfMode.Extreme) {
                     page.Header()
-                        .PaddingBottom(5)
+                        .PaddingBottom(3)
                         .Text(text => {
                             text.Span($"{_projectName} - Code Report").SemiBold().FontSize(fontSize - 1).FontColor(Colors.Grey.Medium);
                             if (_mode == PdfMode.Compact) text.Span(" [Compact]").FontColor(Colors.Grey.Lighten1);
@@ -84,9 +84,10 @@ public class PdfReportGenerator {
                         });
                 }
 
-                // Footer (Page Numbers)
+                // Номера страниц
                 if (_mode != PdfMode.Extreme) {
                     page.Footer()
+                        .PaddingTop(3)
                         .AlignCenter()
                         .Text(x => {
                             x.Span("Page ");
@@ -94,58 +95,71 @@ public class PdfReportGenerator {
                         });
                 }
 
-                // Content
+                // Основное содержимое
                 page.Content()
                     .Column(column => {
-                        // 1. Structure
+                        // 1. АКЦЕНТНЫЙ БЛОК ПРЕДУПРЕЖДЕНИЯ (Компактный)
                         if (_mode != PdfMode.Extreme) {
-                            column.Item().Text(t => {
-                                t.Span("Project Structure").FontSize(fontSize + 4).Bold();
-                                t.EmptyLine();
-                            });
+                            column.Item()
+                                .Background(Colors.Amber.Lighten5)
+                                .BorderLeft(3)
+                                .BorderColor(Colors.Amber.Medium)
+                                .Padding(8)
+                                .Text(additionalInfoWarning)
+                                .FontSize(fontSize)
+                                .FontColor(Colors.Grey.Darken4);
+                            
+                            column.Item().Height(8); // Минимальный разделительный отступ
+                        } else {
+                            column.Item().Text(additionalInfoWarning).FontSize(fontSize);
+                            column.Item().Height(3);
                         }
 
-                        // Structure content
-                        float structPadding = _mode == PdfMode.Extreme ? 0 : 5;
-                        column.Item().Background(Colors.Grey.Lighten4).Padding(structPadding).Text(_structureContent).FontSize(fontSize);
+                        // 2. БЛОК СТРУКТУРЫ (Растянут по ширине страницы, очищен от скрытых \n)
+                        if (!string.IsNullOrWhiteSpace(_structureContent)) {
+                            float structPadding = _mode == PdfMode.Extreme ? 0 : 6;
+                            
+                            column.Item()
+                                .Background(Colors.Grey.Lighten5) // Мягкий фон без жесткой внешней обводки
+                                .Padding(structPadding)
+                                .Text(_structureContent.Trim())   // Метод Trim() срезает скрытые пустые строки в конце!
+                                .FontSize(fontSize);
 
-                        // Separator
-                        if (_mode == PdfMode.Standard) {
-                            column.Item().PageBreak();
-                        }
-                        else {
-                            float bottomPad = _mode == PdfMode.Extreme ? 2 : 10;
-                            column.Item().PaddingBottom(bottomPad).LineHorizontal(0.5f).LineColor(Colors.Black);
+                            // Сверхплотный отступ перед началом файлов (без громоздких разделительных линий)
+                            column.Item().Height(_mode == PdfMode.Extreme ? 2 : 5);
                         }
 
-                        // 2. Files
-                        var sortedFiles = _processedFilesMap.OrderBy(kvp => kvp.Key);
+                        // 3. СПИСОК ФАЙЛОВ С ИХ КОДОМ
+                        var sortedFiles = _processedFilesMap
+                            .OrderBy(kvp => Path.GetRelativePath(_sourceDirPath, kvp.Key).Replace("\\", "/"), StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+
+                        int index = 0;
                         foreach (var entry in sortedFiles) {
+                            index++;
                             string originalPath = entry.Key;
                             string processedPath = entry.Value;
-
                             string relPath = Path.GetRelativePath(_sourceDirPath, originalPath).Replace("\\", "/");
                             bool isStub = !_filesSelectedForMerge.Contains(originalPath);
-                            
+
                             string content;
                             if (isStub) {
-                                // Теперь в качестве тела файла используется полный локализованный маркер исключения без CAPS LOCK и звездочек
                                 content = stubMessage;
                             }
                             else {
                                 try {
                                     content = File.ReadAllText(processedPath);
-                                } 
-                                catch { 
-                                    content = "[Error reading file]"; 
+                                }
+                                catch {
+                                    content = "[Error reading file]";
                                 }
                             }
 
                             if (_mode == PdfMode.Extreme) {
-                                // === EXTREME MODE RENDERER ===
-                                column.Item().PaddingTop(2).Column(c => {
+                                // === EXTREME ===
+                                column.Item().PaddingTop(1).Column(c => {
                                     c.Item().Text(t => {
-                                        string headerText = $">>> {relPath}";
+                                        string headerText = $"{index}. >>> {relPath}";
                                         if (isStub) headerText += stubLabel;
                                         t.Span(headerText);
                                     });
@@ -153,27 +167,33 @@ public class PdfReportGenerator {
                                 });
                             }
                             else if (_mode == PdfMode.Compact) {
-                                // === COMPACT MODE RENDERER ===
-                                column.Item().PaddingTop(5).Column(c => {
-                                    c.Item().Background(Colors.Grey.Lighten3).BorderBottom(1).BorderColor(Colors.Black).Padding(2).Row(row => {
-                                        row.RelativeItem().Text(t => {
-                                            t.Span(relPath).Bold();
-                                            if (isStub) t.Span(stubLabel).Italic();
+                                // === COMPACT ===
+                                column.Item().PaddingTop(2).Column(c => {
+                                    c.Item()
+                                        .Background(Colors.Grey.Lighten3)
+                                        .BorderBottom(0.5f)
+                                        .BorderColor(Colors.Black)
+                                        .Padding(2)
+                                        .Row(row => {
+                                            row.RelativeItem().Text(t => {
+                                                t.Span($"{index}. {relPath}").Bold();
+                                                if (isStub) t.Span(stubLabel).Italic();
+                                            });
                                         });
-                                    });
                                     c.Item().Text(content);
                                 });
                             }
                             else {
-                                // === STANDARD MODE RENDERER ===
-                                int lineCount = content.Count(c => c == '\n') + 1;
+                                // === STANDARD ===
+                                int lineCount = content.Count(ch => ch == '\n') + 1;
                                 bool isSmallFile = lineCount < 20;
-                                column.Item().PaddingTop(15).Element(block => {
+
+                                column.Item().PaddingTop(6).Element(block => {
                                     if (isSmallFile) {
-                                        block.ShowEntire().Column(c => RenderStandardBlock(c, relPath, content, isStub, stubLabel));
+                                        block.ShowEntire().Column(c => RenderStandardBlock(c, index, relPath, content, isStub, stubLabel));
                                     }
                                     else {
-                                        block.Column(c => RenderStandardBlock(c, relPath, content, isStub, stubLabel));
+                                        block.Column(c => RenderStandardBlock(c, index, relPath, content, isStub, stubLabel));
                                     }
                                 });
                             }
@@ -183,16 +203,20 @@ public class PdfReportGenerator {
         }).GeneratePdf(outputFilePath);
     }
 
-    private void RenderStandardBlock(ColumnDescriptor column, string relPath, string content, bool isStub, string stubLabel) {
-        // Visual Header with blue background
-        column.Item().Background(Colors.Blue.Lighten5).BorderBottom(1).BorderColor(Colors.Blue.Medium).Padding(5).Row(row => {
-            row.RelativeItem().Text(t => {
-                t.Span("FILE: ").Bold();
-                t.Span(relPath).SemiBold();
-                if (isStub) t.Span(stubLabel).FontColor(Colors.Grey.Darken2).Italic();
+    private void RenderStandardBlock(ColumnDescriptor column, int index, string relPath, string content, bool isStub, string stubLabel) {
+        column.Item()
+            .Background(Colors.Blue.Lighten5)
+            .BorderBottom(0.5f)
+            .BorderColor(Colors.Blue.Medium)
+            .Padding(4)
+            .Row(row => {
+                row.RelativeItem().Text(t => {
+                    t.Span($"{index}. FILE: ").Bold();
+                    t.Span(relPath).SemiBold();
+                    if (isStub) t.Span(stubLabel).FontColor(Colors.Grey.Darken2).Italic();
+                });
             });
-        });
-        // Content
-        column.Item().PaddingTop(5).PaddingBottom(10).Text(content);
+
+        column.Item().PaddingTop(3).PaddingBottom(6).Text(content);
     }
 }
