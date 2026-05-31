@@ -1,67 +1,70 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace TxtConverter.Core.Logic;
 
 public class FileScanner {
     private readonly List<string> _extensions;
-    private readonly HashSet<string> _ignoredFolders;
+    private readonly HashSet<string> _ignoredFolderNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _ignoredRelativePaths = new(StringComparer.OrdinalIgnoreCase);
+    private string _sourcePath = string.Empty;
 
-    // HARDCODED BLACKLIST
-    // Файлы, которые являются "шумом" для LLM, даже если их расширение (например .json) разрешено.
-    private readonly HashSet<string> _ignoredFiles = new() {
-        // Node / JS
+    // ГЛОБАЛЬНЫЙ ЧЕРНЫЙ СПИСОК ФАЙЛОВ
+    private readonly HashSet<string> _ignoredFiles = new(StringComparer.OrdinalIgnoreCase) {
         "package-lock.json",
         "yarn.lock",
         "pnpm-lock.yaml",
         "npm-debug.log",
         "yarn-error.log",
-        
-        // Rust / Tauri
         "cargo.lock",
-        "desktop-schema.json", // Автогенерируемая схема Tauri, о которой вы говорили
-        
-        // Python
+        "desktop-schema.json",
         "poetry.lock",
         "pipfile.lock",
-        
-        // System
         ".ds_store",
         "thumbs.db"
     };
 
     public FileScanner(List<string> extensions, List<string> ignoredFolders) {
-        // Нормализация расширений: убираем точку, приводим к нижнему регистру
+        // Нормализация расширений файлов
         _extensions = extensions
             .Select(e => e.Trim().TrimStart('.').ToLower())
             .Where(e => !string.IsNullOrEmpty(e))
             .ToList();
 
-        // Нормализация папок
-        _ignoredFolders = new HashSet<string>(
-            ignoredFolders.Select(f => f.Trim().ToLower())
-        );
+        // Сортировка правил игнорирования папок: глобальные имена vs относительные пути от корня
+        foreach (var folder in ignoredFolders) {
+            string trimmed = folder.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
 
-        // Всегда игнорируем папку с результатами
-        _ignoredFolders.Add(ProjectConstants.OutputDirName.ToLower());
+            string normalized = trimmed.Replace('\\', '/');
+            if (normalized.Contains('/')) {
+                _ignoredRelativePaths.Add(normalized.TrimStart('/').ToLower());
+            } else {
+                _ignoredFolderNames.Add(normalized.ToLower());
+            }
+        }
+
+        // Всегда игнорируем папку с результатами конвертации на глобальном уровне
+        _ignoredFolderNames.Add(ProjectConstants.OutputDirName.ToLower());
     }
 
     public Task<List<string>> ScanAsync(string sourcePath) {
+        _sourcePath = sourcePath;
         return Task.Run(() => {
             var results = new List<string>();
             var rootDir = new DirectoryInfo(sourcePath);
-
             if (!rootDir.Exists) return results;
-
             WalkDirectory(rootDir, results);
-
-            // Сортируем для красоты
             results.Sort();
             return results;
         });
     }
 
     private void WalkDirectory(DirectoryInfo directory, List<string> results) {
-        // 1. Проверяем файлы в текущей папке
+        // 1. Проверяем файлы в текущей директории
         try {
             foreach (var file in directory.EnumerateFiles()) {
                 if (IsFileMatch(file.Name)) {
@@ -69,45 +72,63 @@ public class FileScanner {
                 }
             }
         }
-        catch (UnauthorizedAccessException) { /* Ignore */ }
+        catch (UnauthorizedAccessException) { /* Пропускаем недоступные файлы */ }
 
-        // 2. Рекурсивно идем в подпапки (если они не игнорируемые)
+        // 2. Рекурсивно переходим в подпапки с учетом правил фильтрации путей
         try {
             foreach (var dir in directory.EnumerateDirectories()) {
-                string dirName = dir.Name.ToLower();
+                if (ShouldIgnoreDirectory(dir)) continue;
 
-                // Пропускаем игнорируемые и скрытые (кроме .gitignore, если вдруг папка так называется, хотя это файл)
-                if (_ignoredFolders.Contains(dirName)) continue;
-                
-                // Игнорируем скрытые папки (.git, .vscode и т.д.), но разрешаем src-tauri и т.п.
-                // Логика: если начинается с точки и не является .gitignore (редкий кейс для папки, но оставим для безопасности)
+                string dirName = dir.Name.ToLower();
+                // Игнорируем стандартные скрытые каталоги, кроме .gitignore
                 if (dirName.StartsWith(".") && dirName != ".gitignore") continue;
 
                 WalkDirectory(dir, results);
             }
         }
-        catch (UnauthorizedAccessException) { /* Ignore */ }
+        catch (UnauthorizedAccessException) { /* Пропускаем недоступные папки */ }
+    }
+
+    private bool ShouldIgnoreDirectory(DirectoryInfo dir) {
+        string dirName = dir.Name.ToLower();
+        // Глобальное имя папки совпадает
+        if (_ignoredFolderNames.Contains(dirName)) {
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(_sourcePath)) {
+            return false;
+        }
+
+        try {
+            // Вычисление относительного пути для точечной проверки
+            string relPath = Path.GetRelativePath(_sourcePath, dir.FullName).Replace('\\', '/').ToLower().TrimStart('/');
+            if (_ignoredRelativePaths.Contains(relPath)) {
+                return true;
+            }
+
+            // Проверка, является ли текущая папка подпапкой любого из игнорируемых путей
+            foreach (var ignoredRel in _ignoredRelativePaths) {
+                string prefix = ignoredRel.EndsWith("/") ? ignoredRel : ignoredRel + "/";
+                if (relPath.StartsWith(prefix)) {
+                    return true;
+                }
+            }
+        }
+        catch {
+            return false;
+        }
+
+        return false;
     }
 
     private bool IsFileMatch(string fileName) {
         string lowerName = fileName.ToLower();
-
-        // 1. CRITICAL CHECK: Global Blacklist
-        // Сначала проверяем, не находится ли файл в черном списке
         if (_ignoredFiles.Contains(lowerName)) return false;
-
-        // 2. Всегда включаем MD (документация полезна для контекста)
         if (lowerName.EndsWith(".md")) return true;
-
-        // 3. Проверка расширения
         string ext = Path.GetExtension(lowerName).TrimStart('.');
-
-        // Если расширение есть в списке
         if (_extensions.Contains(ext)) return true;
-
-        // Или если имя файла целиком в списке (например "dockerfile", "makefile", "license")
         if (_extensions.Contains(lowerName)) return true;
-
         return false;
     }
 }

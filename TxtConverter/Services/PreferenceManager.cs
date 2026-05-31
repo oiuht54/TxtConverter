@@ -1,6 +1,8 @@
+using System;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Collections.Generic;
 using TxtConverter.Core;
 using TxtConverter.Core.Enums;
 
@@ -10,6 +12,7 @@ public class PresetModel {
     public string Name { get; set; } = string.Empty;
     public string Extensions { get; set; } = string.Empty;
     public string IgnoredFolders { get; set; } = string.Empty;
+    public string Exclusions { get; set; } = string.Empty; // Автоматические исключения (stubs) пресета
 }
 
 public class AppSettings {
@@ -22,16 +25,16 @@ public class AppSettings {
     public bool GeneratePdf { get; set; } = true;
     public PdfMode PdfMode { get; set; } = PdfMode.Standard;
     public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
-    
+
     // AI Common
     public AiProvider AiProvider { get; set; } = AiProvider.GoogleGemini;
     public bool AiThinkingEnabled { get; set; } = true;
     public int AiThinkingBudget { get; set; } = ProjectConstants.DefaultThinkingBudget;
-    
+
     // Gemini Specific
     public string AiApiKey { get; set; } = string.Empty;
     public string AiModel { get; set; } = ProjectConstants.DefaultGeminiModel;
-    
+
     // Nvidia Specific
     public string NvidiaApiKey { get; set; } = string.Empty;
     public string NvidiaModel { get; set; } = ProjectConstants.DefaultNvidiaModel;
@@ -39,13 +42,14 @@ public class AppSettings {
     public double NvidiaTemperature { get; set; } = 0.5;
     public double NvidiaTopP { get; set; } = 0.7;
     public bool NvidiaReasoningEnabled { get; set; } = false;
-    
+
     // Telemetry & Installation
     public string InstallationId { get; set; } = string.Empty;
     public bool IsTelemetryEnabled { get; set; } = true;
 
-    // New Fields
+    // Global Settings
     public string GlobalIgnoredFolders { get; set; } = string.Empty;
+    public string GlobalExcludedPaths { get; set; } = string.Empty; // Всегда исключаемые пути (stubs)
     public List<PresetModel> CustomPresets { get; set; } = new();
 }
 
@@ -139,13 +143,13 @@ public class PreferenceManager {
     public void SetPdfMode(PdfMode val) { _settings.PdfMode = val; Save(); }
     public CompressionLevel GetCompressionLevel() => _settings.Compression;
     public void SetCompressionLevel(CompressionLevel level) { _settings.Compression = level; Save(); }
-    
-    // AI Common
+
+    // AI Settings
     public AiProvider GetAiProvider() => _settings.AiProvider;
     public void SetAiProvider(AiProvider provider) { _settings.AiProvider = provider; Save(); }
     public string GetAiApiKey() => _settings.AiProvider == AiProvider.NvidiaNim ? _settings.NvidiaApiKey : _settings.AiApiKey;
     public string GetAiModel() => _settings.AiProvider == AiProvider.NvidiaNim ? _settings.NvidiaModel : _settings.AiModel;
-    
+
     // Gemini
     public bool GetAiThinkingEnabled() => _settings.AiThinkingEnabled;
     public void SetAiThinkingEnabled(bool enabled) { _settings.AiThinkingEnabled = enabled; Save(); }
@@ -155,7 +159,7 @@ public class PreferenceManager {
     public void SetGeminiApiKey(string key) { _settings.AiApiKey = key; Save(); }
     public string GetGeminiModel() => _settings.AiModel;
     public void SetGeminiModel(string model) { _settings.AiModel = model; Save(); }
-    
+
     // Nvidia
     public string GetNvidiaApiKey() => _settings.NvidiaApiKey;
     public void SetNvidiaApiKey(string key) { _settings.NvidiaApiKey = key; Save(); }
@@ -169,13 +173,16 @@ public class PreferenceManager {
     public void SetNvidiaTopP(double topP) { _settings.NvidiaTopP = topP; Save(); }
     public bool GetNvidiaReasoningEnabled() => _settings.NvidiaReasoningEnabled;
     public void SetNvidiaReasoningEnabled(bool enabled) { _settings.NvidiaReasoningEnabled = enabled; Save(); }
+
     public string GetInstallationId() => _settings.InstallationId;
     public bool GetTelemetryEnabled() => _settings.IsTelemetryEnabled;
     public void SetTelemetryEnabled(bool enabled) { _settings.IsTelemetryEnabled = enabled; Save(); }
 
-    // Custom Preset & Global Ignores
+    // Custom Preset, Global Ignores & Exclusions
     public string GetGlobalIgnoredFolders() => _settings.GlobalIgnoredFolders;
     public void SetGlobalIgnoredFolders(string val) { _settings.GlobalIgnoredFolders = val; Save(); }
+    public string GetGlobalExcludedPaths() => _settings.GlobalExcludedPaths;
+    public void SetGlobalExcludedPaths(string val) { _settings.GlobalExcludedPaths = val; Save(); }
     public List<PresetModel> GetCustomPresets() => _settings.CustomPresets;
     public void SetCustomPresets(List<PresetModel> list) { _settings.CustomPresets = list; Save(); }
 }

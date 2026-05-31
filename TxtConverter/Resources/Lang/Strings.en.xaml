@@ -11,7 +11,9 @@
     <s:String x:Key="ui_extensions">Extensions (comma separated):</s:String>
     <s:String x:Key="ui_extensions_prompt">Example: gd, tscn, java, xml</s:String>
     <s:String x:Key="ui_ignored">Ignored Folders (comma separated):</s:String>
-    <s:String x:Key="ui_ignored_prompt">Example: Library, Temp, obj</s:String>
+    <s:String x:Key="ui_ignored_prompt">Example: Library, Temp, obj, src/obsolete_dir</s:String>
+    <s:String x:Key="ui_exclusions">Exclusions / Stubs (comma separated):</s:String>
+    <s:String x:Key="ui_exclusions_prompt">Example: obsolete.js, src/provider/deepseek</s:String>
     <s:String x:Key="ui_rescan_btn">Rescan</s:String>
     <s:String x:Key="ui_structure_cb">Generate Structure File</s:String>
     <s:String x:Key="ui_compact_structure_cb">Compact Mode (Collapse ignored files)</s:String>
@@ -29,7 +31,7 @@
     <s:String x:Key="ui_compression_label">Token Compression:</s:String>
     <s:String x:Key="ui_comp_none">None (Original)</s:String>
     <s:String x:Key="ui_comp_smart">Smart (Safe)</s:String>
-    <s:String x:Key="ui_comp_max">Maximum (unique comression)</s:String>
+    <s:String x:Key="ui_comp_max">Maximum (unique compression)</s:String>
     <s:String x:Key="ui_ai_select_btn">AI Select</s:String>
     
     <!-- Status -->
@@ -75,8 +77,9 @@
     <s:String x:Key="report_generated_date">Date generated: {0}</s:String>
     <s:String x:Key="report_file_header">FILE: {0}</s:String>
     <s:String x:Key="report_read_error">!!! READ ERROR: {0} !!!</s:String>
-    <s:String x:Key="report_stub_warning">*** SYSTEM INSTRUCTION: Files marked with [CONTENT EXCLUDED] exist in the actual project but were omitted from this context to save tokens. They are NOT empty or todo-items. DO NOT hallucinate their implementation. If you strictly need their content to solve the task, REQUEST them from the user. ***</s:String>
-    <s:String x:Key="report_omitted">*** [EXISTING FILE - CONTENT EXCLUDED FROM CONTEXT TO SAVE TOKENS] ***</s:String>
+    <s:String x:Key="report_stub_warning">*** SYSTEM INSTRUCTION: Files marked with "[Existing file - Content excluded from context to save tokens]" exist in the actual project but were omitted from this context to save tokens. They are NOT empty or todo-items. DO NOT hallucinate their implementation. If you strictly need their content to solve the task, REQUEST them from the user. ***</s:String>
+    <s:String x:Key="report_omitted">[Existing file - Content excluded from context to save tokens]</s:String>
+    <s:String x:Key="report_stub_label"> (Excluded)</s:String>
     
     <!-- Task Messages -->
     <s:String x:Key="task_preparing">Preparing for conversion...</s:String>
@@ -85,21 +88,20 @@
     <s:String x:Key="task_merging">Assembling unified file...</s:String>
     <s:String x:Key="task_pdf">Rendering PDF Report...</s:String>
     <s:String x:Key="task_done">Done!</s:String>
-
+    
     <!-- New Tooltips and Dialog Localization keys -->
     <s:String x:Key="ui_save_preset_tooltip">Save/Update Preset</s:String>
     <s:String x:Key="ui_add_preset_tooltip">Add New Preset</s:String>
     <s:String x:Key="ui_delete_preset_tooltip">Delete Custom Preset</s:String>
-    
     <s:String x:Key="ui_preset_name_title">New Preset</s:String>
     <s:String x:Key="ui_preset_name_label">Preset Name:</s:String>
     <s:String x:Key="ui_preset_confirm">Confirm</s:String>
     <s:String x:Key="ui_preset_cancel">Cancel</s:String>
-    
     <s:String x:Key="msg_preset_exists">A preset with this name already exists!</s:String>
     <s:String x:Key="msg_preset_confirm_delete">Are you sure you want to delete preset '{0}'?</s:String>
     <s:String x:Key="msg_preset_builtin_error">Cannot modify or delete built-in presets. Please save as a new preset.</s:String>
-
     <s:String x:Key="ui_settings_global_ignored">Always Ignored Folders (comma separated):</s:String>
     <s:String x:Key="ui_settings_global_ignored_prompt">Example: bin, obj, .git, venv</s:String>
+    <s:String x:Key="ui_settings_global_excluded">Always Excluded Files/Folders (comma separated):</s:String>
+    <s:String x:Key="ui_settings_global_excluded_prompt">Example: obsolete_dir, legacy_file.cs</s:String>
 </ResourceDictionary>

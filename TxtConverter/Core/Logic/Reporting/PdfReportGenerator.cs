@@ -28,7 +28,6 @@ public class PdfReportGenerator {
         Dictionary<string, string> processedFilesMap,
         HashSet<string> filesSelectedForMerge,
         PdfMode mode) {
-        
         _sourceDirPath = sourceDirPath;
         _projectName = Path.GetFileName(sourceDirPath);
         _structureContent = structureContent;
@@ -50,8 +49,6 @@ public class PdfReportGenerator {
                 lineHeight = 1.0f;
                 break;
             case PdfMode.Extreme:
-                // Экстремальная экономия:
-                // Шрифт 2pt, поля 0.3см, интерлиньяж 0.9 (чуть свободнее чем 0.8 во избежание наслоений строк)
                 margin = 0.05f;
                 fontSize = 1f;
                 lineHeight = 0.8f;
@@ -64,6 +61,10 @@ public class PdfReportGenerator {
                 break;
         }
 
+        // Получаем необходимые локализованные строки для правильного оформления заглушек
+        string stubLabel = LanguageManager.Instance.GetString("report_stub_label");
+        string stubMessage = LanguageManager.Instance.GetString("report_omitted");
+
         Document.Create(container => {
             container.Page(page => {
                 // Settings
@@ -73,7 +74,6 @@ public class PdfReportGenerator {
                 page.DefaultTextStyle(x => x.FontSize(fontSize).FontFamily(Fonts.CourierNew).LineHeight(lineHeight));
 
                 // Header (Page Title)
-                // In Extreme mode, we skip page header entirely
                 if (_mode != PdfMode.Extreme) {
                     page.Header()
                         .PaddingBottom(5)
@@ -85,7 +85,6 @@ public class PdfReportGenerator {
                 }
 
                 // Footer (Page Numbers)
-                // In Extreme mode, skip footer
                 if (_mode != PdfMode.Extreme) {
                     page.Footer()
                         .AlignCenter()
@@ -99,7 +98,6 @@ public class PdfReportGenerator {
                 page.Content()
                     .Column(column => {
                         // 1. Structure
-                        // В режиме Extreme убираем заголовок "Project Structure" полностью, чтобы не наслаивался
                         if (_mode != PdfMode.Extreme) {
                             column.Item().Text(t => {
                                 t.Span("Project Structure").FontSize(fontSize + 4).Bold();
@@ -116,40 +114,39 @@ public class PdfReportGenerator {
                             column.Item().PageBreak();
                         }
                         else {
-                            // In Extreme/Compact: simple separator
                             float bottomPad = _mode == PdfMode.Extreme ? 2 : 10;
                             column.Item().PaddingBottom(bottomPad).LineHorizontal(0.5f).LineColor(Colors.Black);
                         }
 
                         // 2. Files
                         var sortedFiles = _processedFilesMap.OrderBy(kvp => kvp.Key);
-
                         foreach (var entry in sortedFiles) {
                             string originalPath = entry.Key;
                             string processedPath = entry.Value;
-                            
-                            // Using relative path for the header is much better for LLM context
+
                             string relPath = Path.GetRelativePath(_sourceDirPath, originalPath).Replace("\\", "/");
-                            
                             bool isStub = !_filesSelectedForMerge.Contains(originalPath);
+                            
                             string content;
-
-                            try {
-                                content = File.ReadAllText(processedPath);
-                            } catch { content = "[Error reading file]"; }
-
                             if (isStub) {
-                                content = "[STUB]";
+                                // Теперь в качестве тела файла используется полный локализованный маркер исключения без CAPS LOCK и звездочек
+                                content = stubMessage;
+                            }
+                            else {
+                                try {
+                                    content = File.ReadAllText(processedPath);
+                                } 
+                                catch { 
+                                    content = "[Error reading file]"; 
+                                }
                             }
 
                             if (_mode == PdfMode.Extreme) {
                                 // === EXTREME MODE RENDERER ===
-                                // Strict REGULAR font (no bold), text-based headers
                                 column.Item().PaddingTop(2).Column(c => {
                                     c.Item().Text(t => {
-                                        // Plain text header, no bold
                                         string headerText = $">>> {relPath}";
-                                        if (isStub) headerText += " (Stub)";
+                                        if (isStub) headerText += stubLabel;
                                         t.Span(headerText);
                                     });
                                     c.Item().Text(content);
@@ -161,7 +158,7 @@ public class PdfReportGenerator {
                                     c.Item().Background(Colors.Grey.Lighten3).BorderBottom(1).BorderColor(Colors.Black).Padding(2).Row(row => {
                                         row.RelativeItem().Text(t => {
                                             t.Span(relPath).Bold();
-                                            if (isStub) t.Span(" (Stub)").Italic();
+                                            if (isStub) t.Span(stubLabel).Italic();
                                         });
                                     });
                                     c.Item().Text(content);
@@ -171,13 +168,12 @@ public class PdfReportGenerator {
                                 // === STANDARD MODE RENDERER ===
                                 int lineCount = content.Count(c => c == '\n') + 1;
                                 bool isSmallFile = lineCount < 20;
-
                                 column.Item().PaddingTop(15).Element(block => {
                                     if (isSmallFile) {
-                                        block.ShowEntire().Column(c => RenderStandardBlock(c, relPath, content, isStub));
+                                        block.ShowEntire().Column(c => RenderStandardBlock(c, relPath, content, isStub, stubLabel));
                                     }
                                     else {
-                                        block.Column(c => RenderStandardBlock(c, relPath, content, isStub));
+                                        block.Column(c => RenderStandardBlock(c, relPath, content, isStub, stubLabel));
                                     }
                                 });
                             }
@@ -187,16 +183,15 @@ public class PdfReportGenerator {
         }).GeneratePdf(outputFilePath);
     }
 
-    private void RenderStandardBlock(ColumnDescriptor column, string relPath, string content, bool isStub) {
+    private void RenderStandardBlock(ColumnDescriptor column, string relPath, string content, bool isStub, string stubLabel) {
         // Visual Header with blue background
         column.Item().Background(Colors.Blue.Lighten5).BorderBottom(1).BorderColor(Colors.Blue.Medium).Padding(5).Row(row => {
             row.RelativeItem().Text(t => {
                 t.Span("FILE: ").Bold();
                 t.Span(relPath).SemiBold();
-                if (isStub) t.Span(" (Stub)").FontColor(Colors.Grey.Darken2).Italic();
+                if (isStub) t.Span(stubLabel).FontColor(Colors.Grey.Darken2).Italic();
             });
         });
-
         // Content
         column.Item().PaddingTop(5).PaddingBottom(10).Text(content);
     }

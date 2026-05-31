@@ -1,5 +1,7 @@
+using System;
 using System.Diagnostics;
 using System.Globalization;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -22,7 +24,7 @@ public partial class SettingsWindow : Window {
     private void LoadSettings() {
         _ignoreChanges = true;
 
-        // Language Setup
+        // Настройка языков
         LanguageCombo.Items.Add(new ComboBoxItem { Content = "English", Tag = ProjectConstants.LangEn });
         LanguageCombo.Items.Add(new ComboBoxItem { Content = "Русский", Tag = ProjectConstants.LangRu });
         string currentLang = LanguageManager.Instance.CurrentLanguage;
@@ -33,13 +35,14 @@ public partial class SettingsWindow : Window {
             }
         }
 
-        // Global Ignored Folders
+        // Глобальные исключения и игнорирование
         GlobalIgnoredBox.Text = PreferenceManager.Instance.GetGlobalIgnoredFolders();
+        GlobalExcludedBox.Text = PreferenceManager.Instance.GetGlobalExcludedPaths();
 
-        // Telemetry
+        // Телеметрия
         TelemetryCb.IsChecked = PreferenceManager.Instance.GetTelemetryEnabled();
 
-        // AI Provider
+        // Провайдеры AI
         _currentProvider = PreferenceManager.Instance.GetAiProvider();
         foreach (ComboBoxItem item in ProviderCombo.Items) {
             if (item.Tag is string tag && tag == _currentProvider.ToString()) {
@@ -160,6 +163,7 @@ public partial class SettingsWindow : Window {
         PreferenceManager.Instance.SetAiProvider(_currentProvider);
         PreferenceManager.Instance.SetTelemetryEnabled(TelemetryCb.IsChecked == true);
         PreferenceManager.Instance.SetGlobalIgnoredFolders(GlobalIgnoredBox.Text);
+        PreferenceManager.Instance.SetGlobalExcludedPaths(GlobalExcludedBox.Text);
     }
 
     private void Link_MouseDown(object sender, MouseButtonEventArgs e) {

@@ -1,13 +1,17 @@
 using Microsoft.Win32;
-using System.ComponentModel;
+using System;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.ComponentModel;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using TxtConverter.Core;
 using TxtConverter.Core.Enums;
 using TxtConverter.Core.Logic;
+using TxtConverter.Core.Logic.Processing;
 using TxtConverter.Services;
 
 namespace TxtConverter.Views;
@@ -29,7 +33,7 @@ public partial class MainWindow : Window {
 
     private void Window_Loaded(object sender, RoutedEventArgs e) {
         if (!string.IsNullOrWhiteSpace(SourceDirBox.Text) && Directory.Exists(SourceDirBox.Text)) {
-            Log("   Auto-scan on startup initiated...");
+            Log(" Auto-scan on startup initiated...");
             Rescan_Click(this, new RoutedEventArgs());
         }
     }
@@ -74,12 +78,12 @@ public partial class MainWindow : Window {
             PresetCombo.SelectedItem = lastPreset;
         else
             PresetCombo.SelectedIndex = 0;
-            
+
         StructCb.IsChecked = prefs.GetGenerateStructure();
         CompactCb.IsChecked = prefs.GetCompactMode();
         MergedCb.IsChecked = prefs.GetGenerateMerged();
         PdfCb.IsChecked = prefs.GetGeneratePdf();
-        
+
         PdfMode savedMode = prefs.GetPdfMode();
         foreach (ComboBoxItem item in PdfModeCombo.Items) {
             if (item.Tag is PdfMode m && m == savedMode) {
@@ -87,6 +91,7 @@ public partial class MainWindow : Window {
                 break;
             }
         }
+
         CompressionLevel savedComp = prefs.GetCompressionLevel();
         foreach (ComboBoxItem item in CompressionCombo.Items) {
             if (item.Tag is CompressionLevel lvl && lvl == savedComp) {
@@ -136,7 +141,7 @@ public partial class MainWindow : Window {
         UpdateMergedCheckboxLabel();
         string? detected = PresetManager.Instance.AutoDetectPreset(path);
         if (detected != null) {
-            Log($"   Auto-detected project type: {detected}");
+            Log($" Auto-detected project type: {detected}");
             PresetCombo.SelectedItem = detected;
         }
         Rescan_Click(this, new RoutedEventArgs());
@@ -156,6 +161,7 @@ public partial class MainWindow : Window {
             if (presetName != "Manual") {
                 ExtensionsBox.Text = PresetManager.Instance.GetExtensionsFor(presetName);
                 IgnoredBox.Text = PresetManager.Instance.GetIgnoredFoldersFor(presetName);
+                ExclusionsBox.Text = PresetManager.Instance.GetExclusionsFor(presetName);
             }
             Log(string.Format(Loc("log_preset_selected"), presetName));
             UpdatePresetButtonsState(presetName);
@@ -174,7 +180,7 @@ public partial class MainWindow : Window {
                 MessageBox.Show(Loc("msg_preset_builtin_error"), Loc("ui_status_error"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            PresetManager.Instance.AddOrUpdatePreset(presetName, ExtensionsBox.Text, IgnoredBox.Text);
+            PresetManager.Instance.AddOrUpdatePreset(presetName, ExtensionsBox.Text, IgnoredBox.Text, ExclusionsBox.Text);
             Log($"Preset '{presetName}' saved successfully.");
         }
     }
@@ -185,13 +191,11 @@ public partial class MainWindow : Window {
         if (dialog.ShowDialog() == true) {
             string newName = dialog.PresetName;
             if (string.IsNullOrWhiteSpace(newName)) return;
-
             if (PresetManager.Instance.HasPreset(newName)) {
                 MessageBox.Show(Loc("msg_preset_exists"), Loc("ui_status_error"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-
-            PresetManager.Instance.AddOrUpdatePreset(newName, ExtensionsBox.Text, IgnoredBox.Text);
+            PresetManager.Instance.AddOrUpdatePreset(newName, ExtensionsBox.Text, IgnoredBox.Text, ExclusionsBox.Text);
             Log($"New custom preset '{newName}' created successfully.");
             RefreshPresetsCombo(newName);
         }
@@ -200,14 +204,12 @@ public partial class MainWindow : Window {
     private void DeletePreset_Click(object sender, RoutedEventArgs e) {
         if (PresetCombo.SelectedItem is string presetName) {
             if (PresetManager.Instance.IsPresetBuiltIn(presetName)) return;
-
             var confirmResult = MessageBox.Show(
                 string.Format(Loc("msg_preset_confirm_delete"), presetName),
                 Loc("ui_settings_close"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question
             );
-
             if (confirmResult == MessageBoxResult.Yes) {
                 PresetManager.Instance.DeletePreset(presetName);
                 Log($"Custom preset '{presetName}' deleted successfully.");
@@ -236,21 +238,39 @@ public partial class MainWindow : Window {
         StatusLabel.Text = Loc("ui_status_scanning");
         Log(Loc("log_scanning_start"));
         StatusProgressBar.IsIndeterminate = true;
+
         try {
             var exts = ExtensionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
 
-            // Merge local preset ignored folders list with global always ignored folders list
+            // Объединение локальных правил игнорирования пресета с глобальными правилами из общих настроек
             string globalIgnoredRaw = PreferenceManager.Instance.GetGlobalIgnoredFolders();
             if (!string.IsNullOrWhiteSpace(globalIgnoredRaw)) {
                 var globalIgnored = globalIgnoredRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
                 ignored = ignored.Union(globalIgnored, StringComparer.OrdinalIgnoreCase).ToList();
             }
 
+            // Сканирование физической файловой структуры проекта
             var scanner = new FileScanner(exts, ignored);
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
-            _filesSelectedForMerge = new HashSet<string>(_allFoundFiles);
+
+            // Обработка логики автоматических исключений файлов (stubs)
+            var localExclusions = ExclusionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
+            string globalExclusionsRaw = PreferenceManager.Instance.GetGlobalExcludedPaths();
+            var globalExclusions = globalExclusionsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
+            var allExclusions = localExclusions.Union(globalExclusions, StringComparer.OrdinalIgnoreCase).ToList();
+
+            var matcher = new ExclusionMatcher(string.Join(",", allExclusions));
+
+            // Задаем начальный выбор для слияния: все файлы, кроме тех, которые исключены правилами
+            _filesSelectedForMerge = new HashSet<string>(
+                _allFoundFiles.Where(file => !matcher.IsExcluded(file, SourceDirBox.Text))
+            );
+
+            // Вывод информации в лог: всего файлов найдено и сколько из них по умолчанию выбрано для слияния
             Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
+            Log(string.Format(Loc("log_files_selected"), _filesSelectedForMerge.Count, _allFoundFiles.Count));
+
             UpdateButtonsState();
         }
         catch (Exception ex) {
@@ -281,18 +301,18 @@ public partial class MainWindow : Window {
             Settings_Click(null, null);
             return;
         }
-
         var dialog = new AiTaskWindow(SourceDirBox.Text, _allFoundFiles);
         dialog.Owner = this;
         if (dialog.ShowDialog() == true && dialog.ResultPaths != null) {
             _filesSelectedForMerge = new HashSet<string>(dialog.ResultPaths);
             Log("✨ AI Selection Applied:");
-            Log($" Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
-            Log($" Selected: {_filesSelectedForMerge.Count} files.");
+            Log($"  Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
+            Log($"  Selected: {_filesSelectedForMerge.Count} files.");
             foreach (var f in _filesSelectedForMerge.Take(5))
-                Log($" - {Path.GetFileName(f)}");
-            if (_filesSelectedForMerge.Count > 5) Log(" ...");
+                Log($"   - {Path.GetFileName(f)}");
+            if (_filesSelectedForMerge.Count > 5) Log("   ...");
             MessageBox.Show($"AI selected {_filesSelectedForMerge.Count} files based on your task.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+
             TelemetryService.Instance.TrackEvent("ai_used", new Dictionary<string, object> {
                 { "files_selected", _filesSelectedForMerge.Count },
                 { "total_files_in_project", _allFoundFiles.Count },
@@ -313,10 +333,9 @@ public partial class MainWindow : Window {
         StatusProgressBar.IsIndeterminate = false;
         StatusProgressBar.Value = 0;
         DateTime startTime = DateTime.Now;
+
         try {
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
-
-            // Merge local preset ignored folders list with global always ignored folders list
             string globalIgnoredRaw = PreferenceManager.Instance.GetGlobalIgnoredFolders();
             if (!string.IsNullOrWhiteSpace(globalIgnoredRaw)) {
                 var globalIgnored = globalIgnoredRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
@@ -326,10 +345,11 @@ public partial class MainWindow : Window {
             CompressionLevel compLevel = CompressionLevel.Smart;
             if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
                 compLevel = lvl;
+
             PdfMode pdfMode = PdfMode.Standard;
             if (PdfModeCombo.SelectedItem is ComboBoxItem pi && pi.Tag is PdfMode val)
                 pdfMode = val;
-                
+
             var orchestrator = new ConversionOrchestrator(
                 SourceDirBox.Text,
                 _allFoundFiles,
@@ -342,15 +362,18 @@ public partial class MainWindow : Window {
                 PdfCb.IsChecked == true,
                 pdfMode
             );
+
             var progress = new Progress<double>(p => StatusProgressBar.Value = p);
             var status = new Progress<string>(s => StatusLabel.Text = s);
             await orchestrator.RunAsync(progress, status);
+
             Log("====================");
             Log(Loc("log_conversion_success"));
             Log("====================");
             Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
             StatusLabel.Text = Loc("ui_status_done");
             TimeSpan duration = DateTime.Now - startTime;
+
             TelemetryService.Instance.TrackEvent("conversion_completed", new Dictionary<string, object> {
                 { "files_processed", _allFoundFiles.Count },
                 { "files_merged", _filesSelectedForMerge.Count },
@@ -402,10 +425,8 @@ public partial class MainWindow : Window {
             fileName = "_" + projName + ProjectConstants.MergedFileSuffix;
         }
         string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
-        if (baseStr.Contains("{0}"))
-            MergedCb.Content = string.Format(baseStr, fileName);
-        else
-            MergedCb.Content = baseStr + $" ({fileName})";
+        if (baseStr.Contains("{0}")) MergedCb.Content = string.Format(baseStr, fileName);
+        else MergedCb.Content = baseStr + $" ({fileName})";
     }
 
     private void Log(string message) {
@@ -424,6 +445,9 @@ public partial class MainWindow : Window {
         settingsWin.Owner = this;
         settingsWin.ShowDialog();
         UpdateManualTexts();
+        if (!string.IsNullOrWhiteSpace(SourceDirBox.Text)) {
+            Rescan_Click(this, new RoutedEventArgs());
+        }
     }
 
     private void UpdateManualTexts() {

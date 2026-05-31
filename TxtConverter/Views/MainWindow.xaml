@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="{DynamicResource app_title}"
-        Height="720" Width="680" MinHeight="680" MinWidth="600"
+        Height="760" Width="680" MinHeight="720" MinWidth="600"
         WindowStyle="None" ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True" Drop="Window_Drop"
@@ -57,7 +57,7 @@
                             <TextBox x:Name="SourceDirBox" Grid.Column="1" IsReadOnly="True" Margin="0,0,8,0" Cursor="Arrow"/>
                             <Button x:Name="SelectSourceBtn" Grid.Column="2" Content="{DynamicResource ui_choose_btn}" Click="SelectSource_Click" MinWidth="80"/>
                         </Grid>
-                        <!-- Preset Row (Updated with Buttons 💾, ➕, 🗑️) -->
+                        <!-- Preset Row -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
@@ -69,7 +69,7 @@
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
                                 <Button x:Name="SavePresetBtn" Content="💾" Click="SavePreset_Click" ToolTip="{DynamicResource ui_save_preset_tooltip}" Width="32" Height="34" Margin="0,0,4,0" Padding="0"/>
                                 <Button x:Name="AddPresetBtn" Content="➕" Click="AddPreset_Click" ToolTip="{DynamicResource ui_add_preset_tooltip}" Width="32" Height="34" Margin="0,0,4,0" Padding="0"/>
-                                <Button x:Name="DeletePresetBtn" Content="🗑️" Click="DeletePreset_Click" ToolTip="{DynamicResource ui_delete_preset_tooltip}" Width="32" Height="34" Padding="0"/>
+                                <Button x:Name="DeletePresetBtn" Content="❌" Click="DeletePreset_Click" ToolTip="{DynamicResource ui_delete_preset_tooltip}" Width="32" Height="34" Padding="0"/>
                             </StackPanel>
                         </Grid>
                         <!-- Extensions -->
@@ -79,8 +79,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{DynamicResource ui_extensions}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}"
-                                     ToolTip="{DynamicResource ui_extensions_prompt}"/>
+                            <TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}" ToolTip="{DynamicResource ui_extensions_prompt}"/>
                         </Grid>
                         <!-- Ignored & Rescan -->
                         <Grid Margin="0,0,0,12">
@@ -90,9 +89,17 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{DynamicResource ui_ignored}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,8,0" Tag="{DynamicResource ui_ignored_prompt}"
-                                     ToolTip="{DynamicResource ui_ignored_prompt}"/>
+                            <TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,8,0" Tag="{DynamicResource ui_ignored_prompt}" ToolTip="{DynamicResource ui_ignored_prompt}"/>
                             <Button x:Name="RescanBtn" Grid.Column="2" Content="{DynamicResource ui_rescan_btn}" Click="Rescan_Click" IsEnabled="False" MinWidth="80"/>
+                        </Grid>
+                        <!-- Exclusions (Stubs) -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="Labels"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{DynamicResource ui_exclusions}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="ExclusionsBox" Grid.Column="1" Tag="{DynamicResource ui_exclusions_prompt}" ToolTip="{DynamicResource ui_exclusions_prompt}"/>
                         </Grid>
                         <Separator Background="#333333" Margin="0,5,0,15"/>
                         <!-- Advanced Settings -->
@@ -105,8 +112,7 @@
                             <!-- Left: Structure -->
                             <StackPanel Grid.Column="0">
                                 <CheckBox x:Name="StructCb" Content="{DynamicResource ui_structure_cb}" IsChecked="False" Margin="0,0,0,10"/>
-                                <CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True"
-                                          IsEnabled="{Binding IsChecked, ElementName=StructCb}"/>
+                                <CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True" IsEnabled="{Binding IsChecked, ElementName=StructCb}"/>
                             </StackPanel>
                             <!-- Right: Compression -->
                             <StackPanel Grid.Column="2">
@@ -115,7 +121,7 @@
                             </StackPanel>
                         </Grid>
                         <!-- ACTION AREA -->
-                        <Grid Margin="0,20,0,0">
+                        <Grid Margin="0,15,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/> <!-- Merged Checkbox -->
                                 <RowDefinition Height="Auto"/> <!-- PDF Row -->
@@ -131,10 +137,7 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <CheckBox x:Name="PdfCb" Content="{DynamicResource ui_pdf_cb}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <ComboBox x:Name="PdfModeCombo" Grid.Column="1"
-                                          IsEnabled="{Binding IsChecked, ElementName=PdfCb}"
-                                          Height="26" VerticalAlignment="Center" HorizontalAlignment="Left" Width="220" FontSize="12">
-                                </ComboBox>
+                                <ComboBox x:Name="PdfModeCombo" Grid.Column="1" IsEnabled="{Binding IsChecked, ElementName=PdfCb}" Height="26" VerticalAlignment="Center" HorizontalAlignment="Left" Width="220" FontSize="12"/>
                             </Grid>
                             <!-- 3. Buttons Row -->
                             <Grid Grid.Row="3">
@@ -144,31 +147,18 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <!-- AI Select Button -->
-                                <Button x:Name="AiSelectBtn" Grid.Column="0"
-                                        Click="AiSelect_Click"
-                                        IsEnabled="False"
-                                        Height="38"
-                                        Background="#2D2D30" BorderBrush="#007ACC" Foreground="#0090F0" FontWeight="SemiBold">
+                                <Button x:Name="AiSelectBtn" Grid.Column="0" Click="AiSelect_Click" IsEnabled="False" Height="38" Background="#2D2D30" BorderBrush="#007ACC" Foreground="#0090F0" FontWeight="SemiBold">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Path Data="M19,9l1.25-2.75L23,5l-2.75-1.25L19,1l-1.25,2.75L15,5l2.75,1.25L19,9z M11.5,9.5L9,4L6.5,9.5L1,12l5.5,2.5L9,20l2.5-5.5L17,12L11.5,9.5z"
-                                              Fill="#0090F0"
-                                              Width="18" Height="18" Stretch="Uniform"
-                                              Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <Path Data="M19,9l1.25-2.75L23,5l-2.75-1.25L19,1l-1.25,2.75L15,5l2.75,1.25L19,9z M11.5,9.5L9,4L6.5,9.5L1,12l5.5,2.5L9,20l2.5-5.5L17,12L11.5,9.5z" Fill="#0090F0" Width="18" Height="18" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                         <TextBlock Text="{DynamicResource ui_ai_select_btn}" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
                                 <!-- Manual Select Button -->
-                                <Button x:Name="SelectFilesBtn" Grid.Column="2"
-                                        Content="{DynamicResource ui_select_files_btn}"
-                                        Click="SelectFiles_Click"
-                                        IsEnabled="False"
-                                        Height="38"/>
+                                <Button x:Name="SelectFilesBtn" Grid.Column="2" Content="{DynamicResource ui_select_files_btn}" Click="SelectFiles_Click" IsEnabled="False" Height="38"/>
                             </Grid>
                         </Grid>
                         <!-- Big Convert Button -->
-                        <Button x:Name="ConvertBtn" Content="{DynamicResource ui_convert_btn}"
-                                Style="{StaticResource AccentButton}"
-                                Click="Convert_Click" IsEnabled="False" Margin="0,20,0,0"/>
+                        <Button x:Name="ConvertBtn" Content="{DynamicResource ui_convert_btn}" Style="{StaticResource AccentButton}" Click="Convert_Click" IsEnabled="False" Margin="0,15,0,0"/>
                     </StackPanel>
                 </Border>
                 <!-- CARD 2: LOG -->
@@ -179,9 +169,7 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <TextBlock Text="{DynamicResource ui_log_label}" FontWeight="Bold" Foreground="#AAAAAA" Margin="0,0,0,8"/>
-                        <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
-                                 FontFamily="Consolas" FontSize="13" TextWrapping="Wrap"
-                                 Background="#151515" BorderThickness="0" Padding="5"/>
+                        <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="13" TextWrapping="Wrap" Background="#151515" BorderThickness="0" Padding="5"/>
                     </Grid>
                 </Border>
             </Grid>
@@ -191,8 +179,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="200"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="StatusLabel" Text="{DynamicResource ui_status_ready}"
-                           Foreground="#888888" VerticalAlignment="Center" Margin="15,0" FontSize="12"/>
+                <TextBlock x:Name="StatusLabel" Text="{DynamicResource ui_status_ready}" Foreground="#888888" VerticalAlignment="Center" Margin="15,0" FontSize="12"/>
                 <ProgressBar x:Name="StatusProgressBar" Grid.Column="1" Margin="10,0,15,0" Height="4" VerticalAlignment="Center" Value="0" Maximum="1"/>
             </Grid>
         </Grid>

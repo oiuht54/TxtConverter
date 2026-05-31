@@ -11,7 +11,9 @@
     <s:String x:Key="ui_extensions">Расширения (через запятую):</s:String>
     <s:String x:Key="ui_extensions_prompt">Например: gd, tscn, java, xml</s:String>
     <s:String x:Key="ui_ignored">Игнорируемые папки (через запятую):</s:String>
-    <s:String x:Key="ui_ignored_prompt">Например: Library, Temp, obj</s:String>
+    <s:String x:Key="ui_ignored_prompt">Например: Library, Temp, obj, src/obsolete_dir</s:String>
+    <s:String x:Key="ui_exclusions">Исключения / Заглушки (через запятую):</s:String>
+    <s:String x:Key="ui_exclusions_prompt">Например: obsolete.js, src/provider/deepseek</s:String>
     <s:String x:Key="ui_rescan_btn">Пересканировать</s:String>
     <s:String x:Key="ui_structure_cb">Создавать файл структуры</s:String>
     <s:String x:Key="ui_compact_structure_cb">Компактный режим (Свернуть лишнее)</s:String>
@@ -75,8 +77,9 @@
     <s:String x:Key="report_generated_date">Дата генерации: {0}</s:String>
     <s:String x:Key="report_file_header">ФАЙЛ: {0}</s:String>
     <s:String x:Key="report_read_error">!!! ОШИБКА ЧТЕНИЯ: {0} !!!</s:String>
-    <s:String x:Key="report_stub_warning">*** СИСТЕМНАЯ ИНСТРУКЦИЯ: Файлы с пометкой [CONTENT EXCLUDED] существуют в проекте, но их содержимое скрыто для экономии контекста. Это НЕ пустые файлы. НЕ придумывай их реализацию. Если код из них критически важен, ЗАПРОСИ его у пользователя. ***</s:String>
-    <s:String x:Key="report_omitted">*** [ФАЙЛ СУЩЕСТВУЕТ - СОДЕРЖИМОЕ СКРЫТО ДЛЯ ЭКОНОМИИ] ***</s:String>
+    <s:String x:Key="report_stub_warning">*** СИСТЕМНАЯ ИНСТРУКЦИЯ: Файлы с пометкой "[Файл существует - содержимое скрыто для экономии контекста]" существуют в проекте, но их содержимое скрыто для экономии контекста. Это НЕ пустые файлы. НЕ придумывай их реализацию. Если код из них критически важен, ЗАПРОСИ его у пользователя. ***</s:String>
+    <s:String x:Key="report_omitted">[Файл существует - содержимое скрыто для экономии контекста]</s:String>
+    <s:String x:Key="report_stub_label"> (Исключено)</s:String>
     
     <!-- Task Messages -->
     <s:String x:Key="task_preparing">Подготовка к конвертации...</s:String>
@@ -85,21 +88,20 @@
     <s:String x:Key="task_merging">Сборка единого файла...</s:String>
     <s:String x:Key="task_pdf">Рендеринг PDF отчета...</s:String>
     <s:String x:Key="task_done">Готово!</s:String>
-
+    
     <!-- New Tooltips and Dialog Localization keys -->
     <s:String x:Key="ui_save_preset_tooltip">Сохранить/Обновить пресет</s:String>
     <s:String x:Key="ui_add_preset_tooltip">Создать новый пресет</s:String>
     <s:String x:Key="ui_delete_preset_tooltip">Удалить пользовательский пресет</s:String>
-    
     <s:String x:Key="ui_preset_name_title">Новый пресет</s:String>
     <s:String x:Key="ui_preset_name_label">Имя пресета:</s:String>
     <s:String x:Key="ui_preset_confirm">Подтвердить</s:String>
     <s:String x:Key="ui_preset_cancel">Отмена</s:String>
-    
     <s:String x:Key="msg_preset_exists">Пресет с таким именем уже существует!</s:String>
     <s:String x:Key="msg_preset_confirm_delete">Вы действительно хотите удалить пресет '{0}'?</s:String>
     <s:String x:Key="msg_preset_builtin_error">Невозможно изменить или удалить встроенный пресет. Пожалуйста, сохраните его под новым именем.</s:String>
-
     <s:String x:Key="ui_settings_global_ignored">Всегда игнорируемые папки (через запятую):</s:String>
     <s:String x:Key="ui_settings_global_ignored_prompt">Например: bin, obj, .git, venv</s:String>
+    <s:String x:Key="ui_settings_global_excluded">Всегда исключаемые файлы/папки (через запятую):</s:String>
+    <s:String x:Key="ui_settings_global_excluded_prompt">Например: obsolete_dir, legacy_file.cs</s:String>
 </ResourceDictionary>

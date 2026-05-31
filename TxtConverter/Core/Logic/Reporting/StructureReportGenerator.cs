@@ -1,5 +1,8 @@
+using System;
 using System.IO;
 using System.Text;
+using System.Collections.Generic;
+using System.Linq;
 using TxtConverter.Core.Enums;
 using TxtConverter.Services;
 
@@ -7,9 +10,10 @@ namespace TxtConverter.Core.Logic.Reporting;
 
 public class StructureReportGenerator {
     private readonly string _rootPath;
-    private readonly HashSet<string> _processedFiles; // Files that were actually converted
-    private readonly HashSet<string> _filesSelectedForMerge; // Files selected by user for full content
-    private readonly List<string> _ignoredFolders;
+    private readonly HashSet<string> _processedFiles; // Файлы, которые были фактически преобразованы
+    private readonly HashSet<string> _filesSelectedForMerge; // Файлы, выбранные пользователем для полного слияния
+    private readonly HashSet<string> _ignoredFolderNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _ignoredRelativePaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly CompressionLevel _compressionLevel;
     private readonly bool _compactMode;
 
@@ -23,19 +27,28 @@ public class StructureReportGenerator {
         _rootPath = rootPath;
         _processedFiles = processedFiles;
         _filesSelectedForMerge = filesSelectedForMerge;
-        _ignoredFolders = ignoredFolders;
         _compressionLevel = compressionLevel;
         _compactMode = compactMode;
+
+        // Инициализируем те же правила фильтрации папок, что и в сканере, для консистентности отчета структуры
+        foreach (var folder in ignoredFolders) {
+            string trimmed = folder.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+            string normalized = trimmed.Replace('\\', '/');
+            if (normalized.Contains('/')) {
+                _ignoredRelativePaths.Add(normalized.TrimStart('/').ToLower());
+            } else {
+                _ignoredFolderNames.Add(normalized.ToLower());
+            }
+        }
     }
 
     /// <summary>
-    /// Generates the structure report.
-    /// Returns the content as a string for further use (e.g., PDF generation).
+    /// Генерирует отчет о структуре и сохраняет его в файл.
     /// </summary>
     public string Generate(string outputDir) {
         string reportPath = Path.Combine(outputDir, ProjectConstants.ReportStructureFile);
         var sb = new StringBuilder();
-
         sb.Append(Loc("report_structure_header")).Append('\n');
         sb.Append(string.Format(Loc("report_generated_date"), DateTime.Now)).Append("\n\n");
 
@@ -62,10 +75,8 @@ public class StructureReportGenerator {
         }
 
         if (_compressionLevel == CompressionLevel.None) sb.Append("```\n");
-
         string finalContent = sb.ToString();
         File.WriteAllText(reportPath, finalContent, Encoding.UTF8);
-
         return finalContent;
     }
 
@@ -73,12 +84,8 @@ public class StructureReportGenerator {
         var dirInfo = new DirectoryInfo(_rootPath);
         foreach (var file in dirInfo.GetFiles("*", SearchOption.AllDirectories)) {
             if (!ShouldIncludeInStructure(file.FullName, _rootPath)) continue;
-
             bool isProcessed = _processedFiles.Contains(file.FullName);
-
-            // In compact mode, we skip ignored files entirely in the flat list
             if (_compactMode && !isProcessed) continue;
-
             string relPath = Path.GetRelativePath(_rootPath, file.FullName).Replace('\\', '/');
             if (isProcessed)
                 sb.Append(relPath).Append('\n');
@@ -100,7 +107,6 @@ public class StructureReportGenerator {
 
         foreach (var child in children) {
             if (!ShouldIncludeInStructure(child.FullName, currentDirPath)) continue;
-
             if (child is DirectoryInfo) {
                 nodesToShow.Add(child);
             }
@@ -114,13 +120,11 @@ public class StructureReportGenerator {
             }
         }
 
-        // Logic to collapse ignored files if there are too many (only in full tree mode)
         if (!_compactMode && filesToCollapse.Count > 0 && filesToCollapse.Count <= 5) {
             nodesToShow.AddRange(filesToCollapse);
             filesToCollapse.Clear();
         }
 
-        // Sort: Directories first, then files
         nodesToShow.Sort((a, b) => {
             bool da = a is DirectoryInfo;
             bool db = b is DirectoryInfo;
@@ -144,10 +148,9 @@ public class StructureReportGenerator {
                 .OrderByDescending(g => g.Count())
                 .Take(3)
                 .Select(g => $"{g.Key}({g.Count()})");
-
             string statsStr = string.Join(", ", extStats);
             if (simpleTree) {
-                sb.Append($"{prefix}  ... ({filesToCollapse.Count}: {statsStr})\n");
+                sb.Append($"{prefix} ... ({filesToCollapse.Count}: {statsStr})\n");
             }
             else {
                 sb.Append($"{prefix}└── [ ... {filesToCollapse.Count} ignored: {statsStr} ... ]\n");
@@ -157,7 +160,7 @@ public class StructureReportGenerator {
 
     private void PrintTreeNode(FileSystemInfo node, string prefix, bool isLast, StringBuilder sb, bool simpleTree) {
         if (simpleTree) {
-            string currentIndent = prefix + "  ";
+            string currentIndent = prefix + " ";
             if (node is DirectoryInfo di) {
                 sb.Append($"{currentIndent}{node.Name}/\n");
                 WalkDirectoryTree(di.FullName, currentIndent, sb, true);
@@ -168,8 +171,7 @@ public class StructureReportGenerator {
         }
         else {
             string connector = isLast ? "└── " : "├── ";
-            string childPrefix = prefix + (isLast ? "    " : "│   ");
-
+            string childPrefix = prefix + (isLast ? " " : "│ ");
             if (node is DirectoryInfo di) {
                 sb.Append($"{prefix}{connector}[DIR] {node.Name}\n");
                 WalkDirectoryTree(di.FullName, childPrefix, sb, false);
@@ -189,7 +191,21 @@ public class StructureReportGenerator {
         if (name.StartsWith(".") && name != ".gitignore") return false;
 
         if (Directory.Exists(path)) {
-            if (_ignoredFolders.Contains(name.ToLower())) return false;
+            string dirName = name.ToLower();
+            if (_ignoredFolderNames.Contains(dirName)) return false;
+
+            try {
+                string relPath = Path.GetRelativePath(_rootPath, path).Replace('\\', '/').ToLower().TrimStart('/');
+                if (_ignoredRelativePaths.Contains(relPath)) return false;
+
+                foreach (var ignoredRel in _ignoredRelativePaths) {
+                    string prefix = ignoredRel.EndsWith("/") ? ignoredRel : ignoredRel + "/";
+                    if (relPath.StartsWith(prefix)) return false;
+                }
+            }
+            catch {
+                return false;
+            }
         }
         return true;
     }
