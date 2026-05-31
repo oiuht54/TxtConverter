@@ -81,6 +81,11 @@
     <s:String x:Key="report_omitted">[Existing file - Content excluded from context because it is not directly relevant to the task and to optimize token usage]</s:String>
     <s:String x:Key="report_stub_label"> (Excluded)</s:String>
     
+    <!-- Localized Legend Elements -->
+    <s:String x:Key="report_legend_title">Legend:</s:String>
+    <s:String x:Key="report_legend_full">[F] - Full Content Included</s:String>
+    <s:String x:Key="report_legend_excluded">[E] - Excluded (Omitted)</s:String>
+    
     <!-- Task Messages -->
     <s:String x:Key="task_preparing">Preparing for conversion...</s:String>
     <s:String x:Key="task_processing">Processing: {0}</s:String>

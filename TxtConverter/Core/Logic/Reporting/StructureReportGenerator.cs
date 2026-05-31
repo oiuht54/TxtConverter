@@ -41,10 +41,10 @@ public class StructureReportGenerator {
         sb.AppendLine(string.Format(Loc("report_generated_date"), DateTime.Now));
         sb.AppendLine();
 
-        // 2. Легенда (Компактный вид)
-        sb.AppendLine("Legend / Легенда:");
-        sb.AppendLine(" [F] - Full Content / Полное содержимое");
-        sb.AppendLine(" [E] - Excluded / Исключено");
+        // 2. Легенда (Динамическая локализация на основе выбранного в интерфейсе языка)
+        sb.AppendLine(Loc("report_legend_title"));
+        sb.AppendLine(" " + Loc("report_legend_full"));
+        sb.AppendLine(" " + Loc("report_legend_excluded"));
         sb.AppendLine();
 
         // 3. Сортировка по относительному пути

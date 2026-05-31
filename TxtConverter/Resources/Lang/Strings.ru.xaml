@@ -37,7 +37,7 @@
     <!-- Status -->
     <s:String x:Key="ui_status_ready">Готов к работе</s:String>
     <s:String x:Key="ui_status_waiting">Ожидание действий</s:String>
-    <s:String x:Key="ui_status_scanning">Сканирование...</s:String>
+    <s:String x:Key="ui_status_scanning">Scanning...</s:String>
     <s:String x:Key="ui_status_converting">Конвертация...</s:String>
     <s:String x:Key="ui_status_analyzing">ИИ Анализирует проект...</s:String>
     <s:String x:Key="ui_status_done">Готово</s:String>
@@ -50,7 +50,7 @@
     <s:String x:Key="ui_settings_telemetry">Отправлять анонимную статистику</s:String>
     <s:String x:Key="ui_settings_provider">Провайдер:</s:String>
     <s:String x:Key="ui_settings_apikey">API Ключ:</s:String>
-    <s:String x:Key="ui_settings_model">Модель:</s:String>
+    <s:String x:Key="ui_settings_model">Model:</s:String>
     <s:String x:Key="ui_settings_thinking">Размышление (Thinking):</s:String>
     <s:String x:Key="ui_settings_tokens">Бюджет токенов:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Включить размышление (только Gemini)</s:String>
@@ -80,6 +80,11 @@
     <s:String x:Key="report_stub_warning">> Дополнительная информация: Файлы с пометкой "[E]" (или "[Файл существует - содержимое скрыто для экономии контекста]") физически существуют в проекте, но их содержимое было исключено из данного дампа, так как они не относятся напрямую к текущей задаче и для оптимизации расхода токенов. Это НЕ пустые файлы и НЕ задачи для доработки (TODO). НЕ придумывайте их реализацию. Если вам обязательно потребуется их содержимое для выполнения задачи, запросите его у пользователя.</s:String>
     <s:String x:Key="report_omitted">[Файл существует - содержимое скрыто для экономии контекста, так как не относится напрямую к задаче]</s:String>
     <s:String x:Key="report_stub_label"> (Исключено)</s:String>
+    
+    <!-- Localized Legend Elements -->
+    <s:String x:Key="report_legend_title">Легенда:</s:String>
+    <s:String x:Key="report_legend_full">[F] - Полное содержимое включено</s:String>
+    <s:String x:Key="report_legend_excluded">[E] - Исключено (скрыто)</s:String>
     
     <!-- Task Messages -->
     <s:String x:Key="task_preparing">Подготовка к конвертации...</s:String>
