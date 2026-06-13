@@ -15,45 +15,36 @@
                 <RowDefinition Height="*"/> <!-- Content -->
                 <RowDefinition Height="Auto"/> <!-- Footer -->
             </Grid.RowDefinitions>
-
             <!-- Header -->
             <Grid Grid.Row="0" Background="{StaticResource Brush_WindowBg}" MouseDown="TitleBar_MouseDown" Height="40">
                 <TextBlock Text="{DynamicResource ui_update_title}" FontWeight="Bold" Foreground="#007ACC" Margin="15,0" VerticalAlignment="Center"/>
                 <Button Style="{StaticResource CloseButton}" HorizontalAlignment="Right" Click="Close_Click" Content="X" WindowChrome.IsHitTestVisibleInChrome="True"/>
             </Grid>
-
             <!-- Content Area -->
             <Grid Grid.Row="1" Margin="20">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="15"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="5"/>
-                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/> <!-- Version Info -->
+                    <RowDefinition Height="Auto"/> <!-- Changelog Header -->
+                    <RowDefinition Height="*"/>    <!-- Changelog Box -->
                 </Grid.RowDefinitions>
-
-                <TextBlock x:Name="VersionInfoText" Text="A new version is available!" TextWrapping="Wrap" Foreground="White" FontSize="14" FontWeight="SemiBold"/>
-                
-                <TextBlock Grid.Row="2" Text="{DynamicResource ui_update_changelog_header}" Foreground="#AAAAAA" FontSize="12" FontWeight="SemiBold"/>
-                
-                <Border Grid.Row="4" Background="#151515" BorderBrush="#333333" BorderThickness="1" CornerRadius="4" Padding="10">
+                <TextBlock x:Name="VersionInfoText" Text="A new version is available!" TextWrapping="Wrap" Foreground="White" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,15"/>
+                <TextBlock Grid.Row="1" Text="{DynamicResource ui_update_changelog_header}" Foreground="#AAAAAA" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <Border Grid.Row="2" Background="#151515" BorderBrush="#333333" BorderThickness="1" CornerRadius="4" Padding="10">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <TextBlock x:Name="ChangelogText" Text="" TextWrapping="Wrap" Foreground="#CCCCCC" FontSize="12" FontFamily="Consolas"/>
                     </ScrollViewer>
                 </Border>
             </Grid>
-
             <!-- Footer -->
             <Border Grid.Row="2" Background="#202021" BorderBrush="#333333" BorderThickness="0,1,0,0" Padding="15">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <Grid.ColumnDefinition Width="*"/>
+                        <Grid.ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <Button Content="{DynamicResource ui_update_later}" Click="Close_Click" Width="110" Margin="0,0,10,0" Background="Transparent" BorderBrush="#444"/>
-                        <Button Content="{DynamicResource ui_update_download}" Style="{StaticResource AccentButton}" Click="Download_Click" Width="130" Height="32"/>
+                        <Button Content="{DynamicResource ui_update_later}" Click="Close_Click" MinWidth="110" Height="32" Margin="0,0,10,0" Background="Transparent" BorderBrush="#444" Padding="15,0"/>
+                        <Button Content="{DynamicResource ui_update_download}" Style="{StaticResource AccentButton}" Click="Download_Click" MinWidth="130" Height="32" Padding="15,0"/>
                     </StackPanel>
                 </Grid>
             </Border>

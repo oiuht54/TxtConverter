@@ -15,5 +15,5 @@ public static class ProjectConstants {
 
     // Version and Update constants
     public const string CurrentVersion = "1.8.0";
-    public const string GitHubRepo = "TartarusCore/TxtConverter";
+    public const string GitHubRepo = "oiuht54/TxtConverter";
 }
