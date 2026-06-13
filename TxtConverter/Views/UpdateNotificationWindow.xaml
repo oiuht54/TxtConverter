@@ -39,8 +39,8 @@
             <Border Grid.Row="2" Background="#202021" BorderBrush="#333333" BorderThickness="0,1,0,0" Padding="15">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <Grid.ColumnDefinition Width="*"/>
-                        <Grid.ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <Button Content="{DynamicResource ui_update_later}" Click="Close_Click" MinWidth="110" Height="32" Margin="0,0,10,0" Background="Transparent" BorderBrush="#444" Padding="15,0"/>
