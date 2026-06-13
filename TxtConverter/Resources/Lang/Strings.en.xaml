@@ -109,4 +109,11 @@
     <s:String x:Key="ui_settings_global_ignored_prompt">Example: bin, obj, .git, venv</s:String>
     <s:String x:Key="ui_settings_global_excluded">Always Excluded Files/Folders (comma separated):</s:String>
     <s:String x:Key="ui_settings_global_excluded_prompt">Example: obsolete_dir, legacy_file.cs</s:String>
+
+    <!-- Update Window Strings -->
+    <s:String x:Key="ui_update_title">New Update Available</s:String>
+    <s:String x:Key="ui_update_info">A new version {0} is available! (Current: {1})</s:String>
+    <s:String x:Key="ui_update_changelog_header">What's new:</s:String>
+    <s:String x:Key="ui_update_download">Download</s:String>
+    <s:String x:Key="ui_update_later">Remind Later</s:String>
 </ResourceDictionary>

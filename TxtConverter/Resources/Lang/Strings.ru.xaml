@@ -109,4 +109,11 @@
     <s:String x:Key="ui_settings_global_ignored_prompt">Например: bin, obj, .git, venv</s:String>
     <s:String x:Key="ui_settings_global_excluded">Всегда исключаемые файлы/папки (через запятую):</s:String>
     <s:String x:Key="ui_settings_global_excluded_prompt">Например: obsolete_dir, legacy_file.cs</s:String>
+
+    <!-- Update Window Strings -->
+    <s:String x:Key="ui_update_title">Доступно новое обновление</s:String>
+    <s:String x:Key="ui_update_info">Доступна новая версия {0}! (Текущая: {1})</s:String>
+    <s:String x:Key="ui_update_changelog_header">Что нового:</s:String>
+    <s:String x:Key="ui_update_download">Скачать</s:String>
+    <s:String x:Key="ui_update_later">Позже</s:String>
 </ResourceDictionary>

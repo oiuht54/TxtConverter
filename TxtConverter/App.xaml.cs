@@ -18,9 +18,9 @@ public partial class App : Application {
         var savedLang = PreferenceManager.Instance.GetLanguage();
         LanguageManager.Instance.SetLanguage(savedLang);
 
-        // 3. Telemetry Hook: App Launch
+        // 3. Telemetry Hook: App Launch using the centralized current version
         TelemetryService.Instance.TrackEvent("app_launch", new Dictionary<string, object> {
-            { "app_version", "2.1.0" },
+            { "app_version", Core.ProjectConstants.CurrentVersion },
             { "pdf_enabled", PreferenceManager.Instance.GetGeneratePdf() }
         });
     }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.ComponentModel;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -35,6 +36,25 @@ public partial class MainWindow : Window {
         if (!string.IsNullOrWhiteSpace(SourceDirBox.Text) && Directory.Exists(SourceDirBox.Text)) {
             Log(" Auto-scan on startup initiated...");
             Rescan_Click(this, new RoutedEventArgs());
+        }
+
+        // Asynchronously check for updates without blocking main UI thread
+        _ = CheckForUpdatesAsync();
+    }
+
+    private async Task CheckForUpdatesAsync() {
+        try {
+            var release = await UpdateCheckerService.Instance.CheckForUpdatesAsync();
+            if (release != null && UpdateCheckerService.IsNewerVersion(ProjectConstants.CurrentVersion, release.TagName)) {
+                Dispatcher.Invoke(() => {
+                    var updateWin = new UpdateNotificationWindow(release);
+                    updateWin.Owner = this;
+                    updateWin.ShowDialog();
+                });
+            }
+        }
+        catch (Exception ex) {
+            System.Diagnostics.Debug.WriteLine($"Update check failure: {ex.Message}");
         }
     }
 
@@ -78,12 +98,10 @@ public partial class MainWindow : Window {
             PresetCombo.SelectedItem = lastPreset;
         else
             PresetCombo.SelectedIndex = 0;
-
         StructCb.IsChecked = prefs.GetGenerateStructure();
         CompactCb.IsChecked = prefs.GetCompactMode();
         MergedCb.IsChecked = prefs.GetGenerateMerged();
         PdfCb.IsChecked = prefs.GetGeneratePdf();
-
         PdfMode savedMode = prefs.GetPdfMode();
         foreach (ComboBoxItem item in PdfModeCombo.Items) {
             if (item.Tag is PdfMode m && m == savedMode) {
@@ -91,7 +109,6 @@ public partial class MainWindow : Window {
                 break;
             }
         }
-
         CompressionLevel savedComp = prefs.GetCompressionLevel();
         foreach (ComboBoxItem item in CompressionCombo.Items) {
             if (item.Tag is CompressionLevel lvl && lvl == savedComp) {
@@ -238,39 +255,30 @@ public partial class MainWindow : Window {
         StatusLabel.Text = Loc("ui_status_scanning");
         Log(Loc("log_scanning_start"));
         StatusProgressBar.IsIndeterminate = true;
-
         try {
             var exts = ExtensionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
-
-            // Объединение локальных правил игнорирования пресета с глобальными правилами из общих настроек
+            // Merge preset and global folder ignores
             string globalIgnoredRaw = PreferenceManager.Instance.GetGlobalIgnoredFolders();
             if (!string.IsNullOrWhiteSpace(globalIgnoredRaw)) {
                 var globalIgnored = globalIgnoredRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
                 ignored = ignored.Union(globalIgnored, StringComparer.OrdinalIgnoreCase).ToList();
             }
-
-            // Сканирование физической файловой структуры проекта
+            // Execute file mapping scan
             var scanner = new FileScanner(exts, ignored);
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
-
-            // Обработка логики автоматических исключений файлов (stubs)
+            // Process exclusions rules (stubs)
             var localExclusions = ExclusionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
             string globalExclusionsRaw = PreferenceManager.Instance.GetGlobalExcludedPaths();
             var globalExclusions = globalExclusionsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
             var allExclusions = localExclusions.Union(globalExclusions, StringComparer.OrdinalIgnoreCase).ToList();
-
             var matcher = new ExclusionMatcher(string.Join(",", allExclusions));
-
-            // Задаем начальный выбор для слияния: все файлы, кроме тех, которые исключены правилами
+            // Default file selection setup
             _filesSelectedForMerge = new HashSet<string>(
                 _allFoundFiles.Where(file => !matcher.IsExcluded(file, SourceDirBox.Text))
             );
-
-            // Вывод информации в лог: всего файлов найдено и сколько из них по умолчанию выбрано для слияния
             Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
             Log(string.Format(Loc("log_files_selected"), _filesSelectedForMerge.Count, _allFoundFiles.Count));
-
             UpdateButtonsState();
         }
         catch (Exception ex) {
@@ -305,14 +313,13 @@ public partial class MainWindow : Window {
         dialog.Owner = this;
         if (dialog.ShowDialog() == true && dialog.ResultPaths != null) {
             _filesSelectedForMerge = new HashSet<string>(dialog.ResultPaths);
-            Log("✨ AI Selection Applied:");
-            Log($"  Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
-            Log($"  Selected: {_filesSelectedForMerge.Count} files.");
+            Log("✨ AI Selection Applied:"); 
+            Log($" Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
+            Log($" Selected: {_filesSelectedForMerge.Count} files.");
             foreach (var f in _filesSelectedForMerge.Take(5))
-                Log($"   - {Path.GetFileName(f)}");
-            if (_filesSelectedForMerge.Count > 5) Log("   ...");
+                Log($" - {Path.GetFileName(f)}");
+            if (_filesSelectedForMerge.Count > 5) Log(" ...");
             MessageBox.Show($"AI selected {_filesSelectedForMerge.Count} files based on your task.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-
             TelemetryService.Instance.TrackEvent("ai_used", new Dictionary<string, object> {
                 { "files_selected", _filesSelectedForMerge.Count },
                 { "total_files_in_project", _allFoundFiles.Count },
@@ -333,7 +340,6 @@ public partial class MainWindow : Window {
         StatusProgressBar.IsIndeterminate = false;
         StatusProgressBar.Value = 0;
         DateTime startTime = DateTime.Now;
-
         try {
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
             string globalIgnoredRaw = PreferenceManager.Instance.GetGlobalIgnoredFolders();
@@ -341,15 +347,12 @@ public partial class MainWindow : Window {
                 var globalIgnored = globalIgnoredRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
                 ignored = ignored.Union(globalIgnored, StringComparer.OrdinalIgnoreCase).ToList();
             }
-
             CompressionLevel compLevel = CompressionLevel.Smart;
             if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
                 compLevel = lvl;
-
             PdfMode pdfMode = PdfMode.Standard;
             if (PdfModeCombo.SelectedItem is ComboBoxItem pi && pi.Tag is PdfMode val)
                 pdfMode = val;
-
             var orchestrator = new ConversionOrchestrator(
                 SourceDirBox.Text,
                 _allFoundFiles,
@@ -362,18 +365,15 @@ public partial class MainWindow : Window {
                 PdfCb.IsChecked == true,
                 pdfMode
             );
-
             var progress = new Progress<double>(p => StatusProgressBar.Value = p);
             var status = new Progress<string>(s => StatusLabel.Text = s);
             await orchestrator.RunAsync(progress, status);
-
             Log("====================");
             Log(Loc("log_conversion_success"));
             Log("====================");
             Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
             StatusLabel.Text = Loc("ui_status_done");
             TimeSpan duration = DateTime.Now - startTime;
-
             TelemetryService.Instance.TrackEvent("conversion_completed", new Dictionary<string, object> {
                 { "files_processed", _allFoundFiles.Count },
                 { "files_merged", _filesSelectedForMerge.Count },
