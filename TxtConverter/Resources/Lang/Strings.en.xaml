@@ -1,8 +1,9 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:s="clr-namespace:System;assembly=mscorlib">
+
     <s:String x:Key="app_title">TXT File Converter</s:String>
-    
+
     <!-- Main Window -->
     <s:String x:Key="ui_settings">Settings</s:String>
     <s:String x:Key="ui_source_dir">Source Folder:</s:String>
@@ -15,25 +16,32 @@
     <s:String x:Key="ui_exclusions">Exclusions / Stubs (comma separated):</s:String>
     <s:String x:Key="ui_exclusions_prompt">Example: obsolete.js, src/provider/deepseek</s:String>
     <s:String x:Key="ui_rescan_btn">Rescan</s:String>
+    
+    <!-- Conversion Settings / Modal -->
+    <s:String x:Key="ui_conversion_settings_btn">⚙ Conversion Settings</s:String>
+    <s:String x:Key="ui_conversion_settings_title">Conversion Settings</s:String>
     <s:String x:Key="ui_structure_cb">Generate Structure File</s:String>
     <s:String x:Key="ui_compact_structure_cb">Compact Mode (Collapse ignored files)</s:String>
     <s:String x:Key="ui_token_compression_cb">Smart Token Compression (Remove visual noise)</s:String>
     <s:String x:Key="ui_merged_cb">Generate Merged File with All Code ({0})</s:String>
-    
+    <s:String x:Key="ui_merged_cb_generic">Generate Merged File with All Code</s:String>
+
     <!-- PDF Strings -->
     <s:String x:Key="ui_pdf_cb">Generate PDF Report</s:String>
     <s:String x:Key="ui_pdf_mode_std">Standard (Optimized for AI Vision)</s:String>
     <s:String x:Key="ui_pdf_mode_compact">Compact (Page saver)</s:String>
     <s:String x:Key="ui_pdf_mode_extreme">Extreme (Min pages, no margins)</s:String>
+
     <s:String x:Key="ui_select_files_btn">Select Files...</s:String>
     <s:String x:Key="ui_convert_btn">START CONVERSION</s:String>
     <s:String x:Key="ui_log_label">Execution Log:</s:String>
-    <s:String x:Key="ui_compression_label">Token Compression:</s:String>
+    <s:String x:Key="ui_compression_label">Token Compression Level:</s:String>
     <s:String x:Key="ui_comp_none">None (Original)</s:String>
     <s:String x:Key="ui_comp_smart">Smart (Safe)</s:String>
-    <s:String x:Key="ui_comp_max">Maximum (unique compression)</s:String>
-    <s:String x:Key="ui_ai_select_btn">AI Select</s:String>
+    <s:String x:Key="ui_comp_max">Maximum (Semantic optimization)</s:String>
     
+    <s:String x:Key="ui_ai_select_btn">AI Select</s:String>
+
     <!-- Status -->
     <s:String x:Key="ui_status_ready">Ready</s:String>
     <s:String x:Key="ui_status_waiting">Waiting for action</s:String>
@@ -42,10 +50,11 @@
     <s:String x:Key="ui_status_analyzing">AI Analysis in progress...</s:String>
     <s:String x:Key="ui_status_done">Done</s:String>
     <s:String x:Key="ui_status_error">Error</s:String>
-    
+
     <!-- Settings Window -->
     <s:String x:Key="ui_settings_general">General</s:String>
     <s:String x:Key="ui_settings_ai">Artificial Intelligence (AI)</s:String>
+    <s:String x:Key="ui_settings_enable_ai">AI Selection (Deprecated)</s:String>
     <s:String x:Key="ui_settings_lang">Interface Language:</s:String>
     <s:String x:Key="ui_settings_telemetry">Send anonymous usage statistics</s:String>
     <s:String x:Key="ui_settings_provider">Provider:</s:String>
@@ -55,7 +64,7 @@
     <s:String x:Key="ui_settings_tokens">Token Budget:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Enable Thinking (Gemini only)</s:String>
     <s:String x:Key="ui_settings_close">Close</s:String>
-    
+
     <!-- Log Messages -->
     <s:String x:Key="log_app_ready">Application ready.</s:String>
     <s:String x:Key="log_preset_selected">Preset '{0}' selected. Settings updated.</s:String>
@@ -70,7 +79,7 @@
     <s:String x:Key="log_conversion_success">CONVERSION SUCCESSFUL</s:String>
     <s:String x:Key="log_result_path">Result saved in: {0}</s:String>
     <s:String x:Key="log_conversion_error">CRITICAL CONVERSION ERROR: {0}</s:String>
-    
+
     <!-- Report Messages -->
     <s:String x:Key="report_structure_header"># Structure of copied files</s:String>
     <s:String x:Key="report_merged_header">Unified file with full project code ({0})</s:String>
@@ -80,12 +89,12 @@
     <s:String x:Key="report_stub_warning">> Additional Information: Files marked with "[E]" (or listed as "[Existing file - Content excluded from context]") exist in the actual project but their content has been omitted from this dump because they are not directly relevant to the current task and to optimize token usage. They are NOT empty or todo-items. Do NOT hallucinate or assume their implementation. If you strictly require their content to complete the task, request them from the user.</s:String>
     <s:String x:Key="report_omitted">[Existing file - Content excluded from context because it is not directly relevant to the task and to optimize token usage]</s:String>
     <s:String x:Key="report_stub_label"> (Excluded)</s:String>
-    
+
     <!-- Localized Legend Elements -->
     <s:String x:Key="report_legend_title">Legend:</s:String>
     <s:String x:Key="report_legend_full">[F] - Full Content Included</s:String>
     <s:String x:Key="report_legend_excluded">[E] - Excluded (Omitted)</s:String>
-    
+
     <!-- Task Messages -->
     <s:String x:Key="task_preparing">Preparing for conversion...</s:String>
     <s:String x:Key="task_processing">Processing: {0}</s:String>
@@ -93,7 +102,7 @@
     <s:String x:Key="task_merging">Assembling unified file...</s:String>
     <s:String x:Key="task_pdf">Rendering PDF Report...</s:String>
     <s:String x:Key="task_done">Done!</s:String>
-    
+
     <!-- New Tooltips and Dialog Localization keys -->
     <s:String x:Key="ui_save_preset_tooltip">Save/Update Preset</s:String>
     <s:String x:Key="ui_add_preset_tooltip">Add New Preset</s:String>
@@ -105,6 +114,7 @@
     <s:String x:Key="msg_preset_exists">A preset with this name already exists!</s:String>
     <s:String x:Key="msg_preset_confirm_delete">Are you sure you want to delete preset '{0}'?</s:String>
     <s:String x:Key="msg_preset_builtin_error">Cannot modify or delete built-in presets. Please save as a new preset.</s:String>
+    
     <s:String x:Key="ui_settings_global_ignored">Always Ignored Folders (comma separated):</s:String>
     <s:String x:Key="ui_settings_global_ignored_prompt">Example: bin, obj, .git, venv</s:String>
     <s:String x:Key="ui_settings_global_excluded">Always Excluded Files/Folders (comma separated):</s:String>
@@ -116,4 +126,5 @@
     <s:String x:Key="ui_update_changelog_header">What's new:</s:String>
     <s:String x:Key="ui_update_download">Download</s:String>
     <s:String x:Key="ui_update_later">Remind Later</s:String>
+
 </ResourceDictionary>

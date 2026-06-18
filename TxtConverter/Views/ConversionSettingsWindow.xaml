@@ -1,0 +1,73 @@
+<Window x:Class="TxtConverter.Views.ConversionSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" ResizeMode="NoResize"
+        Width="460" Height="500"
+        WindowStartupLocation="CenterOwner"
+        Title="Conversion Settings" Background="{StaticResource Brush_WindowBg}">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
+    </WindowChrome.WindowChrome>
+    <Border BorderBrush="#333333" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/> <!-- Title Bar -->
+                <RowDefinition Height="*"/>    <!-- Scrollable Content -->
+                <RowDefinition Height="Auto"/> <!-- Footer -->
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Grid Grid.Row="0" Background="{StaticResource Brush_WindowBg}" MouseDown="TitleBar_MouseDown" Height="40">
+                <TextBlock x:Name="TitleTxt" Text="Conversion Settings" FontWeight="Bold" Foreground="#007ACC" Margin="15,0" VerticalAlignment="Center"/>
+                <Button Style="{StaticResource CloseButton}" HorizontalAlignment="Right" Click="Cancel_Click" Content="X" WindowChrome.IsHitTestVisibleInChrome="True"/>
+            </Grid>
+
+            <!-- Main Layout Content -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="20,10,20,10">
+                <StackPanel>
+                    <!-- Group 1: File Structure settings -->
+                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,15">
+                        <StackPanel>
+                            <TextBlock x:Name="StructureHeader" Text="Structure Settings" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+                            <CheckBox x:Name="StructCb" Content="Generate Structure File" Margin="0,0,0,8" Checked="StructCb_Changed" Unchecked="StructCb_Changed"/>
+                            <CheckBox x:Name="CompactCb" Content="Compact Mode (Collapse ignored files)" Margin="20,0,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Group 2: Token Compression and optimization -->
+                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,15">
+                        <StackPanel>
+                            <TextBlock x:Name="CompressionHeader" Text="Compression Level" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+                            <ComboBox x:Name="CompressionCombo" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Group 3: Output Targets (Merged File, PDF) -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock x:Name="OutputHeader" Text="Outputs Formats" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+                            <CheckBox x:Name="MergedCb" Content="Generate Merged File with All Code" Margin="0,0,0,10"/>
+                            <Separator Background="#333333" Margin="0,5,0,10"/>
+                            <CheckBox x:Name="PdfCb" Content="Generate PDF Report" Margin="0,0,0,8" Checked="PdfCb_Changed" Unchecked="PdfCb_Changed"/>
+                            <ComboBox x:Name="PdfModeCombo" HorizontalAlignment="Stretch" Margin="20,0,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Footer Toolbar Buttons -->
+            <Border Grid.Row="2" Background="#202021" BorderBrush="#333333" BorderThickness="0,1,0,0" Padding="15">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button x:Name="CancelBtn" Content="Cancel" Click="Cancel_Click" Width="100" Height="32" Background="Transparent" BorderBrush="#444" Margin="0,0,10,0"/>
+                        <Button x:Name="SaveBtn" Content="Save" Style="{StaticResource AccentButton}" Click="Confirm_Click" Width="120" Height="32"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

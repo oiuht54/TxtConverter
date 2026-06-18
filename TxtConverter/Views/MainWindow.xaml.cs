@@ -24,12 +24,10 @@ public partial class MainWindow : Window {
 
     public MainWindow() {
         InitializeComponent();
-        UpdateMergedCheckboxLabel();
-        SetupCompressionCombo();
-        SetupPdfCombo();
         SetupPresets();
         LoadPreferences();
         Log(Loc("log_app_ready"));
+        ApplyAiAndAdvancedVisibilityState();
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e) {
@@ -37,9 +35,9 @@ public partial class MainWindow : Window {
             Log(" Auto-scan on startup initiated...");
             Rescan_Click(this, new RoutedEventArgs());
         }
-
         // Asynchronously check for updates without blocking main UI thread
         _ = CheckForUpdatesAsync();
+        ApplyAiAndAdvancedVisibilityState();
     }
 
     private async Task CheckForUpdatesAsync() {
@@ -70,17 +68,8 @@ public partial class MainWindow : Window {
     private void SavePreferences() {
         var prefs = PreferenceManager.Instance;
         prefs.SetLastSourceDir(SourceDirBox.Text);
-        if (PresetCombo.SelectedItem is string preset)
+        if (PresetCombo.SelectedItem is string preset) {
             prefs.SetLastPreset(preset);
-        prefs.SetGenerateStructure(StructCb.IsChecked == true);
-        prefs.SetCompactMode(CompactCb.IsChecked == true);
-        prefs.SetGenerateMerged(MergedCb.IsChecked == true);
-        prefs.SetGeneratePdf(PdfCb.IsChecked == true);
-        if (PdfModeCombo.SelectedItem is ComboBoxItem item && item.Tag is PdfMode mode) {
-            prefs.SetPdfMode(mode);
-        }
-        if (CompressionCombo.SelectedItem is ComboBoxItem cItem && cItem.Tag is CompressionLevel lvl) {
-            prefs.SetCompressionLevel(lvl);
         }
         prefs.Save();
     }
@@ -90,7 +79,6 @@ public partial class MainWindow : Window {
         string lastDir = prefs.GetLastSourceDir();
         if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir)) {
             SourceDirBox.Text = lastDir;
-            UpdateMergedCheckboxLabel();
             RescanBtn.IsEnabled = true;
         }
         string lastPreset = prefs.GetLastPreset();
@@ -98,38 +86,6 @@ public partial class MainWindow : Window {
             PresetCombo.SelectedItem = lastPreset;
         else
             PresetCombo.SelectedIndex = 0;
-        StructCb.IsChecked = prefs.GetGenerateStructure();
-        CompactCb.IsChecked = prefs.GetCompactMode();
-        MergedCb.IsChecked = prefs.GetGenerateMerged();
-        PdfCb.IsChecked = prefs.GetGeneratePdf();
-        PdfMode savedMode = prefs.GetPdfMode();
-        foreach (ComboBoxItem item in PdfModeCombo.Items) {
-            if (item.Tag is PdfMode m && m == savedMode) {
-                PdfModeCombo.SelectedItem = item;
-                break;
-            }
-        }
-        CompressionLevel savedComp = prefs.GetCompressionLevel();
-        foreach (ComboBoxItem item in CompressionCombo.Items) {
-            if (item.Tag is CompressionLevel lvl && lvl == savedComp) {
-                CompressionCombo.SelectedItem = item;
-                break;
-            }
-        }
-    }
-
-    private void SetupCompressionCombo() {
-        CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_none"), Tag = CompressionLevel.None });
-        CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_smart"), Tag = CompressionLevel.Smart });
-        CompressionCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_comp_max"), Tag = CompressionLevel.Maximum });
-        CompressionCombo.SelectedIndex = 1;
-    }
-
-    private void SetupPdfCombo() {
-        PdfModeCombo.Items.Clear();
-        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_std"), Tag = PdfMode.Standard });
-        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_compact"), Tag = PdfMode.Compact });
-        PdfModeCombo.Items.Add(new ComboBoxItem { Content = Loc("ui_pdf_mode_extreme"), Tag = PdfMode.Extreme });
     }
 
     private void SetupPresets() {
@@ -155,7 +111,6 @@ public partial class MainWindow : Window {
     private void SetSourceDirectory(string path) {
         SourceDirBox.Text = path;
         Log(string.Format(Loc("log_dir_selected"), path));
-        UpdateMergedCheckboxLabel();
         string? detected = PresetManager.Instance.AutoDetectPreset(path);
         if (detected != null) {
             Log($" Auto-detected project type: {detected}");
@@ -258,25 +213,30 @@ public partial class MainWindow : Window {
         try {
             var exts = ExtensionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
             var ignored = IgnoredBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
+            
             // Merge preset and global folder ignores
             string globalIgnoredRaw = PreferenceManager.Instance.GetGlobalIgnoredFolders();
             if (!string.IsNullOrWhiteSpace(globalIgnoredRaw)) {
                 var globalIgnored = globalIgnoredRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
                 ignored = ignored.Union(globalIgnored, StringComparer.OrdinalIgnoreCase).ToList();
             }
+            
             // Execute file mapping scan
             var scanner = new FileScanner(exts, ignored);
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
+            
             // Process exclusions rules (stubs)
             var localExclusions = ExclusionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
             string globalExclusionsRaw = PreferenceManager.Instance.GetGlobalExcludedPaths();
             var globalExclusions = globalExclusionsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
             var allExclusions = localExclusions.Union(globalExclusions, StringComparer.OrdinalIgnoreCase).ToList();
             var matcher = new ExclusionMatcher(string.Join(",", allExclusions));
+            
             // Default file selection setup
             _filesSelectedForMerge = new HashSet<string>(
                 _allFoundFiles.Where(file => !matcher.IsExcluded(file, SourceDirBox.Text))
             );
+            
             Log(string.Format(Loc("log_scan_complete"), _allFoundFiles.Count));
             Log(string.Format(Loc("log_files_selected"), _filesSelectedForMerge.Count, _allFoundFiles.Count));
             UpdateButtonsState();
@@ -301,6 +261,7 @@ public partial class MainWindow : Window {
         }
     }
 
+#pragma warning disable CS0618
     private void AiSelect_Click(object sender, RoutedEventArgs e) {
         if (_allFoundFiles.Count == 0) return;
         if (string.IsNullOrWhiteSpace(PreferenceManager.Instance.GetAiApiKey())) {
@@ -313,8 +274,7 @@ public partial class MainWindow : Window {
         dialog.Owner = this;
         if (dialog.ShowDialog() == true && dialog.ResultPaths != null) {
             _filesSelectedForMerge = new HashSet<string>(dialog.ResultPaths);
-            Log("✨ AI Selection Applied:"); 
-            Log($" Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
+            Log("✨ AI Selection Applied:"); Log($" Task: {dialog.PromptBox.Text.Replace("\r", "").Replace("\n", " ")}");
             Log($" Selected: {_filesSelectedForMerge.Count} files.");
             foreach (var f in _filesSelectedForMerge.Take(5))
                 Log($" - {Path.GetFileName(f)}");
@@ -327,6 +287,7 @@ public partial class MainWindow : Window {
             });
         }
     }
+#pragma warning restore CS0618
 
     private async void Convert_Click(object sender, RoutedEventArgs e) {
         if (_allFoundFiles.Count == 0) {
@@ -347,123 +308,119 @@ public partial class MainWindow : Window {
                 var globalIgnored = globalIgnoredRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
                 ignored = ignored.Union(globalIgnored, StringComparer.OrdinalIgnoreCase).ToList();
             }
-            CompressionLevel compLevel = CompressionLevel.Smart;
-            if (CompressionCombo.SelectedItem is ComboBoxItem item && item.Tag is CompressionLevel lvl)
-                compLevel = lvl;
-            PdfMode pdfMode = PdfMode.Standard;
-            if (PdfModeCombo.SelectedItem is ComboBoxItem pi && pi.Tag is PdfMode val)
-                pdfMode = val;
+            
+            // Загружаем настройки напрямую из PreferenceManager (SOLID)
+            var prefs = PreferenceManager.Instance;
+            CompressionLevel compLevel = prefs.GetCompressionLevel();
+            PdfMode pdfMode = prefs.GetPdfMode();
+            
             var orchestrator = new ConversionOrchestrator(
                 SourceDirBox.Text,
                 _allFoundFiles,
                 _filesSelectedForMerge,
                 ignored,
-                StructCb.IsChecked == true,
-                CompactCb.IsChecked == true,
+                prefs.GetGenerateStructure(),
+                prefs.GetCompactMode(),
                 compLevel,
-                MergedCb.IsChecked == true,
-                PdfCb.IsChecked == true,
+                prefs.GetGenerateMerged(),
+                prefs.GetGeneratePdf(),
                 pdfMode
             );
             var progress = new Progress<double>(p => StatusProgressBar.Value = p);
             var status = new Progress<string>(s => StatusLabel.Text = s);
             await orchestrator.RunAsync(progress, status);
+            
             Log("====================");
             Log(Loc("log_conversion_success"));
             Log("====================");
-            Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
-            StatusLabel.Text = Loc("ui_status_done");
-            TimeSpan duration = DateTime.Now - startTime;
-            TelemetryService.Instance.TrackEvent("conversion_completed", new Dictionary<string, object> {
-                { "files_processed", _allFoundFiles.Count },
-                { "files_merged", _filesSelectedForMerge.Count },
-                { "duration_ms", (long)duration.TotalMilliseconds },
-                { "preset", PresetCombo.SelectedItem?.ToString() ?? "Unknown" },
-                { "compression", compLevel.ToString() },
-                { "pdf_generated", PdfCb.IsChecked == true },
-                { "pdf_mode", pdfMode.ToString() }
-            });
+            Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName))); 
+            StatusLabel.Text = Loc("ui_status_done"); 
+            TimeSpan duration = DateTime.Now - startTime; 
+            TelemetryService.Instance.TrackEvent("conversion_completed", new Dictionary<string, object> { 
+                { "files_processed", _allFoundFiles.Count }, 
+                { "files_merged", _filesSelectedForMerge.Count }, 
+                { "duration_ms", (long)duration.TotalMilliseconds }, 
+                { "preset", PresetCombo.SelectedItem?.ToString() ?? "Unknown" }, 
+                { "compression", compLevel.ToString() }, 
+                { "pdf_generated", prefs.GetGeneratePdf() }, 
+                { "pdf_mode", pdfMode.ToString() } 
+            }); 
         }
-        catch (Exception ex) {
-            Log(string.Format(Loc("log_conversion_error"), ex.Message));
-            StatusLabel.Text = Loc("ui_status_error");
-            TelemetryService.Instance.TrackEvent("conversion_failed", new Dictionary<string, object> {
-                { "error_message", ex.Message }
-            });
+        catch (Exception ex) { 
+            Log(string.Format(Loc("log_conversion_error"), ex.Message)); 
+            StatusLabel.Text = Loc("ui_status_error"); 
+            TelemetryService.Instance.TrackEvent("conversion_failed", new Dictionary<string, object> { { "error_message", ex.Message } }); 
         }
-        finally {
-            SetUiBlocked(false);
-            StatusProgressBar.Value = 1;
-        }
+        finally { SetUiBlocked(false); StatusProgressBar.Value = 1; }
     }
 
-    private void SetUiBlocked(bool isBlocked) {
-        _isProcessing = isBlocked;
-        SelectSourceBtn.IsEnabled = !isBlocked;
-        PresetCombo.IsEnabled = !isBlocked;
-        RescanBtn.IsEnabled = !isBlocked && !string.IsNullOrEmpty(SourceDirBox.Text);
-        ConvertBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
-        SelectFilesBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
-        AiSelectBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
-        if (isBlocked) Mouse.OverrideCursor = Cursors.Wait;
-        else Mouse.OverrideCursor = null;
+    private void SetUiBlocked(bool isBlocked) { 
+        _isProcessing = isBlocked; 
+        SelectSourceBtn.IsEnabled = !isBlocked; 
+        PresetCombo.IsEnabled = !isBlocked; 
+        RescanBtn.IsEnabled = !isBlocked && !string.IsNullOrEmpty(SourceDirBox.Text); 
+        ConvertBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0; 
+        SelectFilesBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0; 
+#pragma warning disable CS0618
+        AiSelectBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0 && PreferenceManager.Instance.GetAiEnabled(); 
+#pragma warning restore CS0618
+        ConversionSettingsBtn.IsEnabled = !isBlocked && _allFoundFiles.Count > 0;
+        
+        if (isBlocked) Mouse.OverrideCursor = Cursors.Wait; else Mouse.OverrideCursor = null; 
     }
 
-    private void UpdateButtonsState() {
-        bool hasFiles = _allFoundFiles.Count > 0;
-        bool hasDir = !string.IsNullOrEmpty(SourceDirBox.Text);
-        RescanBtn.IsEnabled = hasDir;
-        SelectFilesBtn.IsEnabled = hasFiles;
-        AiSelectBtn.IsEnabled = hasFiles;
-        ConvertBtn.IsEnabled = hasFiles;
+    private void UpdateButtonsState() { 
+        bool hasFiles = _allFoundFiles.Count > 0; 
+        bool hasDir = !string.IsNullOrEmpty(SourceDirBox.Text); 
+        RescanBtn.IsEnabled = hasDir; 
+        SelectFilesBtn.IsEnabled = hasFiles; 
+#pragma warning disable CS0618
+        AiSelectBtn.IsEnabled = hasFiles && PreferenceManager.Instance.GetAiEnabled(); 
+#pragma warning restore CS0618
+        ConversionSettingsBtn.IsEnabled = hasFiles;
+        ConvertBtn.IsEnabled = hasFiles; 
     }
 
-    private void UpdateMergedCheckboxLabel() {
-        string fileName = "_MergedOutput.txt";
-        if (!string.IsNullOrEmpty(SourceDirBox.Text)) {
-            string projName = Path.GetFileName(SourceDirBox.Text);
-            fileName = "_" + projName + ProjectConstants.MergedFileSuffix;
-        }
-        string baseStr = LanguageManager.Instance.GetString("ui_merged_cb");
-        if (baseStr.Contains("{0}")) MergedCb.Content = string.Format(baseStr, fileName);
-        else MergedCb.Content = baseStr + $" ({fileName})";
-    }
-
-    private void Log(string message) {
-        LogBox.AppendText(message + Environment.NewLine);
-        LogBox.ScrollToEnd();
-    }
-
-    private string Loc(string key) => LanguageManager.Instance.GetString(key);
-
-    private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e) {
-        if (e.ChangedButton == MouseButton.Left) DragMove();
-    }
-
-    private void Settings_Click(object sender, RoutedEventArgs e) {
-        var settingsWin = new SettingsWindow();
-        settingsWin.Owner = this;
-        settingsWin.ShowDialog();
-        UpdateManualTexts();
-        if (!string.IsNullOrWhiteSpace(SourceDirBox.Text)) {
-            Rescan_Click(this, new RoutedEventArgs());
+    private void Log(string message) { LogBox.AppendText(message + Environment.NewLine); LogBox.ScrollToEnd(); }
+    private string Loc(string key) => LanguageManager.Instance.GetString(key); 
+    private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e) { if (e.ChangedButton == MouseButton.Left) DragMove(); }
+    
+    private void Settings_Click(object sender, RoutedEventArgs e) { 
+        var settingsWin = new SettingsWindow(); 
+        settingsWin.Owner = this; 
+        settingsWin.ShowDialog(); 
+        ApplyAiAndAdvancedVisibilityState(); 
+        if (!string.IsNullOrWhiteSpace(SourceDirBox.Text)) { 
+            Rescan_Click(this, new RoutedEventArgs()); 
         }
     }
 
-    private void UpdateManualTexts() {
-        if (CompressionCombo.Items.Count >= 3) {
-            ((ComboBoxItem)CompressionCombo.Items[0]).Content = Loc("ui_comp_none");
-            ((ComboBoxItem)CompressionCombo.Items[1]).Content = Loc("ui_comp_smart");
-            ((ComboBoxItem)CompressionCombo.Items[2]).Content = Loc("ui_comp_max");
+    private void ApplyAiAndAdvancedVisibilityState() {
+#pragma warning disable CS0618
+        bool aiEnabled = PreferenceManager.Instance.GetAiEnabled();
+#pragma warning restore CS0618
+        
+        if (!aiEnabled) {
+            AiSelectBtn.Visibility = Visibility.Collapsed;
+            ColAiSelect.Width = new GridLength(0);
+            ColAiSpacer.Width = new GridLength(0);
         }
-        UpdateMergedCheckboxLabel();
-        if (PdfModeCombo.Items.Count >= 3) {
-            ((ComboBoxItem)PdfModeCombo.Items[0]).Content = Loc("ui_pdf_mode_std");
-            ((ComboBoxItem)PdfModeCombo.Items[1]).Content = Loc("ui_pdf_mode_compact");
-            ((ComboBoxItem)PdfModeCombo.Items[2]).Content = Loc("ui_pdf_mode_extreme");
+        else {
+            AiSelectBtn.Visibility = Visibility.Visible;
+            ColAiSelect.Width = new GridLength(1, GridUnitType.Star);
+            ColAiSpacer.Width = new GridLength(15);
+        }
+        UpdateButtonsState();
+    }
+
+    private void ConversionSettings_Click(object sender, RoutedEventArgs e) {
+        var dialog = new ConversionSettingsWindow();
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true) {
+            Log("⚙️ Conversion Settings Updated.");
         }
     }
 
-    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-    private void Close_Click(object sender, RoutedEventArgs e) => Close();
+    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized; 
+    private void Close_Click(object sender, RoutedEventArgs e) => Close(); 
 }

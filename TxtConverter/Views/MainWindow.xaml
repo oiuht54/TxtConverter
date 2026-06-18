@@ -11,16 +11,19 @@
         AllowDrop="True" Drop="Window_Drop"
         Loaded="Window_Loaded"
         Background="{StaticResource Brush_WindowBg}">
+
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
     </WindowChrome.WindowChrome>
+
     <Border BorderBrush="#333333" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/> <!-- Header -->
-                <RowDefinition Height="*"/> <!-- Content -->
+                <RowDefinition Height="*"/>    <!-- Content -->
                 <RowDefinition Height="Auto"/> <!-- Status -->
             </Grid.RowDefinitions>
+
             <!-- 1. Header -->
             <Grid Grid.Row="0" Background="{StaticResource Brush_WindowBg}" MouseDown="TitleBar_MouseDown" Height="40">
                 <Grid.ColumnDefinitions>
@@ -36,16 +39,19 @@
                     <Button Content="X" Click="Close_Click" Style="{StaticResource CloseButton}"/>
                 </StackPanel>
             </Grid>
+
             <!-- 2. Main Content -->
             <Grid Grid.Row="1" Margin="15,5,15,15">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/> <!-- Config Card -->
-                    <RowDefinition Height="*"/> <!-- Log Card -->
+                    <RowDefinition Height="*"/>    <!-- Log Card -->
                 </Grid.RowDefinitions>
+
                 <!-- CARD 1: CONFIGURATION -->
                 <Border Grid.Row="0" Style="{StaticResource CardBorder}" Margin="0,0,0,15" Grid.IsSharedSizeScope="True">
                     <StackPanel>
                         <TextBlock Text="Configuration" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,15"/>
+
                         <!-- Source Folder -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
@@ -57,6 +63,7 @@
                             <TextBox x:Name="SourceDirBox" Grid.Column="1" IsReadOnly="True" Margin="0,0,8,0" Cursor="Arrow"/>
                             <Button x:Name="SelectSourceBtn" Grid.Column="2" Content="{DynamicResource ui_choose_btn}" Click="SelectSource_Click" MinWidth="80"/>
                         </Grid>
+
                         <!-- Preset Row -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
@@ -72,6 +79,7 @@
                                 <Button x:Name="DeletePresetBtn" Content="❌" Click="DeletePreset_Click" ToolTip="{DynamicResource ui_delete_preset_tooltip}" Width="32" Height="34" Padding="0"/>
                             </StackPanel>
                         </Grid>
+
                         <!-- Extensions -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
@@ -81,6 +89,7 @@
                             <TextBlock Text="{DynamicResource ui_extensions}" Style="{StaticResource FieldLabel}"/>
                             <TextBox x:Name="ExtensionsBox" Grid.Column="1" Tag="{DynamicResource ui_extensions_prompt}" ToolTip="{DynamicResource ui_extensions_prompt}"/>
                         </Grid>
+
                         <!-- Ignored & Rescan -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
@@ -92,6 +101,7 @@
                             <TextBox x:Name="IgnoredBox" Grid.Column="1" Margin="0,0,8,0" Tag="{DynamicResource ui_ignored_prompt}" ToolTip="{DynamicResource ui_ignored_prompt}"/>
                             <Button x:Name="RescanBtn" Grid.Column="2" Content="{DynamicResource ui_rescan_btn}" Click="Rescan_Click" IsEnabled="False" MinWidth="80"/>
                         </Grid>
+
                         <!-- Exclusions (Stubs) -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
@@ -101,66 +111,41 @@
                             <TextBlock Text="{DynamicResource ui_exclusions}" Style="{StaticResource FieldLabel}"/>
                             <TextBox x:Name="ExclusionsBox" Grid.Column="1" Tag="{DynamicResource ui_exclusions_prompt}" ToolTip="{DynamicResource ui_exclusions_prompt}"/>
                         </Grid>
+
                         <Separator Background="#333333" Margin="0,5,0,15"/>
-                        <!-- Advanced Settings -->
-                        <Grid>
+
+                        <!-- ACTION AREA -->
+                        <Grid Margin="0,5,0,0">
+                            <!-- Adaptive Grid for Buttons -->
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" x:Name="ColAiSelect"/>
+                                <ColumnDefinition Width="15" x:Name="ColAiSpacer"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="15"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <!-- Left: Structure -->
-                            <StackPanel Grid.Column="0">
-                                <CheckBox x:Name="StructCb" Content="{DynamicResource ui_structure_cb}" IsChecked="False" Margin="0,0,0,10"/>
-                                <CheckBox x:Name="CompactCb" Content="{DynamicResource ui_compact_structure_cb}" IsChecked="True" IsEnabled="{Binding IsChecked, ElementName=StructCb}"/>
-                            </StackPanel>
-                            <!-- Right: Compression -->
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="{DynamicResource ui_compression_label}" FontWeight="SemiBold" Foreground="#AAAAAA" Margin="0,0,0,5" FontSize="12"/>
-                                <ComboBox x:Name="CompressionCombo" HorizontalAlignment="Stretch"/>
-                            </StackPanel>
+
+                            <!-- AI Select Button -->
+                            <Button x:Name="AiSelectBtn" Grid.Column="0" Click="AiSelect_Click" IsEnabled="False" Height="38" Background="#2D2D30" BorderBrush="#007ACC" Foreground="#0090F0" FontWeight="SemiBold">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Path Data="M19,9l1.25-2.75L23,5l-2.75-1.25L19,1l-1.25,2.75L15,5l2.75,1.25L19,9z M11.5,9.5L9,4L6.5,9.5L1,12l5.5,2.5L9,20l2.5-5.5L17,12L11.5,9.5z" Fill="#0090F0" Width="18" Height="18" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource ui_ai_select_btn}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Conversion Settings Modal Trigger -->
+                            <Button x:Name="ConversionSettingsBtn" Grid.Column="2" Content="{DynamicResource ui_conversion_settings_btn}" Click="ConversionSettings_Click" IsEnabled="False" Height="38" Background="#2D2D30" BorderBrush="#555" Foreground="White" FontWeight="SemiBold"/>
+
+                            <!-- Manual Select Button -->
+                            <Button x:Name="SelectFilesBtn" Grid.Column="4" Content="{DynamicResource ui_select_files_btn}" Click="SelectFiles_Click" IsEnabled="False" Height="38"/>
                         </Grid>
-                        <!-- ACTION AREA -->
-                        <Grid Margin="0,15,0,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/> <!-- Merged Checkbox -->
-                                <RowDefinition Height="Auto"/> <!-- PDF Row -->
-                                <RowDefinition Height="15"/> <!-- Spacer -->
-                                <RowDefinition Height="Auto"/> <!-- Buttons -->
-                            </Grid.RowDefinitions>
-                            <!-- 1. Merged Checkbox -->
-                            <CheckBox x:Name="MergedCb" Grid.Row="0" Content="Generate Merged File with All Code" IsChecked="True" VerticalAlignment="Center" Margin="0,0,0,8"/>
-                            <!-- 2. PDF Row (Checkbox + Combo) -->
-                            <Grid Grid.Row="1">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <CheckBox x:Name="PdfCb" Content="{DynamicResource ui_pdf_cb}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <ComboBox x:Name="PdfModeCombo" Grid.Column="1" IsEnabled="{Binding IsChecked, ElementName=PdfCb}" Height="26" VerticalAlignment="Center" HorizontalAlignment="Left" Width="220" FontSize="12"/>
-                            </Grid>
-                            <!-- 3. Buttons Row -->
-                            <Grid Grid.Row="3">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="15"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <!-- AI Select Button -->
-                                <Button x:Name="AiSelectBtn" Grid.Column="0" Click="AiSelect_Click" IsEnabled="False" Height="38" Background="#2D2D30" BorderBrush="#007ACC" Foreground="#0090F0" FontWeight="SemiBold">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Path Data="M19,9l1.25-2.75L23,5l-2.75-1.25L19,1l-1.25,2.75L15,5l2.75,1.25L19,9z M11.5,9.5L9,4L6.5,9.5L1,12l5.5,2.5L9,20l2.5-5.5L17,12L11.5,9.5z" Fill="#0090F0" Width="18" Height="18" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{DynamicResource ui_ai_select_btn}" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                                <!-- Manual Select Button -->
-                                <Button x:Name="SelectFilesBtn" Grid.Column="2" Content="{DynamicResource ui_select_files_btn}" Click="SelectFiles_Click" IsEnabled="False" Height="38"/>
-                            </Grid>
-                        </Grid>
+
                         <!-- Big Convert Button -->
                         <Button x:Name="ConvertBtn" Content="{DynamicResource ui_convert_btn}" Style="{StaticResource AccentButton}" Click="Convert_Click" IsEnabled="False" Margin="0,15,0,0"/>
+
                     </StackPanel>
                 </Border>
+
                 <!-- CARD 2: LOG -->
                 <Border Grid.Row="1" Style="{StaticResource CardBorder}">
                     <Grid>
@@ -172,7 +157,9 @@
                         <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="13" TextWrapping="Wrap" Background="#151515" BorderThickness="0" Padding="5"/>
                     </Grid>
                 </Border>
+
             </Grid>
+
             <!-- 4. Status Bar -->
             <Grid Grid.Row="2" Background="#202020" Height="30">
                 <Grid.ColumnDefinitions>

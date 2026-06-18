@@ -19,14 +19,35 @@ public partial class SettingsWindow : Window {
     public SettingsWindow() {
         InitializeComponent();
         LoadSettings();
+        UpdateAiCardVisibility();
+    }
+
+    private void AiEnabledCb_StateChanged(object sender, RoutedEventArgs e) {
+        if (_ignoreChanges) return;
+        if (AiEnabledCb != null) {
+#pragma warning disable CS0618
+            PreferenceManager.Instance.SetAiEnabled(AiEnabledCb.IsChecked == true);
+#pragma warning restore CS0618
+            UpdateAiCardVisibility();
+        }
+    }
+
+    private void UpdateAiCardVisibility() {
+#pragma warning disable CS0618
+        bool aiEnabled = PreferenceManager.Instance.GetAiEnabled();
+#pragma warning restore CS0618
+        
+        if (AiSettingsCard != null) {
+            AiSettingsCard.Visibility = aiEnabled ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 
     private void LoadSettings() {
         _ignoreChanges = true;
-
-        // Настройка языков
+        
+        // Настройка языков 
         LanguageCombo.Items.Add(new ComboBoxItem { Content = "English", Tag = ProjectConstants.LangEn });
-        LanguageCombo.Items.Add(new ComboBoxItem { Content = "Русский", Tag = ProjectConstants.LangRu });
+        LanguageCombo.Items.Add(new ComboBoxItem { Content = "Русский", Tag = ProjectConstants.LangRu }); 
         string currentLang = LanguageManager.Instance.CurrentLanguage;
         foreach (ComboBoxItem item in LanguageCombo.Items) {
             if (item.Tag.ToString() == currentLang) {
@@ -34,15 +55,20 @@ public partial class SettingsWindow : Window {
                 break;
             }
         }
-
-        // Глобальные исключения и игнорирование
+        
+        // Глобальные исключения и игнорирование 
         GlobalIgnoredBox.Text = PreferenceManager.Instance.GetGlobalIgnoredFolders();
         GlobalExcludedBox.Text = PreferenceManager.Instance.GetGlobalExcludedPaths();
-
-        // Телеметрия
+        
+        // Телеметрия 
         TelemetryCb.IsChecked = PreferenceManager.Instance.GetTelemetryEnabled();
 
-        // Провайдеры AI
+        // Чекбокс включения AI
+#pragma warning disable CS0618
+        AiEnabledCb.IsChecked = PreferenceManager.Instance.GetAiEnabled();
+#pragma warning restore CS0618
+        
+        // Провайдеры AI 
         _currentProvider = PreferenceManager.Instance.GetAiProvider();
         foreach (ComboBoxItem item in ProviderCombo.Items) {
             if (item.Tag is string tag && tag == _currentProvider.ToString()) {
@@ -50,10 +76,10 @@ public partial class SettingsWindow : Window {
                 break;
             }
         }
-
+        
         UpdateAiFields();
         _ignoreChanges = false;
-
+        
         if (!string.IsNullOrEmpty(ApiKeyBox.Password) && ModelCombo.Items.Count == 0) {
             _ = FetchModels(ModelCombo.Text);
         }
@@ -147,7 +173,7 @@ public partial class SettingsWindow : Window {
     }
 
     private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e) { }
-
+    
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e) {
         if (e.ChangedButton == MouseButton.Left)
             this.DragMove();
@@ -164,6 +190,13 @@ public partial class SettingsWindow : Window {
         PreferenceManager.Instance.SetTelemetryEnabled(TelemetryCb.IsChecked == true);
         PreferenceManager.Instance.SetGlobalIgnoredFolders(GlobalIgnoredBox.Text);
         PreferenceManager.Instance.SetGlobalExcludedPaths(GlobalExcludedBox.Text);
+        
+        if (AiEnabledCb != null) {
+#pragma warning disable CS0618
+            PreferenceManager.Instance.SetAiEnabled(AiEnabledCb.IsChecked == true);
+#pragma warning restore CS0618
+        }
+        PreferenceManager.Instance.Save();
     }
 
     private void Link_MouseDown(object sender, MouseButtonEventArgs e) {

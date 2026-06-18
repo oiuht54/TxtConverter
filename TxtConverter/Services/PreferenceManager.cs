@@ -26,7 +26,10 @@ public class AppSettings {
     public PdfMode PdfMode { get; set; } = PdfMode.Standard;
     public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
     
-    // AI Common
+    // AI Common (Deprecated / Disabled by default)
+    [Obsolete("AI integration is deprecated and will be removed in future versions.")]
+    public bool AiEnabled { get; set; } = false;
+    
     public AiProvider AiProvider { get; set; } = AiProvider.GoogleGemini;
     public bool AiThinkingEnabled { get; set; } = true;
     public int AiThinkingBudget { get; set; } = ProjectConstants.DefaultThinkingBudget;
@@ -56,7 +59,6 @@ public class AppSettings {
 public class PreferenceManager {
     private static PreferenceManager? _instance;
     public static PreferenceManager Instance => _instance ??= new PreferenceManager();
-    
     private AppSettings _settings;
     private readonly string _settingsPath;
     private readonly object _fileLock = new object();
@@ -79,36 +81,32 @@ public class PreferenceManager {
                         AllowTrailingCommas = true,
                         ReadCommentHandling = JsonCommentHandling.Skip
                     };
-                    
                     var loaded = JsonSerializer.Deserialize<AppSettings>(json, options);
                     if (loaded != null) {
                         _settings = loaded;
-                        
                         if (!string.IsNullOrEmpty(_settings.AiApiKey)) {
                             try {
                                 _settings.AiApiKey = FromBase64(_settings.AiApiKey);
                             }
                             catch {
-                                // Сохраняем исходное значение, если декодирование по какой-то причине дало сбой
+                                // Сохраняем исходное значение, если декодирование по какой-то причине дало сбой 
                             }
                         }
-                        
                         if (!string.IsNullOrEmpty(_settings.NvidiaApiKey)) {
                             try {
                                 _settings.NvidiaApiKey = FromBase64(_settings.NvidiaApiKey);
                             }
                             catch {
-                                // Сохраняем исходное значение при сбое декодирования
+                                // Сохраняем исходное значение при сбое декодирования 
                             }
                         }
                     }
                 }
                 catch {
-                    // При критической ошибке парсинга создаем чистый инстанс во избежание падения приложения
+                    // При критической ошибке парсинга создаем чистый инстанс во избежание падения приложения 
                     _settings = new AppSettings();
                 }
             }
-            
             if (string.IsNullOrEmpty(_settings.InstallationId)) {
                 _settings.InstallationId = Guid.NewGuid().ToString();
                 SaveInternal();
@@ -124,7 +122,8 @@ public class PreferenceManager {
 
     private void SaveInternal() {
         try {
-            // Создаем глубокую копию перед сериализацией во избежание мутации активных настроек в памяти
+            // Создаем глубокую копию перед сериализацией во избежание мутации активных настроек в памяти 
+#pragma warning disable CS0618
             var settingsClone = new AppSettings {
                 Language = _settings.Language,
                 LastSourceDir = _settings.LastSourceDir,
@@ -135,6 +134,7 @@ public class PreferenceManager {
                 GeneratePdf = _settings.GeneratePdf,
                 PdfMode = _settings.PdfMode,
                 Compression = _settings.Compression,
+                AiEnabled = _settings.AiEnabled,
                 AiProvider = _settings.AiProvider,
                 AiThinkingEnabled = _settings.AiThinkingEnabled,
                 AiThinkingBudget = _settings.AiThinkingBudget,
@@ -152,13 +152,13 @@ public class PreferenceManager {
                 GlobalExcludedPaths = _settings.GlobalExcludedPaths,
                 CustomPresets = _settings.CustomPresets != null ? new List<PresetModel>(_settings.CustomPresets) : new List<PresetModel>()
             };
-
+#pragma warning restore CS0618
             var options = new JsonSerializerOptions { WriteIndented = true };
             string json = JsonSerializer.Serialize(settingsClone, options);
             File.WriteAllText(_settingsPath, json);
         }
         catch {
-            // Ошибки записи настроек обрабатываем молча, чтобы не прерывать жизненный цикл GUI
+            // Ошибки записи настроек обрабатываем молча, чтобы не прерывать жизненный цикл GUI 
         }
     }
 
@@ -168,8 +168,8 @@ public class PreferenceManager {
             byte[] bytes = Encoding.UTF8.GetBytes(plainText);
             return Convert.ToBase64String(bytes);
         }
-        catch { 
-            return plainText; 
+        catch {
+            return plainText;
         }
     }
 
@@ -181,8 +181,8 @@ public class PreferenceManager {
             byte[] bytes = Convert.FromBase64String(trimmed);
             return Encoding.UTF8.GetString(bytes);
         }
-        catch { 
-            return base64Text; 
+        catch {
+            return base64Text;
         }
     }
 
@@ -206,6 +206,12 @@ public class PreferenceManager {
     public CompressionLevel GetCompressionLevel() => _settings.Compression;
     public void SetCompressionLevel(CompressionLevel level) { _settings.Compression = level; Save(); }
     
+    [Obsolete("AI selection is deprecated.")]
+    public bool GetAiEnabled() => _settings.AiEnabled;
+    
+    [Obsolete("AI selection is deprecated.")]
+    public void SetAiEnabled(bool val) { _settings.AiEnabled = val; Save(); }
+
     // AI Settings
     public AiProvider GetAiProvider() => _settings.AiProvider;
     public void SetAiProvider(AiProvider provider) { _settings.AiProvider = provider; Save(); }
@@ -235,7 +241,6 @@ public class PreferenceManager {
     public void SetNvidiaTopP(double topP) { _settings.NvidiaTopP = topP; Save(); }
     public bool GetNvidiaReasoningEnabled() => _settings.NvidiaReasoningEnabled;
     public void SetNvidiaReasoningEnabled(bool enabled) { _settings.NvidiaReasoningEnabled = enabled; Save(); }
-    
     public string GetInstallationId() => _settings.InstallationId;
     public bool GetTelemetryEnabled() => _settings.IsTelemetryEnabled;
     public void SetTelemetryEnabled(bool enabled) { _settings.IsTelemetryEnabled = enabled; Save(); }
