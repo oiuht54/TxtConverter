@@ -11,6 +11,8 @@ public static class ProjectConstants {
     // Defaults
     public const string DefaultGeminiModel = "gemini-flash-lite-latest";
     public const string DefaultNvidiaModel = "minimaxai/minimax-m2";
+    public const string DefaultCustomOpenAiEndpoint = "https://api.openai.com/v1";
+    public const string DefaultCustomOpenAiModel = "gpt-4o-mini";
     public const int DefaultThinkingBudget = 16000;
 
     // Version and Update constants

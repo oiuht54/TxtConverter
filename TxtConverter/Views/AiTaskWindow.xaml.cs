@@ -5,7 +5,7 @@ using System.Windows.Input;
 using TxtConverter.Core.Enums;
 using TxtConverter.Core.Logic;
 using TxtConverter.Services;
-using TxtConverter.Services.Ai; 
+using TxtConverter.Services.Ai;
 
 namespace TxtConverter.Views;
 
@@ -13,22 +13,20 @@ public partial class AiTaskWindow : Window {
     private readonly string _rootPath;
     private readonly List<string> _allFiles;
     private readonly AiProvider _provider;
-
     public List<string>? ResultPaths { get; private set; }
 
     public AiTaskWindow(string rootPath, List<string> allFiles) {
         InitializeComponent();
         _rootPath = rootPath;
         _allFiles = allFiles;
-        
         _provider = PreferenceManager.Instance.GetAiProvider();
-        string currentModel = (_provider == AiProvider.NvidiaNim) 
-            ? PreferenceManager.Instance.GetNvidiaModel() 
-            : PreferenceManager.Instance.GetGeminiModel();
+        ProviderHeaderLabel.Text = $"({_provider})";
 
+        string currentModel = PreferenceManager.Instance.GetAiModel();
         ModelOverrideBox.Text = currentModel;
-        
+
         if (_provider == AiProvider.GoogleGemini) {
+            BudgetOverrideBox.IsEnabled = true;
             BudgetOverrideBox.Text = PreferenceManager.Instance.GetAiThinkingBudget().ToString();
         } else {
             BudgetOverrideBox.IsEnabled = false;
@@ -37,7 +35,6 @@ public partial class AiTaskWindow : Window {
 
         PromptBox.Focus();
         StatusText.Text = $"Using: {_provider}";
-        
         LoadModels(currentModel);
     }
 
@@ -45,15 +42,12 @@ public partial class AiTaskWindow : Window {
         try {
             var client = AiClientFactory.CreateClient();
             var models = await client.GetAvailableModelsAsync();
-
             if (models.Count > 0) {
                 if (!string.IsNullOrWhiteSpace(ModelOverrideBox.Text) && ModelOverrideBox.Text != "N/A") {
                     currentSelection = ModelOverrideBox.Text;
                 }
-
                 ModelOverrideBox.Items.Clear();
                 foreach (var m in models) ModelOverrideBox.Items.Add(m);
-
                 var match = models.FirstOrDefault(m => m.Equals(currentSelection, StringComparison.OrdinalIgnoreCase));
                 if (match != null) {
                     ModelOverrideBox.SelectedItem = match;
@@ -87,13 +81,10 @@ public partial class AiTaskWindow : Window {
             string projectContext = await contextBuilder.BuildContextAsync(reporter);
 
             LoadingStatus.Text = $"Sending to {_provider} (Large projects may take 30+ sec)...";
-            
             var client = AiClientFactory.CreateClient();
             var result = await client.AnalyzeProjectAsync(prompt, projectContext, model, budget);
 
-            // ИЗМЕНЕНИЕ: Теперь мы показываем полный RequestJson (дамп HTTP), а не просто текст промпта
             RequestBox.Text = result.RequestJson;
-            
             var sbResp = new StringBuilder();
             sbResp.AppendLine($"=== {result.ProviderName} Response ===");
             sbResp.AppendLine(result.RawContentText);
@@ -117,7 +108,6 @@ public partial class AiTaskWindow : Window {
 
             ResultPaths = resolvedPaths;
             StatusText.Text = $"Selected {resolvedPaths.Count} files.";
-            
             var confirm = MessageBox.Show($"AI identified {resolvedPaths.Count} relevant files.\nApply this selection?", "Done", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirm == MessageBoxResult.Yes) {
                 DialogResult = true;
@@ -136,7 +126,6 @@ public partial class AiTaskWindow : Window {
     private List<string> MatchFiles(List<string> aiPaths) {
         var matched = new HashSet<string>();
         var fileMap = new Dictionary<string, string>();
-
         foreach (var file in _allFiles) {
             string key = Path.GetFullPath(file).ToLower();
             if (!fileMap.ContainsKey(key)) fileMap[key] = file;
@@ -156,11 +145,10 @@ public partial class AiTaskWindow : Window {
 
             if (foundOriginalPath == null) {
                 string aiNorm = aiClean.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).ToLower();
-                var matchKey = fileMap.Keys.FirstOrDefault(k => 
-                    k.EndsWith(Path.DirectorySeparatorChar + aiNorm) || 
-                    k == aiNorm 
+                var matchKey = fileMap.Keys.FirstOrDefault(k =>
+                    k.EndsWith(Path.DirectorySeparatorChar + aiNorm) ||
+                    k == aiNorm
                 );
-                
                 if (matchKey != null) {
                     foundOriginalPath = fileMap[matchKey];
                 }

@@ -6,8 +6,16 @@ public static class AiClientFactory {
     public static IAiClient CreateClient() {
         var prefs = PreferenceManager.Instance;
         var provider = prefs.GetAiProvider();
-
         switch (provider) {
+            case AiProvider.OpenAiCompatible:
+                return new OpenAiCompatibleClient(
+                    prefs.GetCustomOpenAiEndpoint(),
+                    prefs.GetCustomOpenAiApiKey(),
+                    prefs.GetCustomOpenAiModel(),
+                    prefs.GetCustomOpenAiMaxTokens(),
+                    prefs.GetCustomOpenAiTemperature(),
+                    prefs.GetCustomOpenAiTopP()
+                );
             case AiProvider.NvidiaNim:
                 return new NvidiaClient(
                     prefs.GetNvidiaApiKey(),
@@ -17,7 +25,6 @@ public static class AiClientFactory {
                     prefs.GetNvidiaTopP(),
                     prefs.GetNvidiaReasoningEnabled()
                 );
-            
             case AiProvider.GoogleGemini:
             default:
                 return new GeminiClient(
@@ -29,20 +36,30 @@ public static class AiClientFactory {
         }
     }
 
-    public static IAiClient CreateSpecific(AiProvider provider, string apiKey, string model) {
+    public static IAiClient CreateSpecific(AiProvider provider, string apiKey, string model, string? endpoint = null) {
         var prefs = PreferenceManager.Instance;
         switch (provider) {
+            case AiProvider.OpenAiCompatible:
+                string resolvedEndpoint = !string.IsNullOrWhiteSpace(endpoint)
+                    ? endpoint
+                    : prefs.GetCustomOpenAiEndpoint();
+                return new OpenAiCompatibleClient(
+                    resolvedEndpoint,
+                    apiKey,
+                    model,
+                    prefs.GetCustomOpenAiMaxTokens(),
+                    prefs.GetCustomOpenAiTemperature(),
+                    prefs.GetCustomOpenAiTopP()
+                );
             case AiProvider.NvidiaNim:
-                // Для теста настроек используем текущие сохраненные параметры
                 return new NvidiaClient(
-                    apiKey, 
-                    model, 
-                    prefs.GetNvidiaMaxTokens(), 
-                    0.5, 
-                    0.7, 
+                    apiKey,
+                    model,
+                    prefs.GetNvidiaMaxTokens(),
+                    0.5,
+                    0.7,
                     false
                 );
-            
             case AiProvider.GoogleGemini:
             default:
                 return new GeminiClient(apiKey, model, false, 0);

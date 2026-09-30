@@ -36,7 +36,6 @@ public partial class SettingsWindow : Window {
 #pragma warning disable CS0618
         bool aiEnabled = PreferenceManager.Instance.GetAiEnabled();
 #pragma warning restore CS0618
-        
         if (AiSettingsCard != null) {
             AiSettingsCard.Visibility = aiEnabled ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -44,10 +43,10 @@ public partial class SettingsWindow : Window {
 
     private void LoadSettings() {
         _ignoreChanges = true;
-        
-        // Настройка языков 
+
+        // Настройка языков
         LanguageCombo.Items.Add(new ComboBoxItem { Content = "English", Tag = ProjectConstants.LangEn });
-        LanguageCombo.Items.Add(new ComboBoxItem { Content = "Русский", Tag = ProjectConstants.LangRu }); 
+        LanguageCombo.Items.Add(new ComboBoxItem { Content = "Русский", Tag = ProjectConstants.LangRu });
         string currentLang = LanguageManager.Instance.CurrentLanguage;
         foreach (ComboBoxItem item in LanguageCombo.Items) {
             if (item.Tag.ToString() == currentLang) {
@@ -55,20 +54,20 @@ public partial class SettingsWindow : Window {
                 break;
             }
         }
-        
-        // Глобальные исключения и игнорирование 
+
+        // Глобальные исключения и игнорирование
         GlobalIgnoredBox.Text = PreferenceManager.Instance.GetGlobalIgnoredFolders();
         GlobalExcludedBox.Text = PreferenceManager.Instance.GetGlobalExcludedPaths();
-        
-        // Телеметрия 
+
+        // Телеметрия
         TelemetryCb.IsChecked = PreferenceManager.Instance.GetTelemetryEnabled();
 
         // Чекбокс включения AI
 #pragma warning disable CS0618
         AiEnabledCb.IsChecked = PreferenceManager.Instance.GetAiEnabled();
 #pragma warning restore CS0618
-        
-        // Провайдеры AI 
+
+        // Провайдеры AI
         _currentProvider = PreferenceManager.Instance.GetAiProvider();
         foreach (ComboBoxItem item in ProviderCombo.Items) {
             if (item.Tag is string tag && tag == _currentProvider.ToString()) {
@@ -76,11 +75,11 @@ public partial class SettingsWindow : Window {
                 break;
             }
         }
-        
+
         UpdateAiFields();
         _ignoreChanges = false;
-        
-        if (!string.IsNullOrEmpty(ApiKeyBox.Password) && ModelCombo.Items.Count == 0) {
+
+        if ((!string.IsNullOrEmpty(ApiKeyBox.Password) || _currentProvider == AiProvider.OpenAiCompatible) && ModelCombo.Items.Count == 0) {
             _ = FetchModels(ModelCombo.Text);
         }
     }
@@ -99,19 +98,25 @@ public partial class SettingsWindow : Window {
     private void UpdateAiFields() {
         _ignoreChanges = true;
         if (_currentProvider == AiProvider.GoogleGemini) {
-            ApiKeyBox.Password = PreferenceManager.Instance.GetGeminiApiKey();
-            ModelCombo.Text = PreferenceManager.Instance.GetGeminiModel();
+            CustomEndpointPanel.Visibility = Visibility.Collapsed;
             GeminiPanel.Visibility = Visibility.Visible;
             NvidiaPanel.Visibility = Visibility.Collapsed;
+            CustomOpenAiPanel.Visibility = Visibility.Collapsed;
+
+            ApiKeyBox.Password = PreferenceManager.Instance.GetGeminiApiKey();
+            ModelCombo.Text = PreferenceManager.Instance.GetGeminiModel();
             ThinkingCb.IsChecked = PreferenceManager.Instance.GetAiThinkingEnabled();
             BudgetBox.Text = PreferenceManager.Instance.GetAiThinkingBudget().ToString();
             ApiKeyLink.Text = "https://aistudio.google.com/app/apikey";
         }
         else if (_currentProvider == AiProvider.NvidiaNim) {
-            ApiKeyBox.Password = PreferenceManager.Instance.GetNvidiaApiKey();
-            ModelCombo.Text = PreferenceManager.Instance.GetNvidiaModel();
+            CustomEndpointPanel.Visibility = Visibility.Collapsed;
             GeminiPanel.Visibility = Visibility.Collapsed;
             NvidiaPanel.Visibility = Visibility.Visible;
+            CustomOpenAiPanel.Visibility = Visibility.Collapsed;
+
+            ApiKeyBox.Password = PreferenceManager.Instance.GetNvidiaApiKey();
+            ModelCombo.Text = PreferenceManager.Instance.GetNvidiaModel();
             int tokens = PreferenceManager.Instance.GetNvidiaMaxTokens();
             if (tokens == 4096 && PreferenceManager.Instance.GetNvidiaReasoningEnabled()) tokens = 8192;
             NvMaxTokensBox.Text = tokens.ToString();
@@ -120,6 +125,20 @@ public partial class SettingsWindow : Window {
             NvReasoningCb.IsChecked = PreferenceManager.Instance.GetNvidiaReasoningEnabled();
             ApiKeyLink.Text = "https://build.nvidia.com/explore/discover";
         }
+        else if (_currentProvider == AiProvider.OpenAiCompatible) {
+            CustomEndpointPanel.Visibility = Visibility.Visible;
+            GeminiPanel.Visibility = Visibility.Collapsed;
+            NvidiaPanel.Visibility = Visibility.Collapsed;
+            CustomOpenAiPanel.Visibility = Visibility.Visible;
+
+            CustomEndpointBox.Text = PreferenceManager.Instance.GetCustomOpenAiEndpoint();
+            ApiKeyBox.Password = PreferenceManager.Instance.GetCustomOpenAiApiKey();
+            ModelCombo.Text = PreferenceManager.Instance.GetCustomOpenAiModel();
+            CustomMaxTokensBox.Text = PreferenceManager.Instance.GetCustomOpenAiMaxTokens().ToString();
+            CustomTempBox.Text = PreferenceManager.Instance.GetCustomOpenAiTemperature().ToString("F1", CultureInfo.InvariantCulture);
+            ApiKeyLink.Text = "https://platform.openai.com/api-keys";
+        }
+
         ModelCombo.Items.Clear();
         _ignoreChanges = false;
     }
@@ -143,6 +162,15 @@ public partial class SettingsWindow : Window {
                 PreferenceManager.Instance.SetNvidiaTopP(topP);
             PreferenceManager.Instance.SetNvidiaReasoningEnabled(NvReasoningCb.IsChecked == true);
         }
+        else if (provider == AiProvider.OpenAiCompatible) {
+            PreferenceManager.Instance.SetCustomOpenAiEndpoint(CustomEndpointBox.Text.Trim());
+            PreferenceManager.Instance.SetCustomOpenAiApiKey(ApiKeyBox.Password);
+            PreferenceManager.Instance.SetCustomOpenAiModel(ModelCombo.Text.Trim());
+            if (int.TryParse(CustomMaxTokensBox.Text, out int tokens))
+                PreferenceManager.Instance.SetCustomOpenAiMaxTokens(tokens);
+            if (double.TryParse(CustomTempBox.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out double temp))
+                PreferenceManager.Instance.SetCustomOpenAiTemperature(temp);
+        }
     }
 
     private async void RefreshModels_Click(object sender, RoutedEventArgs e) {
@@ -150,9 +178,12 @@ public partial class SettingsWindow : Window {
     }
 
     private async Task FetchModels(string currentSelection) {
-        if (string.IsNullOrEmpty(ApiKeyBox.Password)) return;
+        if (_currentProvider != AiProvider.OpenAiCompatible && string.IsNullOrEmpty(ApiKeyBox.Password)) return;
+        if (_currentProvider == AiProvider.OpenAiCompatible && string.IsNullOrWhiteSpace(CustomEndpointBox.Text)) return;
+
         ModelCombo.IsEnabled = false;
-        var client = AiClientFactory.CreateSpecific(_currentProvider, ApiKeyBox.Password, currentSelection);
+        string? endpoint = _currentProvider == AiProvider.OpenAiCompatible ? CustomEndpointBox.Text.Trim() : null;
+        var client = AiClientFactory.CreateSpecific(_currentProvider, ApiKeyBox.Password, currentSelection, endpoint);
         var models = await client.GetAvailableModelsAsync();
         if (models.Count > 0) {
             ModelCombo.Items.Clear();
@@ -173,7 +204,7 @@ public partial class SettingsWindow : Window {
     }
 
     private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e) { }
-    
+
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e) {
         if (e.ChangedButton == MouseButton.Left)
             this.DragMove();
@@ -190,7 +221,6 @@ public partial class SettingsWindow : Window {
         PreferenceManager.Instance.SetTelemetryEnabled(TelemetryCb.IsChecked == true);
         PreferenceManager.Instance.SetGlobalIgnoredFolders(GlobalIgnoredBox.Text);
         PreferenceManager.Instance.SetGlobalExcludedPaths(GlobalExcludedBox.Text);
-        
         if (AiEnabledCb != null) {
 #pragma warning disable CS0618
             PreferenceManager.Instance.SetAiEnabled(AiEnabledCb.IsChecked == true);

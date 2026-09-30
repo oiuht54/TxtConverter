@@ -12,7 +12,7 @@ public class PresetModel {
     public string Name { get; set; } = string.Empty;
     public string Extensions { get; set; } = string.Empty;
     public string IgnoredFolders { get; set; } = string.Empty;
-    public string Exclusions { get; set; } = string.Empty; // Автоматические исключения (stubs) пресета 
+    public string Exclusions { get; set; } = string.Empty;
 }
 
 public class AppSettings {
@@ -25,19 +25,18 @@ public class AppSettings {
     public bool GeneratePdf { get; set; } = true;
     public PdfMode PdfMode { get; set; } = PdfMode.Standard;
     public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
-    
+
     // AI Common (Deprecated / Disabled by default)
     [Obsolete("AI integration is deprecated and will be removed in future versions.")]
     public bool AiEnabled { get; set; } = false;
-    
     public AiProvider AiProvider { get; set; } = AiProvider.GoogleGemini;
     public bool AiThinkingEnabled { get; set; } = true;
     public int AiThinkingBudget { get; set; } = ProjectConstants.DefaultThinkingBudget;
-    
+
     // Gemini Specific
     public string AiApiKey { get; set; } = string.Empty;
     public string AiModel { get; set; } = ProjectConstants.DefaultGeminiModel;
-    
+
     // Nvidia Specific
     public string NvidiaApiKey { get; set; } = string.Empty;
     public string NvidiaModel { get; set; } = ProjectConstants.DefaultNvidiaModel;
@@ -45,20 +44,29 @@ public class AppSettings {
     public double NvidiaTemperature { get; set; } = 0.5;
     public double NvidiaTopP { get; set; } = 0.7;
     public bool NvidiaReasoningEnabled { get; set; } = false;
-    
+
+    // Custom OpenAI Compatible Specific
+    public string CustomOpenAiEndpoint { get; set; } = ProjectConstants.DefaultCustomOpenAiEndpoint;
+    public string CustomOpenAiApiKey { get; set; } = string.Empty;
+    public string CustomOpenAiModel { get; set; } = ProjectConstants.DefaultCustomOpenAiModel;
+    public int CustomOpenAiMaxTokens { get; set; } = 4096;
+    public double CustomOpenAiTemperature { get; set; } = 0.5;
+    public double CustomOpenAiTopP { get; set; } = 0.7;
+
     // Telemetry & Installation
     public string InstallationId { get; set; } = string.Empty;
     public bool IsTelemetryEnabled { get; set; } = true;
-    
+
     // Global Settings
     public string GlobalIgnoredFolders { get; set; } = string.Empty;
-    public string GlobalExcludedPaths { get; set; } = string.Empty; // Всегда исключаемые пути (stubs) 
+    public string GlobalExcludedPaths { get; set; } = string.Empty;
     public List<PresetModel> CustomPresets { get; set; } = new();
 }
 
 public class PreferenceManager {
     private static PreferenceManager? _instance;
     public static PreferenceManager Instance => _instance ??= new PreferenceManager();
+
     private AppSettings _settings;
     private readonly string _settingsPath;
     private readonly object _fileLock = new object();
@@ -88,25 +96,27 @@ public class PreferenceManager {
                             try {
                                 _settings.AiApiKey = FromBase64(_settings.AiApiKey);
                             }
-                            catch {
-                                // Сохраняем исходное значение, если декодирование по какой-то причине дало сбой 
-                            }
+                            catch { }
                         }
                         if (!string.IsNullOrEmpty(_settings.NvidiaApiKey)) {
                             try {
                                 _settings.NvidiaApiKey = FromBase64(_settings.NvidiaApiKey);
                             }
-                            catch {
-                                // Сохраняем исходное значение при сбое декодирования 
+                            catch { }
+                        }
+                        if (!string.IsNullOrEmpty(_settings.CustomOpenAiApiKey)) {
+                            try {
+                                _settings.CustomOpenAiApiKey = FromBase64(_settings.CustomOpenAiApiKey);
                             }
+                            catch { }
                         }
                     }
                 }
                 catch {
-                    // При критической ошибке парсинга создаем чистый инстанс во избежание падения приложения 
                     _settings = new AppSettings();
                 }
             }
+
             if (string.IsNullOrEmpty(_settings.InstallationId)) {
                 _settings.InstallationId = Guid.NewGuid().ToString();
                 SaveInternal();
@@ -122,7 +132,6 @@ public class PreferenceManager {
 
     private void SaveInternal() {
         try {
-            // Создаем глубокую копию перед сериализацией во избежание мутации активных настроек в памяти 
 #pragma warning disable CS0618
             var settingsClone = new AppSettings {
                 Language = _settings.Language,
@@ -146,6 +155,12 @@ public class PreferenceManager {
                 NvidiaTemperature = _settings.NvidiaTemperature,
                 NvidiaTopP = _settings.NvidiaTopP,
                 NvidiaReasoningEnabled = _settings.NvidiaReasoningEnabled,
+                CustomOpenAiEndpoint = _settings.CustomOpenAiEndpoint,
+                CustomOpenAiApiKey = ToBase64(_settings.CustomOpenAiApiKey),
+                CustomOpenAiModel = _settings.CustomOpenAiModel,
+                CustomOpenAiMaxTokens = _settings.CustomOpenAiMaxTokens,
+                CustomOpenAiTemperature = _settings.CustomOpenAiTemperature,
+                CustomOpenAiTopP = _settings.CustomOpenAiTopP,
                 InstallationId = _settings.InstallationId,
                 IsTelemetryEnabled = _settings.IsTelemetryEnabled,
                 GlobalIgnoredFolders = _settings.GlobalIgnoredFolders,
@@ -157,9 +172,7 @@ public class PreferenceManager {
             string json = JsonSerializer.Serialize(settingsClone, options);
             File.WriteAllText(_settingsPath, json);
         }
-        catch {
-            // Ошибки записи настроек обрабатываем молча, чтобы не прерывать жизненный цикл GUI 
-        }
+        catch { }
     }
 
     private string ToBase64(string plainText) {
@@ -205,19 +218,32 @@ public class PreferenceManager {
     public void SetPdfMode(PdfMode val) { _settings.PdfMode = val; Save(); }
     public CompressionLevel GetCompressionLevel() => _settings.Compression;
     public void SetCompressionLevel(CompressionLevel level) { _settings.Compression = level; Save(); }
-    
+
     [Obsolete("AI selection is deprecated.")]
     public bool GetAiEnabled() => _settings.AiEnabled;
-    
     [Obsolete("AI selection is deprecated.")]
     public void SetAiEnabled(bool val) { _settings.AiEnabled = val; Save(); }
 
     // AI Settings
     public AiProvider GetAiProvider() => _settings.AiProvider;
     public void SetAiProvider(AiProvider provider) { _settings.AiProvider = provider; Save(); }
-    public string GetAiApiKey() => _settings.AiProvider == AiProvider.NvidiaNim ? _settings.NvidiaApiKey : _settings.AiApiKey;
-    public string GetAiModel() => _settings.AiProvider == AiProvider.NvidiaNim ? _settings.NvidiaModel : _settings.AiModel;
-    
+
+    public string GetAiApiKey() {
+        return _settings.AiProvider switch {
+            AiProvider.NvidiaNim => _settings.NvidiaApiKey,
+            AiProvider.OpenAiCompatible => _settings.CustomOpenAiApiKey,
+            _ => _settings.AiApiKey
+        };
+    }
+
+    public string GetAiModel() {
+        return _settings.AiProvider switch {
+            AiProvider.NvidiaNim => _settings.NvidiaModel,
+            AiProvider.OpenAiCompatible => _settings.CustomOpenAiModel,
+            _ => _settings.AiModel
+        };
+    }
+
     // Gemini
     public bool GetAiThinkingEnabled() => _settings.AiThinkingEnabled;
     public void SetAiThinkingEnabled(bool enabled) { _settings.AiThinkingEnabled = enabled; Save(); }
@@ -227,7 +253,7 @@ public class PreferenceManager {
     public void SetGeminiApiKey(string key) { _settings.AiApiKey = key; Save(); }
     public string GetGeminiModel() => _settings.AiModel;
     public void SetGeminiModel(string model) { _settings.AiModel = model; Save(); }
-    
+
     // Nvidia
     public string GetNvidiaApiKey() => _settings.NvidiaApiKey;
     public void SetNvidiaApiKey(string key) { _settings.NvidiaApiKey = key; Save(); }
@@ -241,10 +267,25 @@ public class PreferenceManager {
     public void SetNvidiaTopP(double topP) { _settings.NvidiaTopP = topP; Save(); }
     public bool GetNvidiaReasoningEnabled() => _settings.NvidiaReasoningEnabled;
     public void SetNvidiaReasoningEnabled(bool enabled) { _settings.NvidiaReasoningEnabled = enabled; Save(); }
+
+    // Custom OpenAI Compatible
+    public string GetCustomOpenAiEndpoint() => string.IsNullOrWhiteSpace(_settings.CustomOpenAiEndpoint) ? ProjectConstants.DefaultCustomOpenAiEndpoint : _settings.CustomOpenAiEndpoint;
+    public void SetCustomOpenAiEndpoint(string endpoint) { _settings.CustomOpenAiEndpoint = endpoint; Save(); }
+    public string GetCustomOpenAiApiKey() => _settings.CustomOpenAiApiKey;
+    public void SetCustomOpenAiApiKey(string key) { _settings.CustomOpenAiApiKey = key; Save(); }
+    public string GetCustomOpenAiModel() => string.IsNullOrWhiteSpace(_settings.CustomOpenAiModel) ? ProjectConstants.DefaultCustomOpenAiModel : _settings.CustomOpenAiModel;
+    public void SetCustomOpenAiModel(string model) { _settings.CustomOpenAiModel = model; Save(); }
+    public int GetCustomOpenAiMaxTokens() => _settings.CustomOpenAiMaxTokens <= 0 ? 4096 : _settings.CustomOpenAiMaxTokens;
+    public void SetCustomOpenAiMaxTokens(int tokens) { _settings.CustomOpenAiMaxTokens = tokens; Save(); }
+    public double GetCustomOpenAiTemperature() => _settings.CustomOpenAiTemperature;
+    public void SetCustomOpenAiTemperature(double temp) { _settings.CustomOpenAiTemperature = temp; Save(); }
+    public double GetCustomOpenAiTopP() => _settings.CustomOpenAiTopP;
+    public void SetCustomOpenAiTopP(double topP) { _settings.CustomOpenAiTopP = topP; Save(); }
+
     public string GetInstallationId() => _settings.InstallationId;
     public bool GetTelemetryEnabled() => _settings.IsTelemetryEnabled;
     public void SetTelemetryEnabled(bool enabled) { _settings.IsTelemetryEnabled = enabled; Save(); }
-    
+
     // Custom Preset, Global Ignores & Exclusions
     public string GetGlobalIgnoredFolders() => _settings.GlobalIgnoredFolders;
     public void SetGlobalIgnoredFolders(string val) { _settings.GlobalIgnoredFolders = val; Save(); }
