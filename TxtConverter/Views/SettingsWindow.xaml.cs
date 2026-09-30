@@ -77,6 +77,10 @@ public partial class SettingsWindow : Window {
         }
 
         UpdateAiFields();
+
+        // Version info display
+        VersionText.Text = ProjectConstants.CurrentVersion;
+
         _ignoreChanges = false;
 
         if ((!string.IsNullOrEmpty(ApiKeyBox.Password) || _currentProvider == AiProvider.OpenAiCompatible) && ModelCombo.Items.Count == 0) {
@@ -86,9 +90,7 @@ public partial class SettingsWindow : Window {
 
     private void ProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) {
         if (_ignoreChanges) return;
-
         SaveAiStateForProvider(_currentProvider);
-
         if (ProviderCombo.SelectedItem is ComboBoxItem item && item.Tag is string tag) {
             if (Enum.TryParse<AiProvider>(tag, out var newProvider)) {
                 _currentProvider = newProvider;
@@ -124,6 +126,7 @@ public partial class SettingsWindow : Window {
             int tokens = PreferenceManager.Instance.GetNvidiaMaxTokens();
             if (tokens == 4096 && PreferenceManager.Instance.GetNvidiaReasoningEnabled()) tokens = 8192;
             NvMaxTokensBox.Text = tokens.ToString();
+
             NvTempBox.Text = PreferenceManager.Instance.GetNvidiaTemperature().ToString("F1", CultureInfo.InvariantCulture);
             NvTopPBox.Text = PreferenceManager.Instance.GetNvidiaTopP().ToString("F2", CultureInfo.InvariantCulture);
             NvReasoningCb.IsChecked = PreferenceManager.Instance.GetNvidiaReasoningEnabled();
@@ -193,7 +196,6 @@ public partial class SettingsWindow : Window {
         if (models.Count > 0) {
             ModelCombo.Items.Clear();
             foreach (var m in models) ModelCombo.Items.Add(m);
-
             var match = models.FirstOrDefault(m => m.Equals(currentSelection, StringComparison.OrdinalIgnoreCase));
             if (match != null) ModelCombo.SelectedItem = match;
             else ModelCombo.Text = currentSelection;
@@ -204,7 +206,6 @@ public partial class SettingsWindow : Window {
 
     private void LanguageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) {
         if (_ignoreChanges) return;
-
         if (LanguageCombo.SelectedItem is ComboBoxItem item) {
             string code = item.Tag.ToString() ?? ProjectConstants.LangEn;
             LanguageManager.Instance.SetLanguage(code);

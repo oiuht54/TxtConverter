@@ -30,13 +30,16 @@
     <s:String x:Key="ui_pdf_mode_std">Стандарт (Оптимизация для ИИ Vision)</s:String>
     <s:String x:Key="ui_pdf_mode_compact">Компакт (Экономия страниц)</s:String>
     <s:String x:Key="ui_pdf_mode_extreme">Экстрим (Минимум страниц, без полей)</s:String>
+
     <s:String x:Key="ui_select_files_btn">Выбрать файлы...</s:String>
     <s:String x:Key="ui_convert_btn">НАЧАТЬ КОНВЕРТАЦИЮ</s:String>
     <s:String x:Key="ui_log_label">Лог выполнения:</s:String>
+
     <s:String x:Key="ui_compression_label">Сжатие токенов:</s:String>
     <s:String x:Key="ui_comp_none">Нет (Оригинал)</s:String>
     <s:String x:Key="ui_comp_smart">Умное (Безопасно)</s:String>
     <s:String x:Key="ui_comp_max">Максимум (уникальный алгоритм сжатия)</s:String>
+
     <s:String x:Key="ui_ai_select_btn">AI Выбор</s:String>
 
     <!-- Status -->
@@ -67,6 +70,7 @@
 
     <!-- About & Credits -->
     <s:String x:Key="ui_settings_about">О программе и авторы</s:String>
+    <s:String x:Key="ui_settings_version">Версия:</s:String>
     <s:String x:Key="ui_settings_author">Автор:</s:String>
     <s:String x:Key="ui_settings_repo_link">Репозиторий GitHub:</s:String>
     <s:String x:Key="log_credits">TxtConverter от oiuht54/Diziac | GitHub: https://github.com/oiuht54/TxtConverter</s:String>
@@ -120,6 +124,7 @@
     <s:String x:Key="msg_preset_exists">Пресет с таким именем уже существует!</s:String>
     <s:String x:Key="msg_preset_confirm_delete">Вы действительно хотите удалить пресет '{0}'?</s:String>
     <s:String x:Key="msg_preset_builtin_error">Невозможно изменить или удалить встроенный пресет. Пожалуйста, сохраните его под новым именем.</s:String>
+
     <s:String x:Key="ui_settings_global_ignored">Всегда игнорируемые папки (через запятую):</s:String>
     <s:String x:Key="ui_settings_global_ignored_prompt">Например: bin, obj, .git, venv</s:String>
     <s:String x:Key="ui_settings_global_excluded">Всегда исключаемые файлы/папки (через запятую):</s:String>

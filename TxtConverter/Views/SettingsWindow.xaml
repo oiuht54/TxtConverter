@@ -5,9 +5,11 @@
         Width="460" Height="780"
         WindowStartupLocation="CenterOwner"
         Title="Settings" Background="{StaticResource Brush_WindowBg}">
+
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
     </WindowChrome.WindowChrome>
+
     <Border BorderBrush="#333333" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
@@ -34,10 +36,9 @@
                         <Border Style="{StaticResource CardBorder}" Margin="0,0,0,15">
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource ui_settings_general}" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
-
                                 <TextBlock Text="{DynamicResource ui_settings_lang}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
                                 <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged" HorizontalAlignment="Stretch" Margin="0,0,0,10"/>
-
+                                
                                 <TextBlock Text="{DynamicResource ui_settings_global_ignored}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
                                 <TextBox x:Name="GlobalIgnoredBox" Tag="{DynamicResource ui_settings_global_ignored_prompt}" ToolTip="{DynamicResource ui_settings_global_ignored_prompt}" Margin="0,0,0,10"/>
 
@@ -70,7 +71,9 @@
 
                                 <!-- API Key -->
                                 <TextBlock Text="{DynamicResource ui_settings_apikey}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
-                                <PasswordBox x:Name="ApiKeyBox" PasswordChar="•" Background="#151515" Foreground="White" BorderBrush="#333333" BorderThickness="1" Padding="8,6" VerticalContentAlignment="Center" FontSize="14" PasswordChanged="ApiKeyBox_PasswordChanged"/>
+                                <PasswordBox x:Name="ApiKeyBox" PasswordChar="•" 
+                                             Background="#151515" Foreground="White" BorderBrush="#333333" BorderThickness="1" 
+                                             Padding="8,6" VerticalContentAlignment="Center" FontSize="14" PasswordChanged="ApiKeyBox_PasswordChanged"/>
                                 <TextBlock x:Name="ApiKeyLink" Text="https://aistudio.google.com/app/apikey" FontSize="11" Foreground="#555555" Margin="0,2,0,10" Cursor="Hand" MouseDown="Link_MouseDown"/>
 
                                 <!-- Model -->
@@ -171,11 +174,19 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource ui_settings_version}" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock x:Name="VersionText" Grid.Column="1" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock Text="{DynamicResource ui_settings_author}" Style="{StaticResource FieldLabel}"/>
                                     <TextBlock Grid.Column="1" Text="oiuht54/Diziac" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 </Grid>
                                 <TextBlock Text="{DynamicResource ui_settings_repo_link}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
-                                <TextBlock x:Name="RepoLink" Text="https://github.com/oiuht54/TxtConverter"
+                                <TextBlock x:Name="RepoLink" Text="https://github.com/oiuht54/TxtConverter" 
                                            FontSize="12" Foreground="#0090F0" TextDecorations="Underline"
                                            ToolTip="https://github.com/oiuht54/TxtConverter"
                                            Cursor="Hand" MouseDown="Link_MouseDown" Margin="0,2,0,5"/>

@@ -30,13 +30,16 @@
     <s:String x:Key="ui_pdf_mode_std">Standard (Optimized for AI Vision)</s:String>
     <s:String x:Key="ui_pdf_mode_compact">Compact (Page saver)</s:String>
     <s:String x:Key="ui_pdf_mode_extreme">Extreme (Min pages, no margins)</s:String>
+
     <s:String x:Key="ui_select_files_btn">Select Files...</s:String>
     <s:String x:Key="ui_convert_btn">START CONVERSION</s:String>
     <s:String x:Key="ui_log_label">Execution Log:</s:String>
+
     <s:String x:Key="ui_compression_label">Token Compression Level:</s:String>
     <s:String x:Key="ui_comp_none">None (Original)</s:String>
     <s:String x:Key="ui_comp_smart">Smart (Safe)</s:String>
     <s:String x:Key="ui_comp_max">Maximum (Semantic optimization)</s:String>
+
     <s:String x:Key="ui_ai_select_btn">AI Select</s:String>
 
     <!-- Status -->
@@ -67,6 +70,7 @@
 
     <!-- About & Credits -->
     <s:String x:Key="ui_settings_about">About &amp; Credits</s:String>
+    <s:String x:Key="ui_settings_version">Version:</s:String>
     <s:String x:Key="ui_settings_author">Author:</s:String>
     <s:String x:Key="ui_settings_repo_link">GitHub Repository:</s:String>
     <s:String x:Key="log_credits">TxtConverter by oiuht54/Diziac | GitHub: https://github.com/oiuht54/TxtConverter</s:String>
@@ -120,6 +124,7 @@
     <s:String x:Key="msg_preset_exists">A preset with this name already exists!</s:String>
     <s:String x:Key="msg_preset_confirm_delete">Are you sure you want to delete preset '{0}'?</s:String>
     <s:String x:Key="msg_preset_builtin_error">Cannot modify or delete built-in presets. Please save as a new preset.</s:String>
+
     <s:String x:Key="ui_settings_global_ignored">Always Ignored Folders (comma separated):</s:String>
     <s:String x:Key="ui_settings_global_ignored_prompt">Example: bin, obj, .git, venv</s:String>
     <s:String x:Key="ui_settings_global_excluded">Always Excluded Files/Folders (comma separated):</s:String>
