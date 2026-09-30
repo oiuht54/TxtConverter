@@ -15,7 +15,9 @@ public static class ProjectConstants {
     public const string DefaultCustomOpenAiModel = "gpt-4o-mini";
     public const int DefaultThinkingBudget = 16000;
 
-    // Version and Update constants
+    // Version, Author and Repository constants
     public const string CurrentVersion = "1.8.0";
     public const string GitHubRepo = "oiuht54/TxtConverter";
+    public const string GitHubUrl = "https://github.com/oiuht54/TxtConverter";
+    public const string Author = "oiuht54/Diziac";
 }

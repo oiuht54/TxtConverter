@@ -44,7 +44,7 @@ public partial class SettingsWindow : Window {
     private void LoadSettings() {
         _ignoreChanges = true;
 
-        // Настройка языков
+        // Language settings
         LanguageCombo.Items.Add(new ComboBoxItem { Content = "English", Tag = ProjectConstants.LangEn });
         LanguageCombo.Items.Add(new ComboBoxItem { Content = "Русский", Tag = ProjectConstants.LangRu });
         string currentLang = LanguageManager.Instance.CurrentLanguage;
@@ -55,19 +55,19 @@ public partial class SettingsWindow : Window {
             }
         }
 
-        // Глобальные исключения и игнорирование
+        // Global exclusions & ignores
         GlobalIgnoredBox.Text = PreferenceManager.Instance.GetGlobalIgnoredFolders();
         GlobalExcludedBox.Text = PreferenceManager.Instance.GetGlobalExcludedPaths();
 
-        // Телеметрия
+        // Telemetry
         TelemetryCb.IsChecked = PreferenceManager.Instance.GetTelemetryEnabled();
 
-        // Чекбокс включения AI
+        // AI Enablement Checkbox
 #pragma warning disable CS0618
         AiEnabledCb.IsChecked = PreferenceManager.Instance.GetAiEnabled();
 #pragma warning restore CS0618
 
-        // Провайдеры AI
+        // AI Providers
         _currentProvider = PreferenceManager.Instance.GetAiProvider();
         foreach (ComboBoxItem item in ProviderCombo.Items) {
             if (item.Tag is string tag && tag == _currentProvider.ToString()) {
@@ -86,7 +86,9 @@ public partial class SettingsWindow : Window {
 
     private void ProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) {
         if (_ignoreChanges) return;
+
         SaveAiStateForProvider(_currentProvider);
+
         if (ProviderCombo.SelectedItem is ComboBoxItem item && item.Tag is string tag) {
             if (Enum.TryParse<AiProvider>(tag, out var newProvider)) {
                 _currentProvider = newProvider;
@@ -97,6 +99,7 @@ public partial class SettingsWindow : Window {
 
     private void UpdateAiFields() {
         _ignoreChanges = true;
+
         if (_currentProvider == AiProvider.GoogleGemini) {
             CustomEndpointPanel.Visibility = Visibility.Collapsed;
             GeminiPanel.Visibility = Visibility.Visible;
@@ -117,6 +120,7 @@ public partial class SettingsWindow : Window {
 
             ApiKeyBox.Password = PreferenceManager.Instance.GetNvidiaApiKey();
             ModelCombo.Text = PreferenceManager.Instance.GetNvidiaModel();
+
             int tokens = PreferenceManager.Instance.GetNvidiaMaxTokens();
             if (tokens == 4096 && PreferenceManager.Instance.GetNvidiaReasoningEnabled()) tokens = 8192;
             NvMaxTokensBox.Text = tokens.ToString();
@@ -185,18 +189,22 @@ public partial class SettingsWindow : Window {
         string? endpoint = _currentProvider == AiProvider.OpenAiCompatible ? CustomEndpointBox.Text.Trim() : null;
         var client = AiClientFactory.CreateSpecific(_currentProvider, ApiKeyBox.Password, currentSelection, endpoint);
         var models = await client.GetAvailableModelsAsync();
+
         if (models.Count > 0) {
             ModelCombo.Items.Clear();
             foreach (var m in models) ModelCombo.Items.Add(m);
+
             var match = models.FirstOrDefault(m => m.Equals(currentSelection, StringComparison.OrdinalIgnoreCase));
             if (match != null) ModelCombo.SelectedItem = match;
             else ModelCombo.Text = currentSelection;
         }
+
         ModelCombo.IsEnabled = true;
     }
 
     private void LanguageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) {
         if (_ignoreChanges) return;
+
         if (LanguageCombo.SelectedItem is ComboBoxItem item) {
             string code = item.Tag.ToString() ?? ProjectConstants.LangEn;
             LanguageManager.Instance.SetLanguage(code);
@@ -232,7 +240,10 @@ public partial class SettingsWindow : Window {
     private void Link_MouseDown(object sender, MouseButtonEventArgs e) {
         try {
             if (sender is TextBlock tb) {
-                Process.Start(new ProcessStartInfo(tb.Text) { UseShellExecute = true });
+                string url = tb.Tag?.ToString() ?? tb.Text;
+                if (!string.IsNullOrWhiteSpace(url)) {
+                    Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                }
             }
         }
         catch { }

@@ -2,6 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:s="clr-namespace:System;assembly=mscorlib">
     <s:String x:Key="app_title">TXT Конвертер Файлов</s:String>
+
     <!-- Main Window -->
     <s:String x:Key="ui_settings">Настройки</s:String>
     <s:String x:Key="ui_source_dir">Папка с исходниками:</s:String>
@@ -14,6 +15,7 @@
     <s:String x:Key="ui_exclusions">Исключения / Заглушки (через запятую):</s:String>
     <s:String x:Key="ui_exclusions_prompt">Например: obsolete.js, src/provider/deepseek</s:String>
     <s:String x:Key="ui_rescan_btn">Пересканировать</s:String>
+
     <!-- Conversion Settings / Modal -->
     <s:String x:Key="ui_conversion_settings_btn">⚙ Настройки конвертации</s:String>
     <s:String x:Key="ui_conversion_settings_title">Настройки конвертации</s:String>
@@ -22,6 +24,7 @@
     <s:String x:Key="ui_token_compression_cb">Умное сжатие (Убрать визуальный шум)</s:String>
     <s:String x:Key="ui_merged_cb">Создавать единый файл со всем кодом ({0})</s:String>
     <s:String x:Key="ui_merged_cb_generic">Создавать объединенный файл</s:String>
+
     <!-- PDF Strings -->
     <s:String x:Key="ui_pdf_cb">Создавать PDF отчет</s:String>
     <s:String x:Key="ui_pdf_mode_std">Стандарт (Оптимизация для ИИ Vision)</s:String>
@@ -35,6 +38,7 @@
     <s:String x:Key="ui_comp_smart">Умное (Безопасно)</s:String>
     <s:String x:Key="ui_comp_max">Максимум (уникальный алгоритм сжатия)</s:String>
     <s:String x:Key="ui_ai_select_btn">AI Выбор</s:String>
+
     <!-- Status -->
     <s:String x:Key="ui_status_ready">Готов к работе</s:String>
     <s:String x:Key="ui_status_waiting">Ожидание действий</s:String>
@@ -43,6 +47,7 @@
     <s:String x:Key="ui_status_analyzing">ИИ Анализирует проект...</s:String>
     <s:String x:Key="ui_status_done">Готово</s:String>
     <s:String x:Key="ui_status_error">Ошибка</s:String>
+
     <!-- Settings Window -->
     <s:String x:Key="ui_settings_general">Общие</s:String>
     <s:String x:Key="ui_settings_ai">Искусственный Интеллект (AI)</s:String>
@@ -59,6 +64,13 @@
     <s:String x:Key="ui_settings_tokens">Бюджет токенов:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Включить размышление (только Gemini)</s:String>
     <s:String x:Key="ui_settings_close">Закрыть</s:String>
+
+    <!-- About & Credits -->
+    <s:String x:Key="ui_settings_about">О программе и авторы</s:String>
+    <s:String x:Key="ui_settings_author">Автор:</s:String>
+    <s:String x:Key="ui_settings_repo_link">Репозиторий GitHub:</s:String>
+    <s:String x:Key="log_credits">TxtConverter от oiuht54/Diziac | GitHub: https://github.com/oiuht54/TxtConverter</s:String>
+
     <!-- Log Messages -->
     <s:String x:Key="log_app_ready">Приложение готово к работе.</s:String>
     <s:String x:Key="log_preset_selected">Выбран пресет '{0}'. Настройки обновлены.</s:String>
@@ -73,6 +85,7 @@
     <s:String x:Key="log_conversion_success">КОНВЕРТАЦИЯ УСПЕШНА</s:String>
     <s:String x:Key="log_result_path">Результат в папке: {0}</s:String>
     <s:String x:Key="log_conversion_error">КРИТИЧЕСКАЯ ОШИБКА КОНВЕРТАЦИИ: {0}</s:String>
+
     <!-- Report Messages -->
     <s:String x:Key="report_structure_header"># Структура скопированных файлов</s:String>
     <s:String x:Key="report_merged_header">Единый файл с полным кодом проекта ({0})</s:String>
@@ -82,10 +95,12 @@
     <s:String x:Key="report_stub_warning">> Дополнительная информация: Файлы с пометкой "[E]" (или "[Файл существует - содержимое скрыто для экономии контекста]") физически существуют в проекте, но их содержимое было исключено из данного дампа, так как они не относятся напрямую к текущей задаче и для оптимизации расхода токенов. Это НЕ пустые файлы и НЕ задачи для доработки (TODO). НЕ придумывайте их реализацию. Если вам обязательно потребуется их содержимое для выполнения задачи, запросите его у пользователя.</s:String>
     <s:String x:Key="report_omitted">[Файл существует - содержимое скрыто для экономии контекста, так как не относится напрямую к задаче]</s:String>
     <s:String x:Key="report_stub_label"> (Исключено)</s:String>
+
     <!-- Localized Legend Elements -->
     <s:String x:Key="report_legend_title">Легенда:</s:String>
     <s:String x:Key="report_legend_full">[F] - Полное содержимое включено</s:String>
     <s:String x:Key="report_legend_excluded">[E] - Исключено (скрыто)</s:String>
+
     <!-- Task Messages -->
     <s:String x:Key="task_preparing">Подготовка к конвертации...</s:String>
     <s:String x:Key="task_processing">Обработка: {0}</s:String>
@@ -93,6 +108,7 @@
     <s:String x:Key="task_merging">Сборка единого файла...</s:String>
     <s:String x:Key="task_pdf">Рендеринг PDF отчета...</s:String>
     <s:String x:Key="task_done">Готово!</s:String>
+
     <!-- New Tooltips and Dialog Localization keys -->
     <s:String x:Key="ui_save_preset_tooltip">Сохранить/Обновить пресет</s:String>
     <s:String x:Key="ui_add_preset_tooltip">Создать новый пресет</s:String>
@@ -108,6 +124,7 @@
     <s:String x:Key="ui_settings_global_ignored_prompt">Например: bin, obj, .git, venv</s:String>
     <s:String x:Key="ui_settings_global_excluded">Всегда исключаемые файлы/папки (через запятую):</s:String>
     <s:String x:Key="ui_settings_global_excluded_prompt">Например: obsolete_dir, legacy_file.cs</s:String>
+
     <!-- Update Window Strings -->
     <s:String x:Key="ui_update_title">Доступно новое обновление</s:String>
     <s:String x:Key="ui_update_info">Доступна новая версия {0}! (Текущая: {1})</s:String>
