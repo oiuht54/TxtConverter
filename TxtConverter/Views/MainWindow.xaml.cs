@@ -42,13 +42,17 @@ public partial class MainWindow : Window {
 
     private async Task CheckForUpdatesAsync() {
         try {
-            var release = await UpdateCheckerService.Instance.CheckForUpdatesAsync();
-            if (release != null && UpdateCheckerService.IsNewerVersion(ProjectConstants.CurrentVersion, release.TagName)) {
+            var result = await UpdateCheckerService.Instance.CheckForUpdatesDetailedAsync();
+            if (result.Success && result.IsUpdateAvailable && result.Release != null) {
+                Log(string.Format(Loc("log_update_found"), result.Release.TagName));
                 Dispatcher.Invoke(() => {
-                    var updateWin = new UpdateNotificationWindow(release);
+                    var updateWin = new UpdateNotificationWindow(result.Release);
                     updateWin.Owner = this;
                     updateWin.ShowDialog();
                 });
+            }
+            else if (!result.Success && !string.IsNullOrEmpty(result.ErrorMessage)) {
+                System.Diagnostics.Debug.WriteLine($"Update check: {result.ErrorMessage}");
             }
         }
         catch (Exception ex) {
@@ -220,13 +224,11 @@ public partial class MainWindow : Window {
             }
             var scanner = new FileScanner(exts, ignored);
             _allFoundFiles = await scanner.ScanAsync(SourceDirBox.Text);
-
             var localExclusions = ExclusionsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
             string globalExclusionsRaw = PreferenceManager.Instance.GetGlobalExcludedPaths();
             var globalExclusions = globalExclusionsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
             var allExclusions = localExclusions.Union(globalExclusions, StringComparer.OrdinalIgnoreCase).ToList();
             var matcher = new ExclusionMatcher(string.Join(",", allExclusions));
-
             _filesSelectedForMerge = new HashSet<string>(
                 _allFoundFiles.Where(file => !matcher.IsExcluded(file, SourceDirBox.Text))
             );
@@ -260,18 +262,14 @@ public partial class MainWindow : Window {
         var provider = PreferenceManager.Instance.GetAiProvider();
         string apiKey = PreferenceManager.Instance.GetAiApiKey();
         bool isKeyMissing = string.IsNullOrWhiteSpace(apiKey);
-
-        // Empty API keys are completely allowed for custom / OpenAI-compatible providers (Ollama, LM Studio, etc.)
         if (provider == AiProvider.OpenAiCompatible) {
             isKeyMissing = false;
         }
-
         if (isKeyMissing) {
             MessageBox.Show($"Please set your API Key for {provider} in Settings first.", "API Key Missing", MessageBoxButton.OK, MessageBoxImage.Information);
             Settings_Click(null, null);
             return;
         }
-
         var dialog = new AiTaskWindow(SourceDirBox.Text, _allFoundFiles);
         dialog.Owner = this;
         if (dialog.ShowDialog() == true && dialog.ResultPaths != null) {
@@ -282,7 +280,6 @@ public partial class MainWindow : Window {
             foreach (var f in _filesSelectedForMerge.Take(5))
                 Log($" - {Path.GetFileName(f)}");
             if (_filesSelectedForMerge.Count > 5) Log(" ...");
-
             MessageBox.Show($"AI selected {_filesSelectedForMerge.Count} files based on your task.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
             TelemetryService.Instance.TrackEvent("ai_used", new Dictionary<string, object> {
                 { "files_selected", _filesSelectedForMerge.Count },
@@ -335,7 +332,6 @@ public partial class MainWindow : Window {
             Log("====================");
             Log(string.Format(Loc("log_result_path"), Path.Combine(SourceDirBox.Text, ProjectConstants.OutputDirName)));
             StatusLabel.Text = Loc("ui_status_done");
-
             TimeSpan duration = DateTime.Now - startTime;
             TelemetryService.Instance.TrackEvent("conversion_completed", new Dictionary<string, object> {
                 { "files_processed", _allFoundFiles.Count },
@@ -395,7 +391,7 @@ public partial class MainWindow : Window {
         if (e.ChangedButton == MouseButton.Left) DragMove();
     }
 
-    private void Settings_Click(object sender, RoutedEventArgs e) {
+    private void Settings_Click(object? sender, RoutedEventArgs? e) {
         var settingsWin = new SettingsWindow();
         settingsWin.Owner = this;
         settingsWin.ShowDialog();

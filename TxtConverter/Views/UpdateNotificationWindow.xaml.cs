@@ -13,15 +13,19 @@ public partial class UpdateNotificationWindow : Window {
         InitializeComponent();
         _release = release;
 
-        // Setup localized content strings
         string infoFormat = LanguageManager.Instance.GetString("ui_update_info");
         VersionInfoText.Text = string.Format(infoFormat, _release.TagName, Core.ProjectConstants.CurrentVersion);
-        ChangelogText.Text = _release.Body;
+        ChangelogText.Text = string.IsNullOrWhiteSpace(_release.Body)
+            ? (string.IsNullOrWhiteSpace(_release.Name) ? _release.TagName : _release.Name)
+            : _release.Body;
     }
 
     private void Download_Click(object sender, RoutedEventArgs e) {
         try {
-            Process.Start(new ProcessStartInfo(_release.HtmlUrl) { UseShellExecute = true });
+            string url = !string.IsNullOrWhiteSpace(_release.HtmlUrl)
+                ? _release.HtmlUrl
+                : Core.ProjectConstants.GitHubUrl;
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (Exception ex) {
             MessageBox.Show($"Could not open download link: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);

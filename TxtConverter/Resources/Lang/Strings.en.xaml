@@ -101,6 +101,7 @@
     <s:String x:Key="log_conversion_success">CONVERSION SUCCESSFUL</s:String>
     <s:String x:Key="log_result_path">Result saved in: {0}</s:String>
     <s:String x:Key="log_conversion_error">CRITICAL CONVERSION ERROR: {0}</s:String>
+    <s:String x:Key="log_update_found">New update available: {0}</s:String>
 
     <!-- Report Messages -->
     <s:String x:Key="report_structure_header"># Structure of copied files</s:String>
@@ -147,4 +148,8 @@
     <s:String x:Key="ui_update_changelog_header">What's new:</s:String>
     <s:String x:Key="ui_update_download">Download</s:String>
     <s:String x:Key="ui_update_later">Remind Later</s:String>
+    <s:String x:Key="ui_update_check_btn">🔄 Check for Updates</s:String>
+    <s:String x:Key="ui_update_checking">Checking for updates...</s:String>
+    <s:String x:Key="ui_update_latest">You have the latest version ({0}).</s:String>
+    <s:String x:Key="ui_update_failed">Update check failed: {0}</s:String>
 </ResourceDictionary>

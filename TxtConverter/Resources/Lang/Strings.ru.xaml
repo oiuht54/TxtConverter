@@ -101,6 +101,7 @@
     <s:String x:Key="log_conversion_success">КОНВЕРТАЦИЯ УСПЕШНА</s:String>
     <s:String x:Key="log_result_path">Результат в папке: {0}</s:String>
     <s:String x:Key="log_conversion_error">КРИТИЧЕСКАЯ ОШИБКА КОНВЕРТАЦИИ: {0}</s:String>
+    <s:String x:Key="log_update_found">Доступно новое обновление: {0}</s:String>
 
     <!-- Report Messages -->
     <s:String x:Key="report_structure_header"># Структура скопированных файлов</s:String>
@@ -147,4 +148,8 @@
     <s:String x:Key="ui_update_changelog_header">Что нового:</s:String>
     <s:String x:Key="ui_update_download">Скачать</s:String>
     <s:String x:Key="ui_update_later">Позже</s:String>
+    <s:String x:Key="ui_update_check_btn">🔄 Проверить обновления</s:String>
+    <s:String x:Key="ui_update_checking">Проверка обновлений...</s:String>
+    <s:String x:Key="ui_update_latest">Установлена актуальная версия ({0}).</s:String>
+    <s:String x:Key="ui_update_failed">Ошибка проверки обновлений: {0}</s:String>
 </ResourceDictionary>
