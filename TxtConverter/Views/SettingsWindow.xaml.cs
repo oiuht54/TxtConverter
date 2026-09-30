@@ -1,10 +1,12 @@
 using System;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using TxtConverter.Core;
 using TxtConverter.Core.Enums;
 using TxtConverter.Services;
@@ -102,6 +104,12 @@ public partial class SettingsWindow : Window {
     private void UpdateAiFields() {
         _ignoreChanges = true;
 
+        if (TestStatusLabel != null) {
+            TestStatusLabel.Text = string.Empty;
+        }
+
+        ModelCombo.Items.Clear();
+
         if (_currentProvider == AiProvider.GoogleGemini) {
             CustomEndpointPanel.Visibility = Visibility.Collapsed;
             GeminiPanel.Visibility = Visibility.Visible;
@@ -109,10 +117,17 @@ public partial class SettingsWindow : Window {
             CustomOpenAiPanel.Visibility = Visibility.Collapsed;
 
             ApiKeyBox.Password = PreferenceManager.Instance.GetGeminiApiKey();
-            ModelCombo.Text = PreferenceManager.Instance.GetGeminiModel();
+            string geminiModel = PreferenceManager.Instance.GetGeminiModel();
             ThinkingCb.IsChecked = PreferenceManager.Instance.GetAiThinkingEnabled();
             BudgetBox.Text = PreferenceManager.Instance.GetAiThinkingBudget().ToString();
             ApiKeyLink.Text = "https://aistudio.google.com/app/apikey";
+
+            var defaultGeminiModels = new[] { "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro" };
+            foreach (var m in defaultGeminiModels) ModelCombo.Items.Add(m);
+            if (!defaultGeminiModels.Contains(geminiModel) && !string.IsNullOrWhiteSpace(geminiModel)) {
+                ModelCombo.Items.Insert(0, geminiModel);
+            }
+            ModelCombo.Text = geminiModel;
         }
         else if (_currentProvider == AiProvider.NvidiaNim) {
             CustomEndpointPanel.Visibility = Visibility.Collapsed;
@@ -121,7 +136,7 @@ public partial class SettingsWindow : Window {
             CustomOpenAiPanel.Visibility = Visibility.Collapsed;
 
             ApiKeyBox.Password = PreferenceManager.Instance.GetNvidiaApiKey();
-            ModelCombo.Text = PreferenceManager.Instance.GetNvidiaModel();
+            string nvidiaModel = PreferenceManager.Instance.GetNvidiaModel();
 
             int tokens = PreferenceManager.Instance.GetNvidiaMaxTokens();
             if (tokens == 4096 && PreferenceManager.Instance.GetNvidiaReasoningEnabled()) tokens = 8192;
@@ -131,6 +146,13 @@ public partial class SettingsWindow : Window {
             NvTopPBox.Text = PreferenceManager.Instance.GetNvidiaTopP().ToString("F2", CultureInfo.InvariantCulture);
             NvReasoningCb.IsChecked = PreferenceManager.Instance.GetNvidiaReasoningEnabled();
             ApiKeyLink.Text = "https://build.nvidia.com/explore/discover";
+
+            var defaultNvidiaModels = new[] { "minimaxai/minimax-m2", "deepseek-ai/deepseek-r1", "meta/llama-3.1-70b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct" };
+            foreach (var m in defaultNvidiaModels) ModelCombo.Items.Add(m);
+            if (!defaultNvidiaModels.Contains(nvidiaModel) && !string.IsNullOrWhiteSpace(nvidiaModel)) {
+                ModelCombo.Items.Insert(0, nvidiaModel);
+            }
+            ModelCombo.Text = nvidiaModel;
         }
         else if (_currentProvider == AiProvider.OpenAiCompatible) {
             CustomEndpointPanel.Visibility = Visibility.Visible;
@@ -140,13 +162,19 @@ public partial class SettingsWindow : Window {
 
             CustomEndpointBox.Text = PreferenceManager.Instance.GetCustomOpenAiEndpoint();
             ApiKeyBox.Password = PreferenceManager.Instance.GetCustomOpenAiApiKey();
-            ModelCombo.Text = PreferenceManager.Instance.GetCustomOpenAiModel();
+            string customModel = PreferenceManager.Instance.GetCustomOpenAiModel();
             CustomMaxTokensBox.Text = PreferenceManager.Instance.GetCustomOpenAiMaxTokens().ToString();
             CustomTempBox.Text = PreferenceManager.Instance.GetCustomOpenAiTemperature().ToString("F1", CultureInfo.InvariantCulture);
             ApiKeyLink.Text = "https://platform.openai.com/api-keys";
+
+            var defaultCustomModels = new[] { "gpt-4o-mini", "gpt-4o", "deepseek-chat", "qwen-2.5-coder-32b", "llama-3.1-8b" };
+            foreach (var m in defaultCustomModels) ModelCombo.Items.Add(m);
+            if (!defaultCustomModels.Contains(customModel) && !string.IsNullOrWhiteSpace(customModel)) {
+                ModelCombo.Items.Insert(0, customModel);
+            }
+            ModelCombo.Text = customModel;
         }
 
-        ModelCombo.Items.Clear();
         _ignoreChanges = false;
     }
 
@@ -182,6 +210,9 @@ public partial class SettingsWindow : Window {
 
     private async void RefreshModels_Click(object sender, RoutedEventArgs e) {
         await FetchModels(ModelCombo.Text);
+        if (ModelCombo.Items.Count > 0) {
+            ModelCombo.IsDropDownOpen = true;
+        }
     }
 
     private async Task FetchModels(string currentSelection) {
@@ -189,19 +220,123 @@ public partial class SettingsWindow : Window {
         if (_currentProvider == AiProvider.OpenAiCompatible && string.IsNullOrWhiteSpace(CustomEndpointBox.Text)) return;
 
         ModelCombo.IsEnabled = false;
-        string? endpoint = _currentProvider == AiProvider.OpenAiCompatible ? CustomEndpointBox.Text.Trim() : null;
-        var client = AiClientFactory.CreateSpecific(_currentProvider, ApiKeyBox.Password, currentSelection, endpoint);
-        var models = await client.GetAvailableModelsAsync();
-
-        if (models.Count > 0) {
-            ModelCombo.Items.Clear();
-            foreach (var m in models) ModelCombo.Items.Add(m);
-            var match = models.FirstOrDefault(m => m.Equals(currentSelection, StringComparison.OrdinalIgnoreCase));
-            if (match != null) ModelCombo.SelectedItem = match;
-            else ModelCombo.Text = currentSelection;
+        RefreshModelsBtn.IsEnabled = false;
+        if (TestStatusLabel != null) {
+            TestStatusLabel.Foreground = Brushes.Orange;
+            TestStatusLabel.Text = LanguageManager.Instance.GetString("ui_settings_fetching_models");
         }
 
-        ModelCombo.IsEnabled = true;
+        try {
+            string? endpoint = _currentProvider == AiProvider.OpenAiCompatible ? CustomEndpointBox.Text.Trim() : null;
+            var client = AiClientFactory.CreateSpecific(_currentProvider, ApiKeyBox.Password, currentSelection, endpoint);
+            var models = await client.GetAvailableModelsAsync();
+
+            if (models.Count > 0) {
+                ModelCombo.Items.Clear();
+                foreach (var m in models) ModelCombo.Items.Add(m);
+                var match = models.FirstOrDefault(m => m.Equals(currentSelection, StringComparison.OrdinalIgnoreCase));
+                if (match != null) ModelCombo.SelectedItem = match;
+                else ModelCombo.Text = currentSelection;
+
+                if (TestStatusLabel != null) {
+                    TestStatusLabel.Foreground = Brushes.LightGreen;
+                    string formatStr = LanguageManager.Instance.GetString("ui_settings_models_found");
+                    TestStatusLabel.Text = string.Format(formatStr, models.Count);
+                }
+            } else {
+                if (TestStatusLabel != null) {
+                    TestStatusLabel.Foreground = Brushes.Tomato;
+                    TestStatusLabel.Text = LanguageManager.Instance.GetString("ui_settings_no_models_found");
+                }
+            }
+        }
+        catch (Exception ex) {
+            System.Diagnostics.Debug.WriteLine($"Error fetching models: {ex.Message}");
+            if (TestStatusLabel != null) {
+                TestStatusLabel.Foreground = Brushes.Tomato;
+                TestStatusLabel.Text = ex.Message;
+            }
+        }
+        finally {
+            ModelCombo.IsEnabled = true;
+            RefreshModelsBtn.IsEnabled = true;
+        }
+    }
+
+    private async void TestConnection_Click(object sender, RoutedEventArgs e) {
+        string model = ModelCombo.Text.Trim();
+        string apiKey = ApiKeyBox.Password.Trim();
+        string endpoint = CustomEndpointBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(model)) {
+            MessageBox.Show(
+                LanguageManager.Instance.GetString("msg_test_no_model"),
+                LanguageManager.Instance.GetString("ui_status_error"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            );
+            return;
+        }
+
+        // Empty API keys are completely allowed for OpenAI-compatible/custom endpoints
+        if (_currentProvider != AiProvider.OpenAiCompatible && string.IsNullOrWhiteSpace(apiKey)) {
+            MessageBox.Show(
+                LanguageManager.Instance.GetString("msg_test_no_key"),
+                LanguageManager.Instance.GetString("ui_status_error"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            );
+            return;
+        }
+
+        if (_currentProvider == AiProvider.OpenAiCompatible && string.IsNullOrWhiteSpace(endpoint)) {
+            MessageBox.Show(
+                LanguageManager.Instance.GetString("msg_test_no_endpoint"),
+                LanguageManager.Instance.GetString("ui_status_error"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            );
+            return;
+        }
+
+        TestConnectionBtn.IsEnabled = false;
+        TestStatusLabel.Foreground = Brushes.Orange;
+        TestStatusLabel.Text = LanguageManager.Instance.GetString("ui_settings_test_testing");
+
+        try {
+            string? resolvedEndpoint = _currentProvider == AiProvider.OpenAiCompatible ? endpoint : null;
+            var client = AiClientFactory.CreateSpecific(_currentProvider, apiKey, model, resolvedEndpoint);
+
+            string response = await client.TestConnectionAsync(model);
+
+            TestStatusLabel.Foreground = Brushes.LightGreen;
+            TestStatusLabel.Text = $"OK: {response}";
+
+            string successTemplate = LanguageManager.Instance.GetString("msg_test_success");
+            string title = LanguageManager.Instance.GetString("ui_settings_test_title");
+            MessageBox.Show(
+                string.Format(successTemplate, model, response),
+                title,
+                MessageBoxButton.OK,
+                MessageBoxImage.Information
+            );
+        }
+        catch (Exception ex) {
+            TestStatusLabel.Foreground = Brushes.Tomato;
+            TestStatusLabel.Text = ex.Message;
+
+            string errorTemplate = LanguageManager.Instance.GetString("msg_test_error");
+            string errorTitle = LanguageManager.Instance.GetString("ui_status_error");
+            MessageBox.Show(
+                string.Format(errorTemplate, ex.Message),
+                errorTitle,
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+        }
+        finally {
+            TestConnectionBtn.IsEnabled = true;
+        }
     }
 
     private void LanguageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) {

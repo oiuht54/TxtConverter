@@ -5,31 +5,26 @@
         Width="460" Height="780"
         WindowStartupLocation="CenterOwner"
         Title="Settings" Background="{StaticResource Brush_WindowBg}">
-
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
     </WindowChrome.WindowChrome>
-
     <Border BorderBrush="#333333" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/> <!-- Title Bar -->
-                <RowDefinition Height="*"/>    <!-- Content -->
+                <RowDefinition Height="*"/> <!-- Content -->
             </Grid.RowDefinitions>
-
             <!-- Title Bar -->
             <Grid Grid.Row="0" Background="{StaticResource Brush_WindowBg}" MouseDown="TitleBar_MouseDown" Height="40">
                 <TextBlock Text="{DynamicResource ui_settings}" FontWeight="Bold" Foreground="#888888" Margin="15,0" VerticalAlignment="Center"/>
                 <Button Style="{StaticResource CloseButton}" HorizontalAlignment="Right" Click="Close_Click" Content="X" WindowChrome.IsHitTestVisibleInChrome="True"/>
             </Grid>
-
             <!-- Main Layout -->
             <Grid Grid.Row="1" Margin="20">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>    <!-- Scrollable Content -->
+                    <RowDefinition Height="*"/> <!-- Scrollable Content -->
                     <RowDefinition Height="Auto"/> <!-- Footer/Button -->
                 </Grid.RowDefinitions>
-
                 <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,10,0">
                     <StackPanel>
                         <!-- General Settings -->
@@ -38,23 +33,18 @@
                                 <TextBlock Text="{DynamicResource ui_settings_general}" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
                                 <TextBlock Text="{DynamicResource ui_settings_lang}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
                                 <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_SelectionChanged" HorizontalAlignment="Stretch" Margin="0,0,0,10"/>
-                                
                                 <TextBlock Text="{DynamicResource ui_settings_global_ignored}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
                                 <TextBox x:Name="GlobalIgnoredBox" Tag="{DynamicResource ui_settings_global_ignored_prompt}" ToolTip="{DynamicResource ui_settings_global_ignored_prompt}" Margin="0,0,0,10"/>
-
                                 <TextBlock Text="{DynamicResource ui_settings_global_excluded}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
                                 <TextBox x:Name="GlobalExcludedBox" Tag="{DynamicResource ui_settings_global_excluded_prompt}" ToolTip="{DynamicResource ui_settings_global_excluded_prompt}" Margin="0,0,0,10"/>
-
                                 <CheckBox x:Name="TelemetryCb" Content="{DynamicResource ui_settings_telemetry}" Margin="0,5,0,0"/>
                                 <CheckBox x:Name="AiEnabledCb" Content="{DynamicResource ui_settings_enable_ai}" Margin="0,5,0,0" Checked="AiEnabledCb_StateChanged" Unchecked="AiEnabledCb_StateChanged"/>
                             </StackPanel>
                         </Border>
-
                         <!-- AI Settings -->
                         <Border x:Name="AiSettingsCard" Style="{StaticResource CardBorder}" Margin="0,0,0,15">
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource ui_settings_ai}" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
-
                                 <!-- Provider -->
                                 <TextBlock Text="{DynamicResource ui_settings_provider}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
                                 <ComboBox x:Name="ProviderCombo" SelectionChanged="ProviderCombo_SelectionChanged" HorizontalAlignment="Stretch" Margin="0,0,0,10">
@@ -62,20 +52,17 @@
                                     <ComboBoxItem Content="NVIDIA NIM" Tag="NvidiaNim"/>
                                     <ComboBoxItem Content="{DynamicResource ui_settings_provider_openai}" Tag="OpenAiCompatible"/>
                                 </ComboBox>
-
                                 <!-- Custom Endpoint (OpenAI Compatible) -->
                                 <StackPanel x:Name="CustomEndpointPanel" Visibility="Collapsed">
                                     <TextBlock Text="{DynamicResource ui_settings_custom_endpoint}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
                                     <TextBox x:Name="CustomEndpointBox" Tag="{DynamicResource ui_settings_custom_endpoint_prompt}" ToolTip="{DynamicResource ui_settings_custom_endpoint_prompt}" Margin="0,0,0,10"/>
                                 </StackPanel>
-
                                 <!-- API Key -->
                                 <TextBlock Text="{DynamicResource ui_settings_apikey}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
-                                <PasswordBox x:Name="ApiKeyBox" PasswordChar="•" 
-                                             Background="#151515" Foreground="White" BorderBrush="#333333" BorderThickness="1" 
+                                <PasswordBox x:Name="ApiKeyBox" PasswordChar="•"
+                                             Background="#151515" Foreground="White" BorderBrush="#333333" BorderThickness="1"
                                              Padding="8,6" VerticalContentAlignment="Center" FontSize="14" PasswordChanged="ApiKeyBox_PasswordChanged"/>
                                 <TextBlock x:Name="ApiKeyLink" Text="https://aistudio.google.com/app/apikey" FontSize="11" Foreground="#555555" Margin="0,2,0,10" Cursor="Hand" MouseDown="Link_MouseDown"/>
-
                                 <!-- Model -->
                                 <TextBlock Text="{DynamicResource ui_settings_model}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
                                 <Grid Margin="0,0,0,10">
@@ -84,9 +71,14 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ComboBox x:Name="ModelCombo" IsEditable="True" Background="#151515" Foreground="White" BorderBrush="#444"/>
-                                    <Button Grid.Column="1" Content="↻" Click="RefreshModels_Click" Width="30" Margin="5,0,0,0" ToolTip="Fetch models from API" Background="#333" BorderBrush="#555"/>
+                                    <Button Grid.Column="1" x:Name="RefreshModelsBtn" Click="RefreshModels_Click"
+                                            Width="34" Height="34" Margin="6,0,0,0" Padding="0"
+                                            ToolTip="{DynamicResource ui_settings_fetch_models_tooltip}"
+                                            Background="#2D2D30" BorderBrush="#555">
+                                        <Path Data="M17.65,6.35 C16.2,4.9 14.21,4 12,4 C7.58,4 4.01,7.58 4.01,12 C4.01,16.42 7.58,20 12,20 C15.73,20 18.84,17.45 19.73,14 L17.65,14 C16.83,16.33 14.61,18 12,18 C8.69,18 6,15.31 6,12 C6,8.69 8.69,6 12,6 C13.66,6 15.14,6.69 16.22,7.78 L13,11 L20,11 L20,4 L17.65,6.35 Z"
+                                              Fill="{StaticResource Brush_Fg}" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Button>
                                 </Grid>
-
                                 <!-- GEMINI SPECIFIC PANEL -->
                                 <StackPanel x:Name="GeminiPanel" Visibility="Visible">
                                     <TextBlock Text="{DynamicResource ui_settings_thinking}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
@@ -106,7 +98,6 @@
                                         <TextBox x:Name="BudgetBox" Grid.Column="1" Text="24000"/>
                                     </Grid>
                                 </StackPanel>
-
                                 <!-- NVIDIA SPECIFIC PANEL -->
                                 <StackPanel x:Name="NvidiaPanel" Visibility="Collapsed">
                                     <!-- Max Tokens -->
@@ -140,7 +131,6 @@
                                     <TextBlock Text="Reasoning (DeepSeek R1):" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
                                     <CheckBox x:Name="NvReasoningCb" Content="Enable Thinking &amp; High Effort" Margin="0,0,0,10" ToolTip="Adds 'chat_template_kwargs: {thinking: true}' and 'effort: high' to request."/>
                                 </StackPanel>
-
                                 <!-- OPENAI COMPATIBLE SPECIFIC PANEL -->
                                 <StackPanel x:Name="CustomOpenAiPanel" Visibility="Collapsed">
                                     <!-- Max Tokens -->
@@ -162,9 +152,18 @@
                                         <TextBox x:Name="CustomTempBox" Grid.Column="1" Text="0.5"/>
                                     </Grid>
                                 </StackPanel>
+                                <!-- Test Connection Action -->
+                                <Separator Background="#333333" Margin="0,10,0,10"/>
+                                <Grid Margin="0,0,0,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="TestConnectionBtn" Content="{DynamicResource ui_settings_test_btn}" Click="TestConnection_Click" Height="32" Padding="14,0" Background="#2D2D30" BorderBrush="#007ACC" Foreground="#0090F0" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="TestStatusLabel" Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" Foreground="#888888" FontSize="12"/>
+                                </Grid>
                             </StackPanel>
                         </Border>
-
                         <!-- About & Credits -->
                         <Border Style="{StaticResource CardBorder}" Margin="0,0,0,5">
                             <StackPanel>
@@ -186,7 +185,7 @@
                                     <TextBlock Grid.Column="1" Text="oiuht54/Diziac" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 </Grid>
                                 <TextBlock Text="{DynamicResource ui_settings_repo_link}" Margin="0,0,0,5" Foreground="{StaticResource Brush_Fg}"/>
-                                <TextBlock x:Name="RepoLink" Text="https://github.com/oiuht54/TxtConverter" 
+                                <TextBlock x:Name="RepoLink" Text="https://github.com/oiuht54/TxtConverter"
                                            FontSize="12" Foreground="#0090F0" TextDecorations="Underline"
                                            ToolTip="https://github.com/oiuht54/TxtConverter"
                                            Cursor="Hand" MouseDown="Link_MouseDown" Margin="0,2,0,5"/>
@@ -194,7 +193,6 @@
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
-
                 <Button Grid.Row="1" Content="{DynamicResource ui_settings_close}" HorizontalAlignment="Right" Width="100" Click="Close_Click" Style="{StaticResource AccentButton}" Margin="0,20,0,0"/>
             </Grid>
         </Grid>

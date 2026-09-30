@@ -34,12 +34,10 @@
     <s:String x:Key="ui_select_files_btn">Выбрать файлы...</s:String>
     <s:String x:Key="ui_convert_btn">НАЧАТЬ КОНВЕРТАЦИЮ</s:String>
     <s:String x:Key="ui_log_label">Лог выполнения:</s:String>
-
     <s:String x:Key="ui_compression_label">Сжатие токенов:</s:String>
     <s:String x:Key="ui_comp_none">Нет (Оригинал)</s:String>
     <s:String x:Key="ui_comp_smart">Умное (Безопасно)</s:String>
     <s:String x:Key="ui_comp_max">Максимум (уникальный алгоритм сжатия)</s:String>
-
     <s:String x:Key="ui_ai_select_btn">AI Выбор</s:String>
 
     <!-- Status -->
@@ -63,10 +61,24 @@
     <s:String x:Key="ui_settings_custom_endpoint_prompt">например https://api.openai.com/v1 или http://localhost:11434/v1</s:String>
     <s:String x:Key="ui_settings_apikey">API Ключ:</s:String>
     <s:String x:Key="ui_settings_model">Модель:</s:String>
+    <s:String x:Key="ui_settings_fetch_models_tooltip">Получить список моделей из API</s:String>
+    <s:String x:Key="ui_settings_fetching_models">Запрос списка моделей...</s:String>
+    <s:String x:Key="ui_settings_models_found">Найдено моделей: {0}</s:String>
+    <s:String x:Key="ui_settings_no_models_found">API не вернул список моделей</s:String>
     <s:String x:Key="ui_settings_thinking">Размышление (Thinking):</s:String>
     <s:String x:Key="ui_settings_tokens">Бюджет токенов:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Включить размышление (только Gemini)</s:String>
     <s:String x:Key="ui_settings_close">Закрыть</s:String>
+
+    <!-- AI Test Connection Strings -->
+    <s:String x:Key="ui_settings_test_btn">⚡ Проверить соединение</s:String>
+    <s:String x:Key="ui_settings_test_title">Проверка подключения к API</s:String>
+    <s:String x:Key="ui_settings_test_testing">Отправка тестового запроса ("Hi")...</s:String>
+    <s:String x:Key="msg_test_success">Подключение успешно!&#x0a;&#x0a;Модель: {0}&#x0a;Ответ:&#x0a;{1}</s:String>
+    <s:String x:Key="msg_test_error">Ошибка проверки подключения:&#x0a;{0}</s:String>
+    <s:String x:Key="msg_test_no_model">Пожалуйста, выберите или укажите модель.</s:String>
+    <s:String x:Key="msg_test_no_key">Пожалуйста, сначала введите API ключ.</s:String>
+    <s:String x:Key="msg_test_no_endpoint">Пожалуйста, укажите адрес API (Base URL).</s:String>
 
     <!-- About & Credits -->
     <s:String x:Key="ui_settings_about">О программе и авторы</s:String>
@@ -113,7 +125,7 @@
     <s:String x:Key="task_pdf">Рендеринг PDF отчета...</s:String>
     <s:String x:Key="task_done">Готово!</s:String>
 
-    <!-- New Tooltips and Dialog Localization keys -->
+    <!-- Tooltips and Dialog Localization keys -->
     <s:String x:Key="ui_save_preset_tooltip">Сохранить/Обновить пресет</s:String>
     <s:String x:Key="ui_add_preset_tooltip">Создать новый пресет</s:String>
     <s:String x:Key="ui_delete_preset_tooltip">Удалить пользовательский пресет</s:String>
@@ -124,7 +136,6 @@
     <s:String x:Key="msg_preset_exists">Пресет с таким именем уже существует!</s:String>
     <s:String x:Key="msg_preset_confirm_delete">Вы действительно хотите удалить пресет '{0}'?</s:String>
     <s:String x:Key="msg_preset_builtin_error">Невозможно изменить или удалить встроенный пресет. Пожалуйста, сохраните его под новым именем.</s:String>
-
     <s:String x:Key="ui_settings_global_ignored">Всегда игнорируемые папки (через запятую):</s:String>
     <s:String x:Key="ui_settings_global_ignored_prompt">Например: bin, obj, .git, venv</s:String>
     <s:String x:Key="ui_settings_global_excluded">Всегда исключаемые файлы/папки (через запятую):</s:String>

@@ -34,12 +34,10 @@
     <s:String x:Key="ui_select_files_btn">Select Files...</s:String>
     <s:String x:Key="ui_convert_btn">START CONVERSION</s:String>
     <s:String x:Key="ui_log_label">Execution Log:</s:String>
-
     <s:String x:Key="ui_compression_label">Token Compression Level:</s:String>
     <s:String x:Key="ui_comp_none">None (Original)</s:String>
     <s:String x:Key="ui_comp_smart">Smart (Safe)</s:String>
     <s:String x:Key="ui_comp_max">Maximum (Semantic optimization)</s:String>
-
     <s:String x:Key="ui_ai_select_btn">AI Select</s:String>
 
     <!-- Status -->
@@ -63,10 +61,24 @@
     <s:String x:Key="ui_settings_custom_endpoint_prompt">e.g. https://api.openai.com/v1 or http://localhost:11434/v1</s:String>
     <s:String x:Key="ui_settings_apikey">API Key:</s:String>
     <s:String x:Key="ui_settings_model">Model:</s:String>
+    <s:String x:Key="ui_settings_fetch_models_tooltip">Fetch models from API</s:String>
+    <s:String x:Key="ui_settings_fetching_models">Fetching models list...</s:String>
+    <s:String x:Key="ui_settings_models_found">Found {0} models</s:String>
+    <s:String x:Key="ui_settings_no_models_found">No models returned by API</s:String>
     <s:String x:Key="ui_settings_thinking">Reasoning / Thinking:</s:String>
     <s:String x:Key="ui_settings_tokens">Token Budget:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Enable Thinking (Gemini only)</s:String>
     <s:String x:Key="ui_settings_close">Close</s:String>
+
+    <!-- AI Test Connection Strings -->
+    <s:String x:Key="ui_settings_test_btn">⚡ Test Connection</s:String>
+    <s:String x:Key="ui_settings_test_title">API Connection Test</s:String>
+    <s:String x:Key="ui_settings_test_testing">Sending test request ("Hi")...</s:String>
+    <s:String x:Key="msg_test_success">Connection successful!&#x0a;&#x0a;Model: {0}&#x0a;Response:&#x0a;{1}</s:String>
+    <s:String x:Key="msg_test_error">Connection test failed:&#x0a;{0}</s:String>
+    <s:String x:Key="msg_test_no_model">Please select or enter a model name.</s:String>
+    <s:String x:Key="msg_test_no_key">Please enter an API Key first.</s:String>
+    <s:String x:Key="msg_test_no_endpoint">Please enter the API Endpoint (Base URL) first.</s:String>
 
     <!-- About & Credits -->
     <s:String x:Key="ui_settings_about">About &amp; Credits</s:String>
@@ -113,7 +125,7 @@
     <s:String x:Key="task_pdf">Rendering PDF Report...</s:String>
     <s:String x:Key="task_done">Done!</s:String>
 
-    <!-- New Tooltips and Dialog Localization keys -->
+    <!-- Tooltips and Dialog Localization keys -->
     <s:String x:Key="ui_save_preset_tooltip">Save/Update Preset</s:String>
     <s:String x:Key="ui_add_preset_tooltip">Add New Preset</s:String>
     <s:String x:Key="ui_delete_preset_tooltip">Delete Custom Preset</s:String>
@@ -124,7 +136,6 @@
     <s:String x:Key="msg_preset_exists">A preset with this name already exists!</s:String>
     <s:String x:Key="msg_preset_confirm_delete">Are you sure you want to delete preset '{0}'?</s:String>
     <s:String x:Key="msg_preset_builtin_error">Cannot modify or delete built-in presets. Please save as a new preset.</s:String>
-
     <s:String x:Key="ui_settings_global_ignored">Always Ignored Folders (comma separated):</s:String>
     <s:String x:Key="ui_settings_global_ignored_prompt">Example: bin, obj, .git, venv</s:String>
     <s:String x:Key="ui_settings_global_excluded">Always Excluded Files/Folders (comma separated):</s:String>
