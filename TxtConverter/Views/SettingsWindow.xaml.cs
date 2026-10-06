@@ -2,11 +2,13 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using TxtConverter.Core;
 using TxtConverter.Core.Enums;
 using TxtConverter.Services;
@@ -17,11 +19,72 @@ namespace TxtConverter.Views;
 public partial class SettingsWindow : Window {
     private bool _ignoreChanges;
     private AiProvider _currentProvider;
+    private readonly DispatcherTimer _autoFetchDebounceTimer;
+    private string _lastFetchedEndpoint = string.Empty;
+    private string _lastFetchedApiKey = string.Empty;
+    private int _fetchSequenceId = 0;
+    private CancellationTokenSource? _fetchCts;
 
     public SettingsWindow() {
         InitializeComponent();
+        _autoFetchDebounceTimer = new DispatcherTimer {
+            Interval = TimeSpan.FromMilliseconds(700)
+        };
+        _autoFetchDebounceTimer.Tick += AutoFetchDebounceTimer_Tick;
+
         LoadSettings();
         UpdateAiCardVisibility();
+    }
+
+    private void AutoFetchDebounceTimer_Tick(object? sender, EventArgs e) {
+        _autoFetchDebounceTimer.Stop();
+        if (_currentProvider == AiProvider.OpenAiCompatible) {
+            TriggerAutoFetchModels();
+        }
+    }
+
+    private void ResetAndStartAutoFetchDebounce() {
+        _autoFetchDebounceTimer.Stop();
+        _autoFetchDebounceTimer.Start();
+    }
+
+    private void TriggerAutoFetchModels(bool force = false) {
+        if (_currentProvider != AiProvider.OpenAiCompatible) return;
+
+        string endpoint = CustomEndpointBox.Text?.Trim() ?? string.Empty;
+        string apiKey = ApiKeyBox.Password?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(endpoint) || endpoint.Length < 4) return;
+
+        if (!force && endpoint.Equals(_lastFetchedEndpoint, StringComparison.OrdinalIgnoreCase) && apiKey == _lastFetchedApiKey) {
+            return;
+        }
+
+        _lastFetchedEndpoint = endpoint;
+        _lastFetchedApiKey = apiKey;
+        _ = FetchModels(ModelCombo.Text);
+    }
+
+    private void CustomEndpointBox_TextChanged(object sender, TextChangedEventArgs e) {
+        if (_ignoreChanges) return;
+        if (_currentProvider == AiProvider.OpenAiCompatible) {
+            ResetAndStartAutoFetchDebounce();
+        }
+    }
+
+    private void CustomEndpointBox_LostFocus(object sender, RoutedEventArgs e) {
+        if (_ignoreChanges) return;
+        if (_currentProvider == AiProvider.OpenAiCompatible) {
+            _autoFetchDebounceTimer.Stop();
+            TriggerAutoFetchModels();
+        }
+    }
+
+    private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e) {
+        if (_ignoreChanges) return;
+        if (_currentProvider == AiProvider.OpenAiCompatible) {
+            ResetAndStartAutoFetchDebounce();
+        }
     }
 
     private void AiEnabledCb_StateChanged(object sender, RoutedEventArgs e) {
@@ -71,6 +134,7 @@ public partial class SettingsWindow : Window {
                 break;
             }
         }
+
         UpdateAiFields();
 
         // Version info display
@@ -78,25 +142,44 @@ public partial class SettingsWindow : Window {
 
         _ignoreChanges = false;
 
-        if ((!string.IsNullOrEmpty(ApiKeyBox.Password) || _currentProvider == AiProvider.OpenAiCompatible) && ModelCombo.Items.Count == 0) {
+        if (_currentProvider == AiProvider.OpenAiCompatible) {
+            if (!string.IsNullOrWhiteSpace(CustomEndpointBox.Text)) {
+                _lastFetchedEndpoint = CustomEndpointBox.Text.Trim();
+                _lastFetchedApiKey = ApiKeyBox.Password.Trim();
+                _ = FetchModels(ModelCombo.Text);
+            }
+        }
+        else if (!string.IsNullOrEmpty(ApiKeyBox.Password) && ModelCombo.Items.Count == 0) {
             _ = FetchModels(ModelCombo.Text);
         }
     }
 
     private void ProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) {
         if (_ignoreChanges) return;
+        _autoFetchDebounceTimer.Stop();
         SaveAiStateForProvider(_currentProvider);
+
         if (ProviderCombo.SelectedItem is ComboBoxItem item && item.Tag is string tag) {
             if (Enum.TryParse<AiProvider>(tag, out var newProvider)) {
                 _currentProvider = newProvider;
+                _lastFetchedEndpoint = string.Empty;
+                _lastFetchedApiKey = string.Empty;
                 UpdateAiFields();
+
+                if (_currentProvider == AiProvider.OpenAiCompatible && !string.IsNullOrWhiteSpace(CustomEndpointBox.Text)) {
+                    _lastFetchedEndpoint = CustomEndpointBox.Text.Trim();
+                    _lastFetchedApiKey = ApiKeyBox.Password.Trim();
+                    _ = FetchModels(ModelCombo.Text);
+                }
+                else if (_currentProvider != AiProvider.OpenAiCompatible && !string.IsNullOrEmpty(ApiKeyBox.Password)) {
+                    _ = FetchModels(ModelCombo.Text);
+                }
             }
         }
     }
 
     private void UpdateAiFields() {
         _ignoreChanges = true;
-
         if (TestStatusLabel != null) {
             TestStatusLabel.Text = string.Empty;
         }
@@ -117,6 +200,7 @@ public partial class SettingsWindow : Window {
 
             var defaultGeminiModels = new[] { "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro" };
             foreach (var m in defaultGeminiModels) ModelCombo.Items.Add(m);
+
             if (!defaultGeminiModels.Contains(geminiModel) && !string.IsNullOrWhiteSpace(geminiModel)) {
                 ModelCombo.Items.Insert(0, geminiModel);
             }
@@ -140,6 +224,7 @@ public partial class SettingsWindow : Window {
 
             var defaultNvidiaModels = new[] { "minimaxai/minimax-m2", "deepseek-ai/deepseek-r1", "meta/llama-3.1-70b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct" };
             foreach (var m in defaultNvidiaModels) ModelCombo.Items.Add(m);
+
             if (!defaultNvidiaModels.Contains(nvidiaModel) && !string.IsNullOrWhiteSpace(nvidiaModel)) {
                 ModelCombo.Items.Insert(0, nvidiaModel);
             }
@@ -160,6 +245,7 @@ public partial class SettingsWindow : Window {
 
             var defaultCustomModels = new[] { "gpt-4o-mini", "gpt-4o", "deepseek-chat", "qwen-2.5-coder-32b", "llama-3.1-8b" };
             foreach (var m in defaultCustomModels) ModelCombo.Items.Add(m);
+
             if (!defaultCustomModels.Contains(customModel) && !string.IsNullOrWhiteSpace(customModel)) {
                 ModelCombo.Items.Insert(0, customModel);
             }
@@ -200,6 +286,8 @@ public partial class SettingsWindow : Window {
     }
 
     private async void RefreshModels_Click(object sender, RoutedEventArgs e) {
+        _autoFetchDebounceTimer.Stop();
+        _lastFetchedEndpoint = string.Empty;
         await FetchModels(ModelCombo.Text);
         if (ModelCombo.Items.Count > 0) {
             ModelCombo.IsDropDownOpen = true;
@@ -210,8 +298,13 @@ public partial class SettingsWindow : Window {
         if (_currentProvider != AiProvider.OpenAiCompatible && string.IsNullOrEmpty(ApiKeyBox.Password)) return;
         if (_currentProvider == AiProvider.OpenAiCompatible && string.IsNullOrWhiteSpace(CustomEndpointBox.Text)) return;
 
-        ModelCombo.IsEnabled = false;
+        int seqId = Interlocked.Increment(ref _fetchSequenceId);
+        _fetchCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _fetchCts = cts;
+
         RefreshModelsBtn.IsEnabled = false;
+
         if (TestStatusLabel != null) {
             TestStatusLabel.Foreground = Brushes.Orange;
             TestStatusLabel.Text = LanguageManager.Instance.GetString("ui_settings_fetching_models");
@@ -219,12 +312,16 @@ public partial class SettingsWindow : Window {
 
         try {
             string? endpoint = _currentProvider == AiProvider.OpenAiCompatible ? CustomEndpointBox.Text.Trim() : null;
-            var client = AiClientFactory.CreateSpecific(_currentProvider, ApiKeyBox.Password, currentSelection, endpoint);
+            string apiKey = ApiKeyBox.Password.Trim();
+            var client = AiClientFactory.CreateSpecific(_currentProvider, apiKey, currentSelection, endpoint);
             var models = await client.GetAvailableModelsAsync();
+
+            if (seqId != _fetchSequenceId || cts.IsCancellationRequested) return;
 
             if (models.Count > 0) {
                 ModelCombo.Items.Clear();
                 foreach (var m in models) ModelCombo.Items.Add(m);
+
                 var match = models.FirstOrDefault(m => m.Equals(currentSelection, StringComparison.OrdinalIgnoreCase));
                 if (match != null) ModelCombo.SelectedItem = match;
                 else ModelCombo.Text = currentSelection;
@@ -242,6 +339,7 @@ public partial class SettingsWindow : Window {
             }
         }
         catch (Exception ex) {
+            if (seqId != _fetchSequenceId || cts.IsCancellationRequested) return;
             System.Diagnostics.Debug.WriteLine($"Error fetching models: {ex.Message}");
             if (TestStatusLabel != null) {
                 TestStatusLabel.Foreground = Brushes.Tomato;
@@ -249,8 +347,9 @@ public partial class SettingsWindow : Window {
             }
         }
         finally {
-            ModelCombo.IsEnabled = true;
-            RefreshModelsBtn.IsEnabled = true;
+            if (seqId == _fetchSequenceId) {
+                RefreshModelsBtn.IsEnabled = true;
+            }
         }
     }
 
@@ -371,14 +470,14 @@ public partial class SettingsWindow : Window {
         }
     }
 
-    private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e) { }
-
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e) {
         if (e.ChangedButton == MouseButton.Left)
             this.DragMove();
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) {
+        _autoFetchDebounceTimer.Stop();
+        _fetchCts?.Cancel();
         SaveSettings();
         this.Close();
     }

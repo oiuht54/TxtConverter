@@ -8,6 +8,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using TxtConverter.Core;
 
@@ -36,16 +37,13 @@ public class OpenAiCompatibleClient : IAiClient {
         _maxTokens = maxTokens > 0 ? maxTokens : 4096;
         _temperature = temperature;
         _topP = topP;
-
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromMinutes(10);
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-
         if (!string.IsNullOrWhiteSpace(_apiKey)) {
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey.Trim());
         }
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
         _jsonOptions = new JsonSerializerOptions {
             WriteIndented = true,
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
@@ -74,15 +72,16 @@ public class OpenAiCompatibleClient : IAiClient {
 
         result = result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         result.Sort();
-        return result.Count > 0 ? result : GetFallbackModels();
+        return result;
     }
 
     private async Task<bool> TryFetchModelsUrlAsync(string url, List<string> result) {
         try {
-            var response = await _httpClient.GetAsync(url);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            var response = await _httpClient.GetAsync(url, cts.Token);
             if (!response.IsSuccessStatusCode) return false;
 
-            string json = await response.Content.ReadAsStringAsync();
+            string json = await response.Content.ReadAsStringAsync(cts.Token);
             var root = JsonNode.Parse(json);
             if (root == null) return false;
 
@@ -113,8 +112,8 @@ public class OpenAiCompatibleClient : IAiClient {
         foreach (var node in arr) {
             if (node is JsonObject obj) {
                 string id = obj["id"]?.ToString() ??
-                            obj["name"]?.ToString() ??
-                            obj["model"]?.ToString() ?? "";
+                           obj["name"]?.ToString() ??
+                           obj["model"]?.ToString() ?? "";
                 if (!string.IsNullOrWhiteSpace(id)) {
                     result.Add(id);
                 }
@@ -234,7 +233,6 @@ public class OpenAiCompatibleClient : IAiClient {
 
         string requestJson = payload.ToJsonString(_jsonOptions);
         var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
-
         var response = await _httpClient.PostAsync($"{_baseUrl}/chat/completions", content);
         string responseBody = await response.Content.ReadAsStringAsync();
 
@@ -256,13 +254,20 @@ public class OpenAiCompatibleClient : IAiClient {
         if (string.IsNullOrWhiteSpace(endpoint)) {
             return "https://api.openai.com/v1";
         }
+
         string trimmed = endpoint.Trim().TrimEnd('/');
+        if (!trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+            trimmed = "http://" + trimmed;
+        }
+
         if (trimmed.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase)) {
             trimmed = trimmed.Substring(0, trimmed.Length - "/chat/completions".Length).TrimEnd('/');
         }
         else if (trimmed.EndsWith("/models", StringComparison.OrdinalIgnoreCase)) {
             trimmed = trimmed.Substring(0, trimmed.Length - "/models".Length).TrimEnd('/');
         }
+
         return trimmed;
     }
 
@@ -284,6 +289,7 @@ public class OpenAiCompatibleClient : IAiClient {
             if (string.IsNullOrEmpty(content)) return;
 
             result.RawContentText = content;
+
             string jsonText = CleanJsonText(content);
             var paths = JsonSerializer.Deserialize<List<string>>(jsonText);
             if (paths != null) result.SelectedFiles = paths;
@@ -305,17 +311,7 @@ public class OpenAiCompatibleClient : IAiClient {
         if (start >= 0 && end > start) {
             return text.Substring(start, end - start + 1);
         }
-        return text;
-    }
 
-    private List<string> GetFallbackModels() {
-        var list = new List<string>();
-        if (!string.IsNullOrWhiteSpace(_defaultModel)) {
-            list.Add(_defaultModel);
-        }
-        if (!list.Contains("gpt-4o-mini")) list.Add("gpt-4o-mini");
-        if (!list.Contains("gpt-4o")) list.Add("gpt-4o");
-        if (!list.Contains("deepseek-chat")) list.Add("deepseek-chat");
-        return list;
+        return text;
     }
 }
