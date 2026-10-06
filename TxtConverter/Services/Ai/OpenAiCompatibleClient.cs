@@ -36,6 +36,7 @@ public class OpenAiCompatibleClient : IAiClient {
         _maxTokens = maxTokens > 0 ? maxTokens : 4096;
         _temperature = temperature;
         _topP = topP;
+
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromMinutes(10);
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -44,6 +45,7 @@ public class OpenAiCompatibleClient : IAiClient {
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey.Trim());
         }
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
         _jsonOptions = new JsonSerializerOptions {
             WriteIndented = true,
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
@@ -53,16 +55,16 @@ public class OpenAiCompatibleClient : IAiClient {
     public async Task<List<string>> GetAvailableModelsAsync() {
         var result = new List<string>();
 
-        // 1. Try standard OpenAI /models endpoint
+        // 1. Standard OpenAI /models endpoint
         string url = $"{_baseUrl}/models";
         bool fetched = await TryFetchModelsUrlAsync(url, result);
 
-        // 2. If failed and baseUrl does not end with /v1, try appending /v1/models (common with Ollama / LM Studio)
+        // 2. Append /v1/models if applicable
         if (!fetched && !_baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)) {
             fetched = await TryFetchModelsUrlAsync($"{_baseUrl}/v1/models", result);
         }
 
-        // 3. If still failed, try Ollama's native /api/tags endpoint
+        // 3. Ollama native /api/tags
         if (!fetched) {
             string hostOnly = _baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
                 ? _baseUrl.Substring(0, _baseUrl.Length - 3).TrimEnd('/')
@@ -86,19 +88,16 @@ public class OpenAiCompatibleClient : IAiClient {
 
             int initialCount = result.Count;
 
-            // Format A: { "data": [ { "id": "model" }, ... ] }
             var dataNode = root["data"]?.AsArray();
             if (dataNode != null) {
                 ExtractModelsFromArray(dataNode, result);
             }
 
-            // Format B: { "models": [ { "name": "model" }, ... ] } (e.g. Ollama tags)
             var modelsNode = root["models"]?.AsArray();
             if (modelsNode != null) {
                 ExtractModelsFromArray(modelsNode, result);
             }
 
-            // Format C: Root array [ { "id": "model" }, ... ] or [ "model1", ... ]
             if (root is JsonArray arr) {
                 ExtractModelsFromArray(arr, result);
             }
@@ -129,34 +128,14 @@ public class OpenAiCompatibleClient : IAiClient {
         }
     }
 
-    public async Task<AiAnalysisResult> AnalyzeProjectAsync(string userPrompt, string projectContext, string? overrideModel = null, int? overrideBudget = null) {
+    public async Task<AiAnalysisResult> AnalyzeProjectAsync(
+        string userPrompt,
+        string projectContext,
+        string? overrideModel = null,
+        int? overrideBudget = null,
+        string? systemPrompt = null) {
         string modelToUse = !string.IsNullOrWhiteSpace(overrideModel) ? overrideModel : _defaultModel;
-
-        var sbSys = new StringBuilder();
-        sbSys.AppendLine("You are a **Static Code Analysis Engine**.");
-        sbSys.AppendLine("Your goal is to build a complete execution environment for a specific task.");
-        sbSys.AppendLine("Do not guess based on filenames. **READ THE CODE** to find dependencies.");
-        sbSys.AppendLine();
-        sbSys.AppendLine("### EXECUTION PROTOCOL:");
-        sbSys.AppendLine("1. **Identify the Target:** Find the script(s) that directly implement the task logic.");
-        sbSys.AppendLine("2. **Scan for Hard Dependencies (The 'Mid Model' Strategy):**");
-        sbSys.AppendLine(" - Look inside the Target Script.");
-        sbSys.AppendLine(" - If it calls `PoolManager.get(...)` -> INCLUDE `PoolManager.gd`.");
-        sbSys.AppendLine(" - If it uses `preload(\"res://path/to/item.tres\")` -> INCLUDE `item.tres`.");
-        sbSys.AppendLine(" - If it instantiates a Scene (`.tscn`), INCLUDE that `.tscn` file.");
-        sbSys.AppendLine(" - If it inherits `extends InteractiveObject`, INCLUDE `InteractiveObject.gd`.");
-        sbSys.AppendLine("3. **Scan for Data Definitions:**");
-        sbSys.AppendLine(" - If the Target uses a variable typed as a custom Class/Resource, include the file where that Class is defined.");
-        sbSys.AppendLine("4. **Identify Reference Patterns:**");
-        sbSys.AppendLine(" - Does another file in the project solve a similar problem? (e.g., if writing `VoxelWorld`, look at `WallGenerator`). Include it as a coding pattern reference.");
-        sbSys.AppendLine();
-        sbSys.AppendLine("### FILTERING RULES:");
-        sbSys.AppendLine("- **Strict Relevance:** Do NOT include thematic cousins (e.g., do not include 'WandGenerator' for 'TerrainGeneration' just because they both generate things). Only include if they share a base class or utility library.");
-        sbSys.AppendLine("- **Completeness:** If code A calls code B, and code B is missing, the code is broken. Include B.");
-        sbSys.AppendLine();
-        sbSys.AppendLine("### OUTPUT FORMAT:");
-        sbSys.AppendLine("[\"path/to/target.gd\", \"path/to/dependency.gd\", \"path/to/resource.tres\"]");
-        sbSys.AppendLine("(Return ONLY JSON)");
+        string resolvedSystemPrompt = !string.IsNullOrWhiteSpace(systemPrompt) ? systemPrompt : ProjectConstants.DefaultAiSystemPrompt;
 
         var sbUser = new StringBuilder();
         sbUser.AppendLine("--- TASK DESCRIPTION ---");
@@ -179,11 +158,10 @@ public class OpenAiCompatibleClient : IAiClient {
             payload["top_p"] = _topP;
             payload["max_tokens"] = _maxTokens;
         }
-
         payload["stream"] = false;
 
         var messages = new JsonArray();
-        messages.Add(new JsonObject { ["role"] = "system", ["content"] = sbSys.ToString() });
+        messages.Add(new JsonObject { ["role"] = "system", ["content"] = resolvedSystemPrompt });
         messages.Add(new JsonObject { ["role"] = "user", ["content"] = sbUser.ToString() });
         payload["messages"] = messages;
 
@@ -204,7 +182,7 @@ public class OpenAiCompatibleClient : IAiClient {
 
         var result = new AiAnalysisResult {
             RequestJson = debugSb.ToString(),
-            CleanRequestText = sbSys.ToString() + "\n\n" + sbUser.ToString(),
+            CleanRequestText = resolvedSystemPrompt + "\n\n" + sbUser.ToString(),
             ProviderName = $"OpenAI Compatible ({_baseUrl})"
         };
 
@@ -278,7 +256,6 @@ public class OpenAiCompatibleClient : IAiClient {
         if (string.IsNullOrWhiteSpace(endpoint)) {
             return "https://api.openai.com/v1";
         }
-
         string trimmed = endpoint.Trim().TrimEnd('/');
         if (trimmed.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase)) {
             trimmed = trimmed.Substring(0, trimmed.Length - "/chat/completions".Length).TrimEnd('/');
@@ -319,8 +296,10 @@ public class OpenAiCompatibleClient : IAiClient {
     private string CleanJsonText(string text) {
         var match = Regex.Match(text, @"```json\s*(\[[\s\S]*?\])\s*```");
         if (match.Success) return match.Groups[1].Value;
+
         match = Regex.Match(text, @"```\s*(\[[\s\S]*?\])\s*```");
         if (match.Success) return match.Groups[1].Value;
+
         int start = text.IndexOf('[');
         int end = text.LastIndexOf(']');
         if (start >= 0 && end > start) {

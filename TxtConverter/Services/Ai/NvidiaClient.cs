@@ -31,10 +31,12 @@ public class NvidiaClient : IAiClient {
         _temperature = temperature;
         _topP = topP;
         _reasoningEnabled = reasoningEnabled;
+
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromMinutes(10);
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
         _jsonOptions = new JsonSerializerOptions {
             WriteIndented = true,
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
@@ -52,8 +54,8 @@ public class NvidiaClient : IAiClient {
             string json = await response.Content.ReadAsStringAsync();
             var root = JsonNode.Parse(json);
             var dataNode = root?["data"]?.AsArray();
-            var result = new List<string>();
 
+            var result = new List<string>();
             if (dataNode != null) {
                 foreach (var node in dataNode) {
                     string id = node?["id"]?.ToString() ?? "";
@@ -62,7 +64,6 @@ public class NvidiaClient : IAiClient {
                     }
                 }
             }
-
             result.Sort();
             return result;
         }
@@ -76,37 +77,17 @@ public class NvidiaClient : IAiClient {
         }
     }
 
-    public async Task<AiAnalysisResult> AnalyzeProjectAsync(string userPrompt, string projectContext, string? overrideModel = null, int? overrideBudget = null) {
+    public async Task<AiAnalysisResult> AnalyzeProjectAsync(
+        string userPrompt,
+        string projectContext,
+        string? overrideModel = null,
+        int? overrideBudget = null,
+        string? systemPrompt = null) {
         if (string.IsNullOrWhiteSpace(_apiKey))
             throw new Exception("NVIDIA API Key is missing. Please check Settings.");
 
         string modelToUse = !string.IsNullOrWhiteSpace(overrideModel) ? overrideModel : _defaultModel;
-
-        var sbSys = new StringBuilder();
-        sbSys.AppendLine("You are a **Static Code Analysis Engine**.");
-        sbSys.AppendLine("Your goal is to build a complete execution environment for a specific task.");
-        sbSys.AppendLine("Do not guess based on filenames. **READ THE CODE** to find dependencies.");
-        sbSys.AppendLine();
-        sbSys.AppendLine("### EXECUTION PROTOCOL:");
-        sbSys.AppendLine("1. **Identify the Target:** Find the script(s) that directly implement the task logic.");
-        sbSys.AppendLine("2. **Scan for Hard Dependencies (The 'Mid Model' Strategy):**");
-        sbSys.AppendLine(" - Look inside the Target Script.");
-        sbSys.AppendLine(" - If it calls `PoolManager.get(...)` -> INCLUDE `PoolManager.gd`.");
-        sbSys.AppendLine(" - If it uses `preload(\"res://path/to/item.tres\")` -> INCLUDE `item.tres`.");
-        sbSys.AppendLine(" - If it instantiates a Scene (`.tscn`), INCLUDE that `.tscn` file.");
-        sbSys.AppendLine(" - If it inherits `extends InteractiveObject`, INCLUDE `InteractiveObject.gd`.");
-        sbSys.AppendLine("3. **Scan for Data Definitions:**");
-        sbSys.AppendLine(" - If the Target uses a variable typed as a custom Class/Resource, include the file where that Class is defined.");
-        sbSys.AppendLine("4. **Identify Reference Patterns:**");
-        sbSys.AppendLine(" - Does another file in the project solve a similar problem? (e.g., if writing `VoxelWorld`, look at `WallGenerator`). Include it as a coding pattern reference.");
-        sbSys.AppendLine();
-        sbSys.AppendLine("### FILTERING RULES:");
-        sbSys.AppendLine("- **Strict Relevance:** Do NOT include thematic cousins (e.g., do not include 'WandGenerator' for 'TerrainGeneration' just because they both generate things). Only include if they share a base class or utility library.");
-        sbSys.AppendLine("- **Completeness:** If code A calls code B, and code B is missing, the code is broken. Include B.");
-        sbSys.AppendLine();
-        sbSys.AppendLine("### OUTPUT FORMAT:");
-        sbSys.AppendLine("[\"path/to/target.gd\", \"path/to/dependency.gd\", \"path/to/resource.tres\"]");
-        sbSys.AppendLine("(Return ONLY JSON)");
+        string resolvedSystemPrompt = !string.IsNullOrWhiteSpace(systemPrompt) ? systemPrompt : ProjectConstants.DefaultAiSystemPrompt;
 
         var sbUser = new StringBuilder();
         sbUser.AppendLine("--- TASK DESCRIPTION ---");
@@ -133,7 +114,7 @@ public class NvidiaClient : IAiClient {
         }
 
         var messages = new JsonArray();
-        messages.Add(new JsonObject { ["role"] = "system", ["content"] = sbSys.ToString() });
+        messages.Add(new JsonObject { ["role"] = "system", ["content"] = resolvedSystemPrompt });
         messages.Add(new JsonObject { ["role"] = "user", ["content"] = sbUser.ToString() });
         payload["messages"] = messages;
 
@@ -149,7 +130,7 @@ public class NvidiaClient : IAiClient {
 
         var result = new AiAnalysisResult {
             RequestJson = debugSb.ToString(),
-            CleanRequestText = sbSys.ToString() + "\n\n" + sbUser.ToString(),
+            CleanRequestText = resolvedSystemPrompt + "\n\n" + sbUser.ToString(),
             ProviderName = "NVIDIA NIM"
         };
 
@@ -243,8 +224,10 @@ public class NvidiaClient : IAiClient {
     private string CleanJsonText(string text) {
         var match = Regex.Match(text, @"```json\s*(\[[\s\S]*?\])\s*```");
         if (match.Success) return match.Groups[1].Value;
+
         match = Regex.Match(text, @"```\s*(\[[\s\S]*?\])\s*```");
         if (match.Success) return match.Groups[1].Value;
+
         int start = text.IndexOf('[');
         int end = text.LastIndexOf(']');
         if (start >= 0 && end > start) {

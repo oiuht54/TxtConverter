@@ -52,7 +52,7 @@
     <!-- Settings Window -->
     <s:String x:Key="ui_settings_general">General</s:String>
     <s:String x:Key="ui_settings_ai">Artificial Intelligence (AI)</s:String>
-    <s:String x:Key="ui_settings_enable_ai">AI Selection (Deprecated)</s:String>
+    <s:String x:Key="ui_settings_enable_ai">Enable AI File Selection</s:String>
     <s:String x:Key="ui_settings_lang">Interface Language:</s:String>
     <s:String x:Key="ui_settings_telemetry">Send anonymous usage statistics</s:String>
     <s:String x:Key="ui_settings_provider">Provider:</s:String>
@@ -69,6 +69,33 @@
     <s:String x:Key="ui_settings_tokens">Token Budget:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Enable Thinking (Gemini only)</s:String>
     <s:String x:Key="ui_settings_close">Close</s:String>
+
+    <!-- AI Task Window -->
+    <s:String x:Key="ui_ai_window_title">AI Smart Select</s:String>
+    <s:String x:Key="ui_ai_tab_task">Task &amp; Config</s:String>
+    <s:String x:Key="ui_ai_tab_system_prompt">System Prompt (Rules)</s:String>
+    <s:String x:Key="ui_ai_tab_request">Sent Context (Debug)</s:String>
+    <s:String x:Key="ui_ai_tab_response">AI Response / Thoughts</s:String>
+    <s:String x:Key="ui_ai_model_override">Model Settings (Override for this request)</s:String>
+    <s:String x:Key="ui_ai_describe_task">Describe your task:</s:String>
+    <s:String x:Key="ui_ai_task_prompt_example">Example: I need to fix the player movement logic and collision handling...</s:String>
+    <s:String x:Key="ui_ai_prompt_rules_title">System Instructions &amp; Selection Strategy</s:String>
+    <s:String x:Key="ui_ai_prompt_rules_desc">Define how the LLM analyzes dependencies, rules, and formats output. Changes are saved across sessions.</s:String>
+    <s:String x:Key="ui_ai_prompt_reset">Reset to Default</s:String>
+    <s:String x:Key="ui_ai_prompt_reset_confirm">Reset the system prompt to the factory default?</s:String>
+    <s:String x:Key="ui_ai_prompt_saved_hint">✓ System prompt auto-saved</s:String>
+    <s:String x:Key="ui_ai_analyze_btn">🚀 Analyze Project</s:String>
+    <s:String x:Key="ui_ai_cancel_btn">Cancel</s:String>
+    <s:String x:Key="ui_ai_thinking_overlay">AI IS THINKING...</s:String>
+    <s:String x:Key="ui_ai_building_context">Building Context...</s:String>
+    <s:String x:Key="ui_ai_packing_files">Packing project files...</s:String>
+    <s:String x:Key="ui_ai_sending_to_ai">Sending to {0} (Large projects may take 30+ sec)...</s:String>
+    <s:String x:Key="ui_ai_status_ready">Ready to analyze.</s:String>
+    <s:String x:Key="ui_ai_status_analyzed">Selected {0} files.</s:String>
+    <s:String x:Key="ui_ai_input_required">Please describe your task before analyzing.</s:String>
+    <s:String x:Key="ui_ai_no_selection_msg">AI response was received but contained no file selection. Check the 'AI Response' tab.</s:String>
+    <s:String x:Key="ui_ai_matching_failed_msg">AI suggested files, but none could be matched to local project paths. Check 'AI Response' tab.</s:String>
+    <s:String x:Key="ui_ai_apply_selection_confirm">AI identified {0} relevant files.&#x0a;Apply this selection to conversion?</s:String>
 
     <!-- AI Test Connection Strings -->
     <s:String x:Key="ui_settings_test_btn">⚡ Test Connection</s:String>

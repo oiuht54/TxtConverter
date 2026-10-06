@@ -27,17 +27,13 @@ public partial class SettingsWindow : Window {
     private void AiEnabledCb_StateChanged(object sender, RoutedEventArgs e) {
         if (_ignoreChanges) return;
         if (AiEnabledCb != null) {
-#pragma warning disable CS0618
             PreferenceManager.Instance.SetAiEnabled(AiEnabledCb.IsChecked == true);
-#pragma warning restore CS0618
             UpdateAiCardVisibility();
         }
     }
 
     private void UpdateAiCardVisibility() {
-#pragma warning disable CS0618
         bool aiEnabled = PreferenceManager.Instance.GetAiEnabled();
-#pragma warning restore CS0618
         if (AiSettingsCard != null) {
             AiSettingsCard.Visibility = aiEnabled ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -65,9 +61,7 @@ public partial class SettingsWindow : Window {
         TelemetryCb.IsChecked = PreferenceManager.Instance.GetTelemetryEnabled();
 
         // AI Enablement Checkbox
-#pragma warning disable CS0618
         AiEnabledCb.IsChecked = PreferenceManager.Instance.GetAiEnabled();
-#pragma warning restore CS0618
 
         // AI Providers
         _currentProvider = PreferenceManager.Instance.GetAiProvider();
@@ -77,7 +71,6 @@ public partial class SettingsWindow : Window {
                 break;
             }
         }
-
         UpdateAiFields();
 
         // Version info display
@@ -103,6 +96,7 @@ public partial class SettingsWindow : Window {
 
     private void UpdateAiFields() {
         _ignoreChanges = true;
+
         if (TestStatusLabel != null) {
             TestStatusLabel.Text = string.Empty;
         }
@@ -227,10 +221,10 @@ public partial class SettingsWindow : Window {
             string? endpoint = _currentProvider == AiProvider.OpenAiCompatible ? CustomEndpointBox.Text.Trim() : null;
             var client = AiClientFactory.CreateSpecific(_currentProvider, ApiKeyBox.Password, currentSelection, endpoint);
             var models = await client.GetAvailableModelsAsync();
+
             if (models.Count > 0) {
                 ModelCombo.Items.Clear();
                 foreach (var m in models) ModelCombo.Items.Add(m);
-
                 var match = models.FirstOrDefault(m => m.Equals(currentSelection, StringComparison.OrdinalIgnoreCase));
                 if (match != null) ModelCombo.SelectedItem = match;
                 else ModelCombo.Text = currentSelection;
@@ -346,7 +340,6 @@ public partial class SettingsWindow : Window {
                 if (result.IsUpdateAvailable && result.Release != null) {
                     UpdateStatusLabel.Foreground = Brushes.LightGreen;
                     UpdateStatusLabel.Text = string.Format(LanguageManager.Instance.GetString("ui_update_info"), result.Release.TagName, ProjectConstants.CurrentVersion);
-
                     var updateWin = new UpdateNotificationWindow(result.Release);
                     updateWin.Owner = this;
                     updateWin.ShowDialog();
@@ -397,9 +390,7 @@ public partial class SettingsWindow : Window {
         PreferenceManager.Instance.SetGlobalIgnoredFolders(GlobalIgnoredBox.Text);
         PreferenceManager.Instance.SetGlobalExcludedPaths(GlobalExcludedBox.Text);
         if (AiEnabledCb != null) {
-#pragma warning disable CS0618
             PreferenceManager.Instance.SetAiEnabled(AiEnabledCb.IsChecked == true);
-#pragma warning restore CS0618
         }
         PreferenceManager.Instance.Save();
     }

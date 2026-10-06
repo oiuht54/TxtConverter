@@ -13,7 +13,13 @@ public interface IAiClient {
     /// <param name="projectContext">Полный текст проекта</param>
     /// <param name="overrideModel">Модель (если отличается от дефолтной)</param>
     /// <param name="overrideBudget">Бюджет токенов (если применимо)</param>
-    Task<AiAnalysisResult> AnalyzeProjectAsync(string userPrompt, string projectContext, string? overrideModel = null, int? overrideBudget = null);
+    /// <param name="systemPrompt">Настраиваемые системные инструкции анализа</param>
+    Task<AiAnalysisResult> AnalyzeProjectAsync(
+        string userPrompt,
+        string projectContext,
+        string? overrideModel = null,
+        int? overrideBudget = null,
+        string? systemPrompt = null);
 
     /// <summary>
     /// Выполняет тестовый запрос к API с простым приветствием ("Hi") для проверки соединения и валидности настроек.

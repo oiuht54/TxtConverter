@@ -52,7 +52,7 @@
     <!-- Settings Window -->
     <s:String x:Key="ui_settings_general">Общие</s:String>
     <s:String x:Key="ui_settings_ai">Искусственный Интеллект (AI)</s:String>
-    <s:String x:Key="ui_settings_enable_ai">AI-выбор (Устарело)</s:String>
+    <s:String x:Key="ui_settings_enable_ai">Включить AI-выбор файлов</s:String>
     <s:String x:Key="ui_settings_lang">Язык интерфейса:</s:String>
     <s:String x:Key="ui_settings_telemetry">Отправлять анонимную статистику</s:String>
     <s:String x:Key="ui_settings_provider">Провайдер:</s:String>
@@ -69,6 +69,33 @@
     <s:String x:Key="ui_settings_tokens">Бюджет токенов:</s:String>
     <s:String x:Key="ui_settings_enable_reasoning">Включить размышление (только Gemini)</s:String>
     <s:String x:Key="ui_settings_close">Закрыть</s:String>
+
+    <!-- AI Task Window -->
+    <s:String x:Key="ui_ai_window_title">Умный AI-выбор файлов</s:String>
+    <s:String x:Key="ui_ai_tab_task">Задача и параметры</s:String>
+    <s:String x:Key="ui_ai_tab_system_prompt">Системный промпт (Правила)</s:String>
+    <s:String x:Key="ui_ai_tab_request">Отправленный контекст (Debug)</s:String>
+    <s:String x:Key="ui_ai_tab_response">Ответ ИИ / Мысли</s:String>
+    <s:String x:Key="ui_ai_model_override">Параметры модели (Переопределение для этого запроса)</s:String>
+    <s:String x:Key="ui_ai_describe_task">Опишите вашу задачу:</s:String>
+    <s:String x:Key="ui_ai_task_prompt_example">Например: Нужно исправить логику передвижения игрока и обработку коллизий...</s:String>
+    <s:String x:Key="ui_ai_prompt_rules_title">Системные инструкции и правила отбора</s:String>
+    <s:String x:Key="ui_ai_prompt_rules_desc">Инструкции анализа зависимостей и формат вывода, отправляемые нейросети. Сохраняются автоматически.</s:String>
+    <s:String x:Key="ui_ai_prompt_reset">Сбросить по умолчанию</s:String>
+    <s:String x:Key="ui_ai_prompt_reset_confirm">Сбросить системный промпт к заводским настройкам?</s:String>
+    <s:String x:Key="ui_ai_prompt_saved_hint">✓ Системный промпт сохранён</s:String>
+    <s:String x:Key="ui_ai_analyze_btn">🚀 Анализировать проект</s:String>
+    <s:String x:Key="ui_ai_cancel_btn">Отмена</s:String>
+    <s:String x:Key="ui_ai_thinking_overlay">ИИ АНАЛИЗИРУЕТ ПРОЕКТ...</s:String>
+    <s:String x:Key="ui_ai_building_context">Сборка контекста...</s:String>
+    <s:String x:Key="ui_ai_packing_files">Упаковка файлов проекта...</s:String>
+    <s:String x:Key="ui_ai_sending_to_ai">Отправка в {0} (для больших проектов может занять 30+ сек)...</s:String>
+    <s:String x:Key="ui_ai_status_ready">Готов к анализу.</s:String>
+    <s:String x:Key="ui_ai_status_analyzed">Выбрано {0} файлов.</s:String>
+    <s:String x:Key="ui_ai_input_required">Пожалуйста, опишите задачу перед запуском анализа.</s:String>
+    <s:String x:Key="ui_ai_no_selection_msg">Ответ от ИИ получен, но список файлов пуст. Проверьте вкладку 'Ответ ИИ'.</s:String>
+    <s:String x:Key="ui_ai_matching_failed_msg">ИИ предложил файлы, но их не удалось сопоставить с локальным проектом. Проверьте вкладку 'Ответ ИИ'.</s:String>
+    <s:String x:Key="ui_ai_apply_selection_confirm">ИИ определил {0} подходящих файлов.&#x0a;Применить этот выбор для конвертации?</s:String>
 
     <!-- AI Test Connection Strings -->
     <s:String x:Key="ui_settings_test_btn">⚡ Проверить соединение</s:String>

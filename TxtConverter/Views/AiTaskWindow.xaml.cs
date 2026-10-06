@@ -1,7 +1,12 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using TxtConverter.Core;
 using TxtConverter.Core.Enums;
 using TxtConverter.Core.Logic;
 using TxtConverter.Services;
@@ -13,14 +18,23 @@ public partial class AiTaskWindow : Window {
     private readonly string _rootPath;
     private readonly List<string> _allFiles;
     private readonly AiProvider _provider;
+    private bool _isInitializing = true;
+
     public List<string>? ResultPaths { get; private set; }
 
     public AiTaskWindow(string rootPath, List<string> allFiles) {
         InitializeComponent();
+
         _rootPath = rootPath;
         _allFiles = allFiles;
         _provider = PreferenceManager.Instance.GetAiProvider();
-        ProviderHeaderLabel.Text = $"({_provider})";
+
+        ProviderHeaderLabel.Text = _provider switch {
+            AiProvider.GoogleGemini => "Google Gemini",
+            AiProvider.NvidiaNim => "NVIDIA NIM",
+            AiProvider.OpenAiCompatible => "OpenAI Compatible",
+            _ => _provider.ToString()
+        };
 
         string currentModel = PreferenceManager.Instance.GetAiModel();
         ModelOverrideBox.Text = currentModel;
@@ -33,8 +47,13 @@ public partial class AiTaskWindow : Window {
             BudgetOverrideBox.Text = "N/A";
         }
 
+        // Load custom prompt from preferences
+        SystemPromptBox.Text = PreferenceManager.Instance.GetAiSystemPrompt();
+
         PromptBox.Focus();
-        StatusText.Text = $"Using: {_provider}";
+        StatusText.Text = Loc("ui_ai_status_ready") ?? "Ready to analyze.";
+
+        _isInitializing = false;
         LoadModels(currentModel);
     }
 
@@ -59,10 +78,34 @@ public partial class AiTaskWindow : Window {
         catch { }
     }
 
+    private void PromptBox_TextChanged(object sender, TextChangedEventArgs e) {
+        if (PromptWatermark != null) {
+            PromptWatermark.Visibility = string.IsNullOrEmpty(PromptBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+    }
+
+    private void SystemPromptBox_TextChanged(object sender, TextChangedEventArgs e) {
+        if (_isInitializing) return;
+        PreferenceManager.Instance.SetAiSystemPrompt(SystemPromptBox.Text);
+    }
+
+    private void ResetPrompt_Click(object sender, RoutedEventArgs e) {
+        string confirmMsg = Loc("ui_ai_prompt_reset_confirm") ?? "Reset system prompt to factory default?";
+        string title = Loc("ui_ai_window_title") ?? "AI Smart Select";
+
+        var confirm = MessageBox.Show(confirmMsg, title, MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm == MessageBoxResult.Yes) {
+            PreferenceManager.Instance.ResetAiSystemPrompt();
+            SystemPromptBox.Text = PreferenceManager.Instance.GetAiSystemPrompt();
+        }
+    }
+
     private async void Analyze_Click(object sender, RoutedEventArgs e) {
         string prompt = PromptBox.Text.Trim();
         if (string.IsNullOrEmpty(prompt)) {
-            MessageBox.Show("Please describe your task.", "Input required", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Loc("ui_ai_input_required") ?? "Please describe your task.", Loc("ui_status_error") ?? "Input required", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -70,21 +113,31 @@ public partial class AiTaskWindow : Window {
         int budget = 0;
         int.TryParse(BudgetOverrideBox.Text, out budget);
 
+        // Ensure latest prompt changes are persisted
+        string customPrompt = SystemPromptBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(customPrompt)) {
+            customPrompt = ProjectConstants.DefaultAiSystemPrompt;
+        }
+        PreferenceManager.Instance.SetAiSystemPrompt(customPrompt);
+
         SetLoading(true);
-        RequestBox.Text = "Generating context...";
+        RequestBox.Text = Loc("ui_ai_building_context") ?? "Generating context...";
         ResponseBox.Text = "Waiting for response...";
 
         try {
-            LoadingStatus.Text = "Packing project files...";
+            LoadingStatus.Text = Loc("ui_ai_packing_files") ?? "Packing project files...";
             var contextBuilder = new ContextBuilder(_rootPath, _allFiles, PreferenceManager.Instance.GetCompressionLevel());
             var reporter = new Progress<string>(s => LoadingStatus.Text = s);
             string projectContext = await contextBuilder.BuildContextAsync(reporter);
 
-            LoadingStatus.Text = $"Sending to {_provider} (Large projects may take 30+ sec)...";
+            string sendFormat = Loc("ui_ai_sending_to_ai") ?? "Sending to {0} (Large projects may take 30+ sec)...";
+            LoadingStatus.Text = string.Format(sendFormat, _provider);
+
             var client = AiClientFactory.CreateClient();
-            var result = await client.AnalyzeProjectAsync(prompt, projectContext, model, budget);
+            var result = await client.AnalyzeProjectAsync(prompt, projectContext, model, budget, customPrompt);
 
             RequestBox.Text = result.RequestJson;
+
             var sbResp = new StringBuilder();
             sbResp.AppendLine($"=== {result.ProviderName} Response ===");
             sbResp.AppendLine(result.RawContentText);
@@ -95,28 +148,30 @@ public partial class AiTaskWindow : Window {
 
             if (result.SelectedFiles.Count == 0) {
                 StatusText.Text = "AI returned 0 files.";
-                MessageBox.Show("AI response was received but contained no file selection. Check the 'AI Response' tab.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc("ui_ai_no_selection_msg") ?? "AI response was received but contained no file selection. Check the 'AI Response' tab.", Loc("ui_status_error") ?? "No Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             var resolvedPaths = MatchFiles(result.SelectedFiles);
             if (resolvedPaths.Count == 0) {
                 StatusText.Text = "Matching failed.";
-                MessageBox.Show("AI suggested files, but none could be matched to local paths. Check 'AI Response' tab.", "Matching Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc("ui_ai_matching_failed_msg") ?? "AI suggested files, but none could be matched to local paths. Check 'AI Response' tab.", Loc("ui_status_error") ?? "Matching Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             ResultPaths = resolvedPaths;
-            StatusText.Text = $"Selected {resolvedPaths.Count} files.";
-            var confirm = MessageBox.Show($"AI identified {resolvedPaths.Count} relevant files.\nApply this selection?", "Done", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            StatusText.Text = string.Format(Loc("ui_ai_status_analyzed") ?? "Selected {0} files.", resolvedPaths.Count);
+
+            string confirmTemplate = Loc("ui_ai_apply_selection_confirm") ?? "AI identified {0} relevant files.\nApply this selection?";
+            var confirm = MessageBox.Show(string.Format(confirmTemplate, resolvedPaths.Count), Loc("ui_status_done") ?? "Done", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirm == MessageBoxResult.Yes) {
                 DialogResult = true;
                 Close();
             }
         }
         catch (Exception ex) {
-            MessageBox.Show($"Error: {ex.Message}\nCheck Debug Tabs for details.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            StatusText.Text = "Error occurred.";
+            MessageBox.Show($"Error: {ex.Message}\nCheck Debug Tabs for details.", Loc("ui_status_error") ?? "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusText.Text = Loc("ui_status_error") ?? "Error occurred.";
         }
         finally {
             SetLoading(false);
@@ -166,6 +221,7 @@ public partial class AiTaskWindow : Window {
                 matched.Add(foundOriginalPath);
             }
         }
+
         return matched.ToList();
     }
 
@@ -174,6 +230,7 @@ public partial class AiTaskWindow : Window {
         PromptBox.IsEnabled = !isLoading;
         AnalyzeBtn.IsEnabled = !isLoading;
         ModelOverrideBox.IsEnabled = !isLoading;
+        SystemPromptBox.IsEnabled = !isLoading;
         if (_provider == AiProvider.GoogleGemini) BudgetOverrideBox.IsEnabled = !isLoading;
     }
 
@@ -181,7 +238,17 @@ public partial class AiTaskWindow : Window {
         if (e.ChangedButton == MouseButton.Left) DragMove();
     }
 
+    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
     private void Close_Click(object sender, RoutedEventArgs e) {
+        if (!string.IsNullOrWhiteSpace(SystemPromptBox.Text)) {
+            PreferenceManager.Instance.SetAiSystemPrompt(SystemPromptBox.Text);
+        }
         Close();
+    }
+
+    private string? Loc(string key) {
+        string text = LanguageManager.Instance.GetString(key);
+        return text.StartsWith("!") && text.EndsWith("!") ? null : text;
     }
 }

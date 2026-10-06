@@ -26,12 +26,12 @@ public class AppSettings {
     public PdfMode PdfMode { get; set; } = PdfMode.Standard;
     public CompressionLevel Compression { get; set; } = CompressionLevel.Smart;
 
-    // AI Common (Deprecated / Disabled by default)
-    [Obsolete("AI integration is deprecated and will be removed in future versions.")]
+    // AI Common
     public bool AiEnabled { get; set; } = false;
     public AiProvider AiProvider { get; set; } = AiProvider.GoogleGemini;
     public bool AiThinkingEnabled { get; set; } = true;
     public int AiThinkingBudget { get; set; } = ProjectConstants.DefaultThinkingBudget;
+    public string AiSystemPrompt { get; set; } = string.Empty;
 
     // Gemini Specific
     public string AiApiKey { get; set; } = string.Empty;
@@ -60,6 +60,7 @@ public class AppSettings {
     // Global Settings
     public string GlobalIgnoredFolders { get; set; } = string.Empty;
     public string GlobalExcludedPaths { get; set; } = string.Empty;
+
     public List<PresetModel> CustomPresets { get; set; } = new();
 }
 
@@ -93,22 +94,13 @@ public class PreferenceManager {
                     if (loaded != null) {
                         _settings = loaded;
                         if (!string.IsNullOrEmpty(_settings.AiApiKey)) {
-                            try {
-                                _settings.AiApiKey = FromBase64(_settings.AiApiKey);
-                            }
-                            catch { }
+                            try { _settings.AiApiKey = FromBase64(_settings.AiApiKey); } catch { }
                         }
                         if (!string.IsNullOrEmpty(_settings.NvidiaApiKey)) {
-                            try {
-                                _settings.NvidiaApiKey = FromBase64(_settings.NvidiaApiKey);
-                            }
-                            catch { }
+                            try { _settings.NvidiaApiKey = FromBase64(_settings.NvidiaApiKey); } catch { }
                         }
                         if (!string.IsNullOrEmpty(_settings.CustomOpenAiApiKey)) {
-                            try {
-                                _settings.CustomOpenAiApiKey = FromBase64(_settings.CustomOpenAiApiKey);
-                            }
-                            catch { }
+                            try { _settings.CustomOpenAiApiKey = FromBase64(_settings.CustomOpenAiApiKey); } catch { }
                         }
                     }
                 }
@@ -132,7 +124,6 @@ public class PreferenceManager {
 
     private void SaveInternal() {
         try {
-#pragma warning disable CS0618
             var settingsClone = new AppSettings {
                 Language = _settings.Language,
                 LastSourceDir = _settings.LastSourceDir,
@@ -147,6 +138,7 @@ public class PreferenceManager {
                 AiProvider = _settings.AiProvider,
                 AiThinkingEnabled = _settings.AiThinkingEnabled,
                 AiThinkingBudget = _settings.AiThinkingBudget,
+                AiSystemPrompt = _settings.AiSystemPrompt,
                 AiApiKey = ToBase64(_settings.AiApiKey),
                 AiModel = _settings.AiModel,
                 NvidiaApiKey = ToBase64(_settings.NvidiaApiKey),
@@ -167,7 +159,7 @@ public class PreferenceManager {
                 GlobalExcludedPaths = _settings.GlobalExcludedPaths,
                 CustomPresets = _settings.CustomPresets != null ? new List<PresetModel>(_settings.CustomPresets) : new List<PresetModel>()
             };
-#pragma warning restore CS0618
+
             var options = new JsonSerializerOptions { WriteIndented = true };
             string json = JsonSerializer.Serialize(settingsClone, options);
             File.WriteAllText(_settingsPath, json);
@@ -202,31 +194,53 @@ public class PreferenceManager {
     // --- Getters / Setters ---
     public string GetLanguage() => _settings.Language;
     public void SetLanguage(string lang) { _settings.Language = lang; Save(); }
+
     public string GetLastSourceDir() => _settings.LastSourceDir;
     public void SetLastSourceDir(string path) { _settings.LastSourceDir = path; Save(); }
+
     public string GetLastPreset() => _settings.LastPreset;
     public void SetLastPreset(string preset) { _settings.LastPreset = preset; Save(); }
+
     public bool GetGenerateStructure() => _settings.GenerateStructure;
     public void SetGenerateStructure(bool val) { _settings.GenerateStructure = val; Save(); }
+
     public bool GetCompactMode() => _settings.CompactMode;
     public void SetCompactMode(bool val) { _settings.CompactMode = val; Save(); }
+
     public bool GetGenerateMerged() => _settings.GenerateMerged;
     public void SetGenerateMerged(bool val) { _settings.GenerateMerged = val; Save(); }
+
     public bool GetGeneratePdf() => _settings.GeneratePdf;
     public void SetGeneratePdf(bool val) { _settings.GeneratePdf = val; Save(); }
+
     public PdfMode GetPdfMode() => _settings.PdfMode;
     public void SetPdfMode(PdfMode val) { _settings.PdfMode = val; Save(); }
+
     public CompressionLevel GetCompressionLevel() => _settings.Compression;
     public void SetCompressionLevel(CompressionLevel level) { _settings.Compression = level; Save(); }
 
-    [Obsolete("AI selection is deprecated.")]
     public bool GetAiEnabled() => _settings.AiEnabled;
-    [Obsolete("AI selection is deprecated.")]
     public void SetAiEnabled(bool val) { _settings.AiEnabled = val; Save(); }
 
     // AI Settings
     public AiProvider GetAiProvider() => _settings.AiProvider;
     public void SetAiProvider(AiProvider provider) { _settings.AiProvider = provider; Save(); }
+
+    public string GetAiSystemPrompt() {
+        return string.IsNullOrWhiteSpace(_settings.AiSystemPrompt)
+            ? ProjectConstants.DefaultAiSystemPrompt
+            : _settings.AiSystemPrompt;
+    }
+
+    public void SetAiSystemPrompt(string prompt) {
+        _settings.AiSystemPrompt = prompt;
+        Save();
+    }
+
+    public void ResetAiSystemPrompt() {
+        _settings.AiSystemPrompt = ProjectConstants.DefaultAiSystemPrompt;
+        Save();
+    }
 
     public string GetAiApiKey() {
         return _settings.AiProvider switch {

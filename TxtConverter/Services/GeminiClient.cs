@@ -22,8 +22,10 @@ public class GeminiClient : IAiClient {
         _defaultModel = defaultModel;
         _thinkingEnabled = thinkingEnabled;
         _defaultTokenBudget = tokenBudget;
+
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromMinutes(10);
+
         _jsonOptions = new JsonSerializerOptions {
             WriteIndented = true,
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
@@ -41,8 +43,8 @@ public class GeminiClient : IAiClient {
             string json = await response.Content.ReadAsStringAsync();
             var root = JsonNode.Parse(json);
             var modelsNode = root?["models"]?.AsArray();
-            var result = new List<string>();
 
+            var result = new List<string>();
             if (modelsNode != null) {
                 foreach (var node in modelsNode) {
                     string name = node?["name"]?.ToString() ?? "";
@@ -64,7 +66,6 @@ public class GeminiClient : IAiClient {
                     }
                 }
             }
-
             result.Sort((a, b) => {
                 bool aGemini = a.Contains("gemini");
                 bool bGemini = b.Contains("gemini");
@@ -72,7 +73,6 @@ public class GeminiClient : IAiClient {
                 if (!aGemini && bGemini) return 1;
                 return string.Compare(b, a, StringComparison.Ordinal);
             });
-
             return result;
         }
         catch {
@@ -80,51 +80,30 @@ public class GeminiClient : IAiClient {
         }
     }
 
-    public async Task<AiAnalysisResult> AnalyzeProjectAsync(string userPrompt, string projectContext, string? overrideModel = null, int? overrideBudget = null) {
+    public async Task<AiAnalysisResult> AnalyzeProjectAsync(
+        string userPrompt,
+        string projectContext,
+        string? overrideModel = null,
+        int? overrideBudget = null,
+        string? systemPrompt = null) {
         if (string.IsNullOrWhiteSpace(_apiKey))
             throw new Exception("Gemini API Key is missing. Please check Settings.");
 
         string modelToUse = !string.IsNullOrWhiteSpace(overrideModel) ? overrideModel : _defaultModel;
         int budgetToUse = (overrideBudget.HasValue && overrideBudget.Value > 0) ? overrideBudget.Value : _defaultTokenBudget;
-
         string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelToUse}:generateContent?key={_apiKey}";
 
-        var sbSys = new StringBuilder();
-        sbSys.AppendLine("You are a **Static Code Analysis Engine**.");
-        sbSys.AppendLine("Your goal is to build a complete execution environment for a specific task.");
-        sbSys.AppendLine("Do not guess based on filenames. **READ THE CODE** to find dependencies.");
-        sbSys.AppendLine();
-        sbSys.AppendLine("### EXECUTION PROTOCOL:");
-        sbSys.AppendLine("1. **Identify the Target:** Find the script(s) that directly implement the task logic.");
-        sbSys.AppendLine("2. **Scan for Hard Dependencies (The 'Mid Model' Strategy):**");
-        sbSys.AppendLine(" - Look inside the Target Script.");
-        sbSys.AppendLine(" - If it calls `PoolManager.get(...)` -> INCLUDE `PoolManager.gd`.");
-        sbSys.AppendLine(" - If it uses `preload(\"res://path/to/item.tres\")` -> INCLUDE `item.tres`.");
-        sbSys.AppendLine(" - If it instantiates a Scene (`.tscn`), INCLUDE that `.tscn` file.");
-        sbSys.AppendLine(" - If it inherits `extends InteractiveObject`, INCLUDE `InteractiveObject.gd`.");
-        sbSys.AppendLine("3. **Scan for Data Definitions:**");
-        sbSys.AppendLine(" - If the Target uses a variable typed as a custom Class/Resource, include the file where that Class is defined.");
-        sbSys.AppendLine("4. **Identify Reference Patterns:**");
-        sbSys.AppendLine(" - Does another file in the project solve a similar problem? (e.g., if writing `VoxelWorld`, look at `WallGenerator`). Include it as a coding pattern reference.");
-        sbSys.AppendLine();
-        sbSys.AppendLine("### FILTERING RULES:");
-        sbSys.AppendLine("- **Strict Relevance:** Do NOT include thematic cousins (e.g., do not include 'WandGenerator' for 'TerrainGeneration' just because they both generate things). Only include if they share a base class or utility library.");
-        sbSys.AppendLine("- **Completeness:** If code A calls code B, and code B is missing, the code is broken. Include B.");
-        sbSys.AppendLine();
-        sbSys.AppendLine("### OUTPUT FORMAT:");
-        sbSys.AppendLine("[\"path/to/target.gd\", \"path/to/dependency.gd\", \"path/to/resource.tres\"]");
-        sbSys.AppendLine("(Return ONLY JSON)");
+        string resolvedSystemPrompt = !string.IsNullOrWhiteSpace(systemPrompt) ? systemPrompt : ProjectConstants.DefaultAiSystemPrompt;
 
         var sbFull = new StringBuilder();
         sbFull.AppendLine("--- SYSTEM INSTRUCTION ---");
-        sbFull.Append(sbSys.ToString());
+        sbFull.AppendLine(resolvedSystemPrompt);
         sbFull.AppendLine();
         sbFull.AppendLine("--- TASK DESCRIPTION (TARGET) ---");
         sbFull.AppendLine(userPrompt);
         sbFull.AppendLine();
         sbFull.AppendLine("--- PROJECT FILE INDEX & CONTENT ---");
         sbFull.AppendLine(projectContext);
-
         string fullText = sbFull.ToString();
 
         var payload = new JsonObject();
@@ -134,10 +113,12 @@ public class GeminiClient : IAiClient {
         var contentObj = new JsonObject();
         contentObj["role"] = "user";
         contentObj["parts"] = parts;
+
         payload["contents"] = new JsonArray { contentObj };
 
         var genConfig = new JsonObject();
         genConfig["temperature"] = 0.0;
+
         if (_thinkingEnabled) {
             var thinkingConfig = new JsonObject();
             thinkingConfig["thinkingBudget"] = budgetToUse;
@@ -268,8 +249,10 @@ public class GeminiClient : IAiClient {
     private string CleanJsonText(string text) {
         var match = Regex.Match(text, @"```json\s*(\[[\s\S]*?\])\s*```");
         if (match.Success) return match.Groups[1].Value;
+
         match = Regex.Match(text, @"```\s*(\[[\s\S]*?\])\s*```");
         if (match.Success) return match.Groups[1].Value;
+
         int start = text.IndexOf('[');
         int end = text.LastIndexOf(']');
         if (start >= 0 && end > start) {
