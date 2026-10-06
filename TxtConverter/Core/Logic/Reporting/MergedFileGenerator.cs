@@ -1,7 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System;
 using TxtConverter.Core.Enums;
 using TxtConverter.Services;
 
@@ -9,7 +10,7 @@ namespace TxtConverter.Core.Logic.Reporting;
 
 /// <summary>
 /// Generates the single merged text file.
-/// Safely prepends the prompt-friendly legend, non-All-Caps warning, 
+/// Safely prepends the prompt-friendly legend, non-All-Caps warning,
 /// horizontal layout structures, and numbered file blocks.
 /// </summary>
 public class MergedFileGenerator {
@@ -19,19 +20,22 @@ public class MergedFileGenerator {
     private readonly HashSet<string> _filesSelectedForMerge;
     private readonly CompressionLevel _compressionLevel;
     private readonly string _structureContent;
+    private readonly IReadOnlyDictionary<string, string>? _inMemoryContents;
 
     public MergedFileGenerator(
         string sourceDirPath,
         Dictionary<string, string> processedFilesMap,
         HashSet<string> filesSelectedForMerge,
         CompressionLevel compressionLevel,
-        string structureContent) {
+        string structureContent,
+        IReadOnlyDictionary<string, string>? inMemoryContents = null) {
         _sourceDirPath = sourceDirPath;
         _projectName = Path.GetFileName(sourceDirPath);
         _processedFilesMap = processedFilesMap;
         _filesSelectedForMerge = filesSelectedForMerge;
         _compressionLevel = compressionLevel;
         _structureContent = structureContent;
+        _inMemoryContents = inMemoryContents;
     }
 
     public void Generate(string outputFilePath) {
@@ -81,7 +85,13 @@ public class MergedFileGenerator {
             // Append code or Stub message
             if (_filesSelectedForMerge.Contains(originalPath)) {
                 try {
-                    string content = File.ReadAllText(processedPath, Encoding.UTF8);
+                    string content;
+                    if (_inMemoryContents != null && _inMemoryContents.TryGetValue(originalPath, out var cachedContent)) {
+                        content = cachedContent;
+                    }
+                    else {
+                        content = File.ReadAllText(processedPath, Encoding.UTF8);
+                    }
                     sb.Append(content).Append('\n');
                 }
                 catch (Exception ex) {

@@ -1,7 +1,7 @@
-using System.IO;
-using System.Linq;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -22,19 +22,22 @@ public class PdfReportGenerator {
     private readonly Dictionary<string, string> _processedFilesMap;
     private readonly HashSet<string> _filesSelectedForMerge;
     private readonly PdfMode _mode;
+    private readonly IReadOnlyDictionary<string, string>? _inMemoryContents;
 
     public PdfReportGenerator(
         string sourceDirPath,
         string structureContent,
         Dictionary<string, string> processedFilesMap,
         HashSet<string> filesSelectedForMerge,
-        PdfMode mode) {
+        PdfMode mode,
+        IReadOnlyDictionary<string, string>? inMemoryContents = null) {
         _sourceDirPath = sourceDirPath;
         _projectName = Path.GetFileName(sourceDirPath);
         _structureContent = structureContent;
         _processedFilesMap = processedFilesMap;
         _filesSelectedForMerge = filesSelectedForMerge;
         _mode = mode;
+        _inMemoryContents = inMemoryContents;
     }
 
     public void Generate(string outputFilePath) {
@@ -56,9 +59,9 @@ public class PdfReportGenerator {
                 break;
             case PdfMode.Standard:
             default:
-                margin = 1.0f;     // Уменьшено с 1.5 для расширения рабочей области
-                fontSize = 9.5f;   // Уменьшено с 11.0 для компактности кода
-                lineHeight = 1.1f; // Уменьшено с 1.2
+                margin = 1.0f;
+                fontSize = 9.5f;
+                lineHeight = 1.1f;
                 break;
         }
 
@@ -98,7 +101,7 @@ public class PdfReportGenerator {
                 // Основное содержимое
                 page.Content()
                     .Column(column => {
-                        // 1. АКЦЕНТНЫЙ БЛОК ПРЕДУПРЕЖДЕНИЯ (Компактный)
+                        // 1. АКЦЕНТНЫЙ БЛОК ПРЕДУПРЕЖДЕНИЯ
                         if (_mode != PdfMode.Extreme) {
                             column.Item()
                                 .Background(Colors.Amber.Lighten5)
@@ -108,24 +111,20 @@ public class PdfReportGenerator {
                                 .Text(additionalInfoWarning)
                                 .FontSize(fontSize)
                                 .FontColor(Colors.Grey.Darken4);
-                            
-                            column.Item().Height(8); // Минимальный разделительный отступ
+                            column.Item().Height(8);
                         } else {
                             column.Item().Text(additionalInfoWarning).FontSize(fontSize);
                             column.Item().Height(3);
                         }
 
-                        // 2. БЛОК СТРУКТУРЫ (Растянут по ширине страницы, очищен от скрытых \n)
+                        // 2. БЛОК СТРУКТУРЫ
                         if (!string.IsNullOrWhiteSpace(_structureContent)) {
                             float structPadding = _mode == PdfMode.Extreme ? 0 : 6;
-                            
                             column.Item()
-                                .Background(Colors.Grey.Lighten5) // Мягкий фон без жесткой внешней обводки
+                                .Background(Colors.Grey.Lighten5)
                                 .Padding(structPadding)
-                                .Text(_structureContent.Trim())   // Метод Trim() срезает скрытые пустые строки в конце!
+                                .Text(_structureContent.Trim())
                                 .FontSize(fontSize);
-
-                            // Сверхплотный отступ перед началом файлов (без громоздких разделительных линий)
                             column.Item().Height(_mode == PdfMode.Extreme ? 2 : 5);
                         }
 
@@ -148,7 +147,12 @@ public class PdfReportGenerator {
                             }
                             else {
                                 try {
-                                    content = File.ReadAllText(processedPath);
+                                    if (_inMemoryContents != null && _inMemoryContents.TryGetValue(originalPath, out var cachedContent)) {
+                                        content = cachedContent;
+                                    }
+                                    else {
+                                        content = File.ReadAllText(processedPath);
+                                    }
                                 }
                                 catch {
                                     content = "[Error reading file]";
@@ -216,7 +220,6 @@ public class PdfReportGenerator {
                     if (isStub) t.Span(stubLabel).FontColor(Colors.Grey.Darken2).Italic();
                 });
             });
-
         column.Item().PaddingTop(3).PaddingBottom(6).Text(content);
     }
 }

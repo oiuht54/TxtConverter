@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
+using TxtConverter.Core;
 
 namespace TxtConverter.Services;
 
@@ -13,6 +14,12 @@ public class PresetManager {
     private readonly Dictionary<string, string> _ignoredFolderPresets = new();
     private readonly Dictionary<string, string> _exclusionsPresets = new();
     private readonly HashSet<string> _builtInNames = new();
+
+    private static readonly HashSet<string> DetectionIgnoredDirs = new(StringComparer.OrdinalIgnoreCase) {
+        ".git", ".svn", ".hg", "node_modules", "bin", "obj", "target", "build", "dist",
+        "out", "library", "temp", "logs", ".godot", ".import", ".idea", ".vs", ".vscode",
+        "venv", ".venv", "__pycache__", ProjectConstants.OutputDirName
+    };
 
     private PresetManager() {
         SetupPresets();
@@ -73,12 +80,10 @@ public class PresetManager {
         _ignoredFolderPresets.Add("Web (JavaScript / Classic)", webIgnored);
         _exclusionsPresets.Add("Web (JavaScript / Classic)", "");
 
-        // Регистрация встроенных пресетов
         foreach (var key in _presets.Keys) {
             _builtInNames.Add(key);
         }
 
-        // Загрузка пользовательских пресетов
         LoadCustomPresets();
     }
 
@@ -109,7 +114,6 @@ public class PresetManager {
 
     public void AddOrUpdatePreset(string name, string extensions, string ignoredFolders, string exclusions) {
         if (IsPresetBuiltIn(name)) return;
-        
         _presets[name] = extensions;
         _ignoredFolderPresets[name] = ignoredFolders;
         _exclusionsPresets[name] = exclusions;
@@ -134,7 +138,6 @@ public class PresetManager {
 
     public void DeletePreset(string name) {
         if (IsPresetBuiltIn(name)) return;
-        
         _presets.Remove(name);
         _ignoredFolderPresets.Remove(name);
         _exclusionsPresets.Remove(name);
@@ -147,77 +150,228 @@ public class PresetManager {
         }
     }
 
+    /// <summary>
+    /// Robust heuristic and structural auto-detector.
+    /// Performs a shallow walk up to depth 3, skipping noise folders, to accurately classify projects.
+    /// </summary>
     public string? AutoDetectPreset(string rootPath) {
         if (string.IsNullOrWhiteSpace(rootPath) || !Directory.Exists(rootPath)) return null;
-        if (File.Exists(Path.Combine(rootPath, "project.godot"))) {
-            if (File.Exists(Path.Combine(rootPath, "SConstruct")) ||
-                HasFileByPattern(rootPath, "*.gdextension") ||
-                HasFileByPattern(rootPath, "*.cpp")) {
-                return "Godot Engine (GDExtension / C++)";
-            }
-            return "Godot Engine";
-        }
-        if (Directory.Exists(Path.Combine(rootPath, "Assets")) &&
-            Directory.Exists(Path.Combine(rootPath, "ProjectSettings"))) {
-            return "Unity Engine";
-        }
-        if (Directory.Exists(Path.Combine(rootPath, "src-tauri")) ||
-            File.Exists(Path.Combine(rootPath, "tauri.conf.json"))) {
-            return "Rust / Tauri";
-        }
-        if (File.Exists(Path.Combine(rootPath, "Cargo.toml"))) {
-            return "Rust / Tauri";
-        }
-        if (HasFileByPattern(rootPath, "*.sln") ||
-            HasFileByPattern(rootPath, "*.csproj") ||
-            HasFileByPattern(rootPath, "*.vbproj") ||
-            HasFileByPattern(rootPath, "*.fsproj")) {
-            return "C# (.NET / Visual Studio)";
-        }
-        if (File.Exists(Path.Combine(rootPath, "pom.xml")) ||
-            File.Exists(Path.Combine(rootPath, "build.gradle")) ||
-            File.Exists(Path.Combine(rootPath, "build.gradle.kts"))) {
-            return "Java (Maven/Gradle)";
-        }
-        if (File.Exists(Path.Combine(rootPath, "requirements.txt")) ||
-            File.Exists(Path.Combine(rootPath, "pyproject.toml")) ||
-            File.Exists(Path.Combine(rootPath, "setup.py")) ||
-            Directory.Exists(Path.Combine(rootPath, "venv")) ||
-            Directory.Exists(Path.Combine(rootPath, ".venv"))) {
-            return "Python";
-        }
-        if (File.Exists(Path.Combine(rootPath, "go.mod"))) {
-            return "Go (Golang)";
-        }
-        if (File.Exists(Path.Combine(rootPath, "package.json"))) {
-            if (File.Exists(Path.Combine(rootPath, "tsconfig.json")) ||
-                File.Exists(Path.Combine(rootPath, "vite.config.ts")) ||
-                File.Exists(Path.Combine(rootPath, "next.config.js"))) {
-                return "Web (TypeScript / React)";
-            }
-            return "Web (JavaScript / Classic)";
-        }
-        if (HasFileByPattern(rootPath, "*.cs")) {
-            return "C# (.NET / Visual Studio)";
-        }
-        if (HasFileByPattern(rootPath, "*.py")) {
-            return "Python";
-        }
-        if (HasFileByPattern(rootPath, "*.go")) {
-            return "Go (Golang)";
-        }
-        if (HasFileByPattern(rootPath, "*.rs")) {
-            return "Rust / Tauri";
-        }
-        return null;
-    }
 
-    private bool HasFileByPattern(string path, string pattern) {
         try {
-            return Directory.EnumerateFiles(path, pattern, SearchOption.TopDirectoryOnly).Any();
+            var rootDir = new DirectoryInfo(rootPath);
+            if (!rootDir.Exists) return null;
+
+            // 1. Collect candidate entries (shallow walk up to depth 3, max 600 files to stay under 5ms)
+            var scannedFiles = new List<FileInfo>();
+            var scannedDirs = new List<DirectoryInfo>();
+            CollectShallowEntries(rootDir, scannedFiles, scannedDirs, currentDepth: 0, maxDepth: 3, maxFiles: 600);
+
+            var fileNames = new HashSet<string>(scannedFiles.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
+            var dirNames = new HashSet<string>(scannedDirs.Select(d => d.Name), StringComparer.OrdinalIgnoreCase);
+
+            // 2. High-Confidence Detection: Game Engines & System Frameworks
+            // Godot Engine
+            bool hasGodotProject = fileNames.Contains("project.godot");
+            if (hasGodotProject) {
+                bool hasGdExtension = scannedFiles.Any(f => f.Extension.Equals(".gdextension", StringComparison.OrdinalIgnoreCase));
+                bool hasSConstruct = fileNames.Contains("SConstruct");
+                bool hasCppSource = scannedFiles.Any(f =>
+                    f.Extension.Equals(".cpp", StringComparison.OrdinalIgnoreCase) ||
+                    f.Extension.Equals(".hpp", StringComparison.OrdinalIgnoreCase) ||
+                    f.Extension.Equals(".c", StringComparison.OrdinalIgnoreCase) ||
+                    f.Extension.Equals(".h", StringComparison.OrdinalIgnoreCase)
+                );
+
+                if (hasGdExtension || hasSConstruct || hasCppSource) {
+                    return "Godot Engine (GDExtension / C++)";
+                }
+                return "Godot Engine";
+            }
+
+            // Unity Engine
+            bool hasUnityAssets = dirNames.Contains("Assets");
+            bool hasUnityProjectSettings = dirNames.Contains("ProjectSettings");
+            bool hasUnityScenesOrPrefabs = scannedFiles.Any(f =>
+                f.Extension.Equals(".unity", StringComparison.OrdinalIgnoreCase) ||
+                f.Extension.Equals(".prefab", StringComparison.OrdinalIgnoreCase)
+            );
+            bool hasUnityManifest = scannedFiles.Any(f =>
+                f.Name.Equals("manifest.json", StringComparison.OrdinalIgnoreCase) &&
+                f.DirectoryName != null && f.DirectoryName.EndsWith("Packages", StringComparison.OrdinalIgnoreCase)
+            );
+
+            if ((hasUnityAssets && hasUnityProjectSettings) || (hasUnityAssets && hasUnityScenesOrPrefabs) || hasUnityManifest) {
+                return "Unity Engine";
+            }
+
+            // Tauri / Rust
+            bool hasTauriDir = dirNames.Contains("src-tauri");
+            bool hasTauriConf = fileNames.Contains("tauri.conf.json") || fileNames.Contains("tauri.conf.json5");
+            if (hasTauriDir || hasTauriConf) {
+                return "Rust / Tauri";
+            }
+
+            // 3. Project Configuration Marker Detection
+            // C# (.NET / Visual Studio)
+            bool hasCsProj = scannedFiles.Any(f =>
+                f.Extension.Equals(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                f.Extension.Equals(".sln", StringComparison.OrdinalIgnoreCase) ||
+                f.Extension.Equals(".slnx", StringComparison.OrdinalIgnoreCase) ||
+                f.Extension.Equals(".fsproj", StringComparison.OrdinalIgnoreCase) ||
+                f.Extension.Equals(".vbproj", StringComparison.OrdinalIgnoreCase) ||
+                f.Name.Equals("Directory.Build.props", StringComparison.OrdinalIgnoreCase) ||
+                f.Name.Equals("Directory.Build.targets", StringComparison.OrdinalIgnoreCase)
+            );
+
+            // Java (Maven / Gradle)
+            bool hasJavaBuild = fileNames.Contains("pom.xml") ||
+                                fileNames.Contains("build.gradle") ||
+                                fileNames.Contains("build.gradle.kts") ||
+                                fileNames.Contains("settings.gradle") ||
+                                fileNames.Contains("settings.gradle.kts") ||
+                                fileNames.Contains("gradlew") ||
+                                fileNames.Contains("mvnw");
+
+            // Go (Golang)
+            bool hasGoMod = fileNames.Contains("go.mod") ||
+                            fileNames.Contains("go.sum") ||
+                            fileNames.Contains("go.work");
+
+            // Python
+            bool hasPythonConfig = fileNames.Contains("pyproject.toml") ||
+                                   fileNames.Contains("requirements.txt") ||
+                                   fileNames.Contains("setup.py") ||
+                                   fileNames.Contains("setup.cfg") ||
+                                   fileNames.Contains("Pipfile") ||
+                                   fileNames.Contains("environment.yml") ||
+                                   fileNames.Contains("poetry.lock") ||
+                                   dirNames.Contains("venv") ||
+                                   dirNames.Contains(".venv");
+
+            // Rust (Plain Cargo)
+            bool hasCargoToml = fileNames.Contains("Cargo.toml") || fileNames.Contains("Cargo.lock");
+
+            // Web (package.json)
+            bool hasPackageJson = fileNames.Contains("package.json");
+
+            // C# Solution Priority (Avoids false positive when .NET has a ClientApp/package.json)
+            if (hasCsProj) {
+                return "C# (.NET / Visual Studio)";
+            }
+
+            if (hasCargoToml) {
+                return "Rust / Tauri";
+            }
+
+            if (hasGoMod) {
+                return "Go (Golang)";
+            }
+
+            if (hasJavaBuild) {
+                return "Java (Maven/Gradle)";
+            }
+
+            if (hasPythonConfig) {
+                return "Python";
+            }
+
+            // Web: Differentiate TypeScript / React from Classic JavaScript
+            if (hasPackageJson) {
+                bool hasTsConfig = scannedFiles.Any(f => f.Name.StartsWith("tsconfig", StringComparison.OrdinalIgnoreCase) && f.Extension.Equals(".json", StringComparison.OrdinalIgnoreCase));
+                bool hasViteTs = fileNames.Contains("vite.config.ts");
+                bool hasNextConfig = fileNames.Contains("next.config.js") || fileNames.Contains("next.config.mjs") || fileNames.Contains("next.config.ts");
+                bool hasTsFiles = scannedFiles.Any(f =>
+                    f.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
+                    f.Extension.Equals(".tsx", StringComparison.OrdinalIgnoreCase) ||
+                    f.Extension.Equals(".jsx", StringComparison.OrdinalIgnoreCase) ||
+                    f.Extension.Equals(".vue", StringComparison.OrdinalIgnoreCase) ||
+                    f.Extension.Equals(".svelte", StringComparison.OrdinalIgnoreCase)
+                );
+
+                if (hasTsConfig || hasViteTs || hasNextConfig || hasTsFiles) {
+                    return "Web (TypeScript / React)";
+                }
+
+                var pkgFile = scannedFiles.FirstOrDefault(f => f.Name.Equals("package.json", StringComparison.OrdinalIgnoreCase));
+                if (pkgFile != null) {
+                    try {
+                        string pkgContent = File.ReadAllText(pkgFile.FullName);
+                        if (pkgContent.Contains("\"react\"", StringComparison.OrdinalIgnoreCase) ||
+                            pkgContent.Contains("\"typescript\"", StringComparison.OrdinalIgnoreCase) ||
+                            pkgContent.Contains("\"@types/", StringComparison.OrdinalIgnoreCase) ||
+                            pkgContent.Contains("\"vue\"", StringComparison.OrdinalIgnoreCase) ||
+                            pkgContent.Contains("\"svelte\"", StringComparison.OrdinalIgnoreCase) ||
+                            pkgContent.Contains("\"@angular/", StringComparison.OrdinalIgnoreCase) ||
+                            pkgContent.Contains("\"next\"", StringComparison.OrdinalIgnoreCase) ||
+                            pkgContent.Contains("\"vite\"", StringComparison.OrdinalIgnoreCase)) {
+                            return "Web (TypeScript / React)";
+                        }
+                    }
+                    catch { }
+                }
+
+                return "Web (JavaScript / Classic)";
+            }
+
+            // 4. Fallback: Extension Frequency Analysis (if project lacks build configuration files)
+            var extCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in scannedFiles) {
+                string ext = file.Extension.TrimStart('.').ToLowerInvariant();
+                if (string.IsNullOrEmpty(ext)) continue;
+                extCounts[ext] = extCounts.GetValueOrDefault(ext) + 1;
+            }
+
+            int csCount = extCounts.GetValueOrDefault("cs");
+            int pyCount = extCounts.GetValueOrDefault("py");
+            int goCount = extCounts.GetValueOrDefault("go");
+            int rsCount = extCounts.GetValueOrDefault("rs");
+            int javaCount = extCounts.GetValueOrDefault("java") + extCounts.GetValueOrDefault("kt");
+            int gdCount = extCounts.GetValueOrDefault("gd") + extCounts.GetValueOrDefault("tscn") + extCounts.GetValueOrDefault("tres");
+            int tsReactCount = extCounts.GetValueOrDefault("ts") + extCounts.GetValueOrDefault("tsx") + extCounts.GetValueOrDefault("jsx") + extCounts.GetValueOrDefault("vue") + extCounts.GetValueOrDefault("svelte");
+            int jsClassicCount = extCounts.GetValueOrDefault("js") + extCounts.GetValueOrDefault("mjs") + extCounts.GetValueOrDefault("html") + extCounts.GetValueOrDefault("css");
+
+            var scores = new Dictionary<string, int> {
+                { "Godot Engine", gdCount },
+                { "C# (.NET / Visual Studio)", csCount },
+                { "Python", pyCount },
+                { "Go (Golang)", goCount },
+                { "Rust / Tauri", rsCount },
+                { "Java (Maven/Gradle)", javaCount },
+                { "Web (TypeScript / React)", tsReactCount },
+                { "Web (JavaScript / Classic)", jsClassicCount }
+            };
+
+            var best = scores.OrderByDescending(kv => kv.Value).FirstOrDefault();
+            if (best.Value > 0) {
+                return best.Key;
+            }
+
+            return null;
         }
         catch {
-            return false;
+            return null;
         }
+    }
+
+    private void CollectShallowEntries(DirectoryInfo dir, List<FileInfo> files, List<DirectoryInfo> dirs, int currentDepth, int maxDepth, int maxFiles) {
+        if (currentDepth > maxDepth || files.Count >= maxFiles) return;
+
+        try {
+            foreach (var file in dir.EnumerateFiles()) {
+                files.Add(file);
+                if (files.Count >= maxFiles) return;
+            }
+        }
+        catch { }
+
+        try {
+            foreach (var subDir in dir.EnumerateDirectories()) {
+                if (DetectionIgnoredDirs.Contains(subDir.Name)) continue;
+                dirs.Add(subDir);
+                CollectShallowEntries(subDir, files, dirs, currentDepth + 1, maxDepth, maxFiles);
+                if (files.Count >= maxFiles) return;
+            }
+        }
+        catch { }
     }
 }

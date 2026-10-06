@@ -1,7 +1,11 @@
-using System.IO;
-using System.Collections.Generic;
-using System.Linq;
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using TxtConverter.Core.Enums;
 using TxtConverter.Core.Logic.Processing;
 using TxtConverter.Core.Logic.Reporting;
@@ -63,87 +67,105 @@ public class ConversionOrchestrator {
             string outputDir = Path.Combine(_sourceDirPath, ProjectConstants.OutputDirName);
             PrepareOutputDirectory(outputDir);
 
-            var processedFilesMap = new Dictionary<string, string>(); // SourcePath -> DestPath inside _ConvertedToTxt
+            var processedFilesMap = new ConcurrentDictionary<string, string>();
+            var inMemoryContents = new ConcurrentDictionary<string, string>();
 
             // Generate unique names to prevent overwriting of files with same names in different subfolders
             var uniqueNamesMap = GenerateUniqueFileNames(_filesToProcess);
             int total = _filesToProcess.Count;
             int count = 0;
 
-            // 2. Processing Files Loop
-            foreach (var sourceFile in _filesToProcess) {
-                count++;
-                progress.Report((double)count / total);
+            var lastReportTime = DateTime.MinValue;
+            var reportLock = new object();
 
-                string originalFileName = Path.GetFileName(sourceFile);
-                status.Report(string.Format(Loc("task_processing"), originalFileName));
-
-                // Determine destination path using the unique name mapping
+            // 2. Parallel Processing Files Loop (Saturates SSD I/O queue and leverages all CPU cores)
+            Parallel.ForEach(_filesToProcess, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount) }, sourceFile => {
                 string uniqueName = uniqueNamesMap[sourceFile];
                 string destFileName = uniqueName.ToLower().EndsWith(".md") ? uniqueName : uniqueName + ".txt";
                 string destFile = Path.Combine(outputDir, destFileName);
+                string compressedContent;
 
                 try {
                     // Unified Processing Logic (Reads, Normalizes, Compresses)
-                    string compressedContent = _processor.ReadAndProcess(sourceFile);
-                    File.WriteAllText(destFile, compressedContent, System.Text.Encoding.UTF8);
+                    compressedContent = _processor.ReadAndProcess(sourceFile);
+                    File.WriteAllText(destFile, compressedContent, Encoding.UTF8);
                 }
                 catch (Exception ex) {
                     // Fallback to simple copy if processing fails
-                    try { File.Copy(sourceFile, destFile, true); } catch { }
-                    System.Diagnostics.Debug.WriteLine($"Processing error for {originalFileName}: {ex.Message}");
+                    try {
+                        File.Copy(sourceFile, destFile, true);
+                        compressedContent = File.ReadAllText(destFile, Encoding.UTF8);
+                    }
+                    catch {
+                        compressedContent = string.Empty;
+                    }
+                    System.Diagnostics.Debug.WriteLine($"Processing error for {Path.GetFileName(sourceFile)}: {ex.Message}");
                 }
 
                 processedFilesMap[sourceFile] = destFile;
-            }
+                inMemoryContents[sourceFile] = compressedContent;
 
-            // 3. Generate Structure Report (Functional String only - no distinct md file)
+                int current = Interlocked.Increment(ref count);
+
+                // Throttled UI reporting to prevent WPF Dispatcher queue saturation
+                lock (reportLock) {
+                    var now = DateTime.UtcNow;
+                    if ((now - lastReportTime).TotalMilliseconds >= 50 || current == total) {
+                        lastReportTime = now;
+                        progress.Report((double)current / total);
+                        status.Report(string.Format(Loc("task_processing"), Path.GetFileName(sourceFile)));
+                    }
+                }
+            });
+
+            var finalFilesMap = new Dictionary<string, string>(processedFilesMap);
+            var finalContentsMap = new Dictionary<string, string>(inMemoryContents);
+
+            // 3. Generate Structure Report
             string structureContent = "";
             if (_genStructure) {
                 status.Report(Loc("task_generating_structure"));
                 var structureGen = new StructureReportGenerator(
                     _sourceDirPath,
-                    processedFilesMap.Keys.ToHashSet(), // Successfully processed paths
+                    finalFilesMap.Keys.ToHashSet(),
                     _filesSelectedForMerge,
                     _ignoredFolders,
                     _compressionLevel,
                     _compactMode
                 );
-                
-                // Fetch the horizontally formatted wrapped layout
                 structureContent = structureGen.Generate();
             }
 
-            // 4. Generate Merged File
+            // 4. Generate Merged File using In-Memory Content (zero redundant disk re-reads)
             string projectName = Path.GetFileName(_sourceDirPath);
-            if (_genMerged && processedFilesMap.Count > 0) {
+            if (_genMerged && finalFilesMap.Count > 0) {
                 status.Report(Loc("task_merging"));
                 string outputFileName = "_" + projectName + ProjectConstants.MergedFileSuffix;
                 string destPath = Path.Combine(outputDir, outputFileName);
-
                 var mergedGen = new MergedFileGenerator(
                     _sourceDirPath,
-                    processedFilesMap,
+                    finalFilesMap,
                     _filesSelectedForMerge,
                     _compressionLevel,
-                    structureContent // Structured string is integrated directly
+                    structureContent,
+                    finalContentsMap
                 );
                 mergedGen.Generate(destPath);
             }
 
-            // 5. Generate PDF Report
-            if (_genPdf && processedFilesMap.Count > 0) {
+            // 5. Generate PDF Report using In-Memory Content (zero redundant disk re-reads)
+            if (_genPdf && finalFilesMap.Count > 0) {
                 status.Report(Loc("task_pdf"));
                 string pdfName = "_" + projectName + "_Report.pdf";
                 string pdfPath = Path.Combine(outputDir, pdfName);
-
                 try {
                     var pdfGen = new PdfReportGenerator(
                         _sourceDirPath,
-                        structureContent, // Embedded structure gets written directly to PDF page 1
-                        processedFilesMap,
+                        structureContent,
+                        finalFilesMap,
                         _filesSelectedForMerge,
-                        _pdfMode
+                        _pdfMode,
+                        finalContentsMap
                     );
                     pdfGen.Generate(pdfPath);
                 }
@@ -164,7 +186,6 @@ public class ConversionOrchestrator {
 
         foreach (var group in fileNameGroups) {
             if (group.Count() == 1) {
-                // Unique file name
                 string destName = group.Key;
                 int counter = 1;
                 while (usedNames.Contains(destName)) {
@@ -173,15 +194,13 @@ public class ConversionOrchestrator {
                 }
                 result[group.First()] = destName;
                 usedNames.Add(destName);
-            } else {
-                // Name Collision
+            }
+            else {
                 foreach (var file in group) {
                     string baseName = group.Key;
                     string dir = Path.GetDirectoryName(file) ?? string.Empty;
                     string parentFolder = Path.GetFileName(dir);
-
                     string destName = string.IsNullOrEmpty(parentFolder) ? baseName : $"{parentFolder}_{baseName}";
-
                     int counter = 1;
                     string finalName = destName;
                     while (usedNames.Contains(finalName)) {
@@ -193,7 +212,6 @@ public class ConversionOrchestrator {
                 }
             }
         }
-
         return result;
     }
 
