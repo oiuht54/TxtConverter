@@ -43,7 +43,7 @@ Do not guess based on filenames. **READ THE CODE** to find dependencies.
 (Return ONLY JSON)";
 
     // Version, Author and Repository constants
-    public const string CurrentVersion = "1.8.7";
+    public const string CurrentVersion = "2.0.0";
     public const string GitHubRepo = "oiuht54/TxtConverter";
     public const string GitHubUrl = "https://github.com/oiuht54/TxtConverter";
     public const string Author = "oiuht54/Diziac";
