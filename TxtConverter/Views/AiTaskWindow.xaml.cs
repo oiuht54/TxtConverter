@@ -179,50 +179,7 @@ public partial class AiTaskWindow : Window {
     }
 
     private List<string> MatchFiles(List<string> aiPaths) {
-        var matched = new HashSet<string>();
-        var fileMap = new Dictionary<string, string>();
-        foreach (var file in _allFiles) {
-            string key = Path.GetFullPath(file).ToLower();
-            if (!fileMap.ContainsKey(key)) fileMap[key] = file;
-        }
-
-        foreach (var rawAiPath in aiPaths) {
-            string aiClean = rawAiPath.Trim().Trim('\"', '\'');
-            if (string.IsNullOrWhiteSpace(aiClean)) continue;
-
-            string? foundOriginalPath = null;
-            try {
-                string fullPathCandidate = Path.GetFullPath(Path.Combine(_rootPath, aiClean)).ToLower();
-                if (fileMap.TryGetValue(fullPathCandidate, out var original)) {
-                    foundOriginalPath = original;
-                }
-            } catch { }
-
-            if (foundOriginalPath == null) {
-                string aiNorm = aiClean.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).ToLower();
-                var matchKey = fileMap.Keys.FirstOrDefault(k =>
-                    k.EndsWith(Path.DirectorySeparatorChar + aiNorm) ||
-                    k == aiNorm
-                );
-                if (matchKey != null) {
-                    foundOriginalPath = fileMap[matchKey];
-                }
-            }
-
-            if (foundOriginalPath == null) {
-                string aiFileName = Path.GetFileName(aiClean).ToLower();
-                var candidates = _allFiles.Where(f => Path.GetFileName(f).ToLower() == aiFileName).ToList();
-                if (candidates.Count == 1) {
-                    foundOriginalPath = candidates[0];
-                }
-            }
-
-            if (foundOriginalPath != null) {
-                matched.Add(foundOriginalPath);
-            }
-        }
-
-        return matched.ToList();
+        return AiFileMatcher.Match(_allFiles, _rootPath, aiPaths);
     }
 
     private void SetLoading(bool isLoading) {

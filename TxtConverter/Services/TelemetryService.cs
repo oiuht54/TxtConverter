@@ -21,6 +21,9 @@ public class TelemetryService {
     private bool _isSessionStartSent = false;
     private readonly object _lock = new object();
 
+    /// <summary>Set by the CLI (--telemetry off) to mute all events for the current run.</summary>
+    public bool Suppress { get; set; }
+
     private TelemetryService() {
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromSeconds(5);
@@ -43,6 +46,7 @@ public class TelemetryService {
 
     public void TrackEvent(string eventName, Dictionary<string, object>? parameters = null) {
         if (!_isConfigured) return;
+        if (Suppress) return;
         if (!PreferenceManager.Instance.GetTelemetryEnabled()) return;
         
         string clientId = PreferenceManager.Instance.GetInstallationId();

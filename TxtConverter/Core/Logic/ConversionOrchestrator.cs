@@ -31,6 +31,7 @@ public class ConversionOrchestrator {
     private readonly bool _genMerged;
     private readonly bool _genPdf;
     private readonly PdfMode _pdfMode;
+    private readonly string? _outputDirectory;
 
     // Services
     private readonly FileContentProcessor _processor;
@@ -45,7 +46,8 @@ public class ConversionOrchestrator {
         CompressionLevel compressionLevel,
         bool genMerged,
         bool genPdf,
-        PdfMode pdfMode) {
+        PdfMode pdfMode,
+        string? outputDirectory = null) {
         _sourceDirPath = sourceDirPath;
         _filesToProcess = filesToProcess;
         _filesSelectedForMerge = filesSelectedForMerge;
@@ -56,7 +58,17 @@ public class ConversionOrchestrator {
         _genMerged = genMerged;
         _genPdf = genPdf;
         _pdfMode = pdfMode;
+        _outputDirectory = outputDirectory;
         _processor = new FileContentProcessor(_compressionLevel);
+    }
+
+    private string ResolveOutputDirectory() {
+        if (string.IsNullOrWhiteSpace(_outputDirectory))
+            return Path.Combine(_sourceDirPath, ProjectConstants.OutputDirName);
+
+        return Path.IsPathRooted(_outputDirectory)
+            ? _outputDirectory
+            : Path.Combine(_sourceDirPath, _outputDirectory);
     }
 
     public async Task RunAsync(IProgress<double> progress, IProgress<string> status) {
@@ -64,7 +76,7 @@ public class ConversionOrchestrator {
             status.Report(Loc("task_preparing"));
 
             // 1. Prepare Output Folder
-            string outputDir = Path.Combine(_sourceDirPath, ProjectConstants.OutputDirName);
+            string outputDir = ResolveOutputDirectory();
             PrepareOutputDirectory(outputDir);
 
             var processedFilesMap = new ConcurrentDictionary<string, string>();

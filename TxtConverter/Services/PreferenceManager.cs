@@ -80,6 +80,9 @@ public class PreferenceManager {
         _settings = new AppSettings();
     }
 
+    /// <summary>Absolute path of the settings.json file (shared by the GUI and the CLI).</summary>
+    public string SettingsPath => _settingsPath;
+
     public void Load() {
         lock (_fileLock) {
             if (File.Exists(_settingsPath)) {

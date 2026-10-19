@@ -72,6 +72,36 @@ The application fully supports **English** and **Russian** languages.
     *   **Python**
     *   **C# (.NET / Visual Studio)**
 *   **Structure Map:** Optional generation of a `_FileStructure.md` file (Tree or Flat list).
+*   **CLI Version:** The same executable is also a full command line interface for automation and CI (see below).
+
+---
+
+## 🖥️ CLI Version (Automation & CI)
+
+`TxtConverter.exe` is **dual-mode**: launch it without arguments and the graphical window opens, pass a command and it runs in the console. Same file, same features, nothing extra to download.
+
+```bat
+REM Full reference: docs/CLI.md
+TxtConverter.exe scan "C:\Projects\MyGame" --stats
+TxtConverter.exe convert "C:\Projects\MyGame" --preset "Godot Engine" -c maximum
+TxtConverter.exe convert "C:\Projects\MyGame" --include "scripts/**" --no-pdf --dry-run
+TxtConverter.exe ai select "C:\Projects\MyGame" --task "fix the player movement" --save selection.txt
+```
+
+| Command | What it does |
+|---|---|
+| `convert` | Full pipeline: scan → file selection → txt / merged / PDF reports |
+| `scan` | List and count the files a conversion would pick up |
+| `detect` | Show the auto-detected preset |
+| `presets` | `list` / `show` / `save` / `delete` preset definitions |
+| `config` | Read and write the settings shared with the GUI |
+| `ai` | `select` / `models` / `test` — AI Smart Select and provider checks |
+| `update` | Check GitHub for a newer release |
+
+*   **Scriptable selection:** globs (`--include "src/**"`), path lists (`--include-file`) or AI (`--ai-task`).
+*   **CI friendly:** `--json` output, progress on stderr, meaningful exit codes, `--quiet`.
+*   **Shared settings:** presets, compression level, API keys and custom presets are identical in the GUI and in the CLI.
+*   📖 Full documentation: [docs/CLI.md](docs/CLI.md)
 
 ---
 
@@ -139,6 +169,35 @@ The application fully supports **English** and **Russian** languages.
 *   **GameDev:** Unity, Godot.
 *   **Web:** TypeScript (Modern), JavaScript (Classic).
 *   **Backend:** Java, Python, C# (.NET).
+
+---
+
+## 🖥️ CLI версия (автоматизация и CI)
+
+`TxtConverter.exe` **два в одном**: запустите его без аргументов — откроется окно, добавьте команду — запустится консоль. Тот же файл, те же возможности, ничего дополнительно скачивать не нужно.
+
+```bat
+REM Полная справка: docs/CLI.md
+TxtConverter.exe scan "C:\Projects\MyGame" --stats
+TxtConverter.exe convert "C:\Projects\MyGame" --preset "Godot Engine" -c maximum
+TxtConverter.exe convert "C:\Projects\MyGame" --include "scripts/**" --no-pdf --dry-run
+TxtConverter.exe ai select "C:\Projects\MyGame" --task "починить движение игрока" --save selection.txt
+```
+
+| Команда | Что делает |
+|---|---|
+| `convert` | Полный цикл: сканирование → выбор файлов → txt / общий файл / PDF-отчёт |
+| `scan` | Показывает список файлов, которые попадут в конвертацию |
+| `detect` | Показывает автоматически определённый пресет |
+| `presets` | `list` / `show` / `save` / `delete` — работа с пресетами |
+| `config` | Просмотр и изменение настроек, общих с окном программы |
+| `ai` | `select` / `models` / `test` — ИИ-отбор файлов и проверка провайдера |
+| `update` | Проверка обновлений на GitHub |
+
+*   **Выбор файлов в скриптах:** маски (`--include "src/**"`), список путей (`--include-file`) или ИИ (`--ai-task`).
+*   **Для CI:** вывод `--json`, прогресс в stderr, понятные коды возврата, `--quiet`.
+*   **Общие настройки:** пресеты, уровень сжатия, API-ключи и свои пресеты одинаковы для окна и для консоли.
+*   📖 Полная документация: [docs/CLI.md](docs/CLI.md)
 
 ---
 
