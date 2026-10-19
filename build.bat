@@ -62,14 +62,15 @@ if errorlevel 1 goto :fail
 "%CLI%" help
 if errorlevel 1 goto :fail
 
-"%CLI%" presets list
+"%CLI%" presets list --no-pause
 if errorlevel 1 goto :fail
 
-"%CLI%" config path
+"%CLI%" config path --no-pause
 if errorlevel 1 goto :fail
 
 REM Self test: sample project -> scan -> convert -> merged file -> PDF.
-"%CLI%" test
+REM --no-pause keeps the batch file from waiting for a keypress.
+"%CLI%" test --no-pause
 if errorlevel 1 goto :fail
 
 echo.

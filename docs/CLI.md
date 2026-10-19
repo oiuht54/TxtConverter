@@ -88,7 +88,24 @@ Accepted by every command:
 | `-q, --quiet` | Print results and errors only (no progress output) |
 | `-v, --verbose` | Print detailed progress and diagnostics on stderr |
 | `--no-color` | Disable colored output (also honoured: `NO_COLOR` environment variable) |
+| `--pause` / `--no-pause` | Hold the console open with a `Press any key to return to the command prompt...` prompt after the command finished. Default: on. Automatically skipped when the output is redirected/piped or with `--json` / `--quiet`. |
 | `-h, --help` | Help for the command |
+
+### After the command finished
+
+Every command leaves the console ready for the next one: once the result (for example the `Done in 3.4s`
+summary of `convert`) is printed, the CLI waits for a keypress and then returns to the command prompt,
+so nothing is lost when the executable is started from a shortcut or its own console window.
+
+The wait is skipped automatically whenever blocking would break automation - when stdout/stdin is
+redirected or piped, with `--json`, and with `--quiet`. To turn it off explicitly (for example in a
+batch file that is started from an interactive console) pass `--no-pause`:
+
+```bat
+TxtConverter.exe convert "C:\Projects\MyGame" --no-pause
+```
+
+`help`, `--help` and `version` never wait - they print and return immediately.
 
 ---
 
@@ -463,7 +480,7 @@ TxtConverter.exe convert . --select none --include-file ai-selection.txt --quiet
 
 ```bat
 :loop
-TxtConverter.exe convert "C:\Projects\MyGame" --quiet
+TxtConverter.exe convert "C:\Projects\MyGame" --quiet --no-pause
 timeout /t 30
 goto loop
 ```
@@ -485,6 +502,9 @@ goto loop
   CLI messages themselves are always English.
 * **Telemetry** follows the same anonymous statistics setting as the GUI; use `--telemetry off`
   to mute a single run.
+* **The console waits after a command?** That is the default: the CLI holds the window open with
+  `Press any key to return to the command prompt...` so the result stays readable. Pass `--no-pause`,
+  or redirect the output, to get an immediate return to the prompt.
 * **PDF rendering** requires no extra tools, the QuestPDF engine is bundled in the executable.
 * **The GUI is unaffected**: `TxtConverter.exe` without arguments still opens the window, including the
   drag & drop, AI Smart Select and all settings dialogs.

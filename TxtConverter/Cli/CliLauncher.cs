@@ -39,6 +39,10 @@ public static class CliLauncher {
                             && !args.Any(a => a.Equals("--no-color", StringComparison.OrdinalIgnoreCase));
         var log = new ConsoleLog { UseColor = colorAllowed };
 
+        // The console is held open after the command only, never before one has been resolved.
+        bool pauseAfterCommand = false;
+        bool pauseEnabled = true;
+
         try {
             if (args.Length == 0) {
                 HelpText.PrintGeneral(log);
@@ -74,6 +78,9 @@ public static class CliLauncher {
             }
 
             ConfigureLog(parsed, log);
+            pauseEnabled = parsed.Flag("pause") ?? true;
+            pauseAfterCommand = true;
+
             var ctx = new CliContext {
                 Log = log,
                 Json = parsed.Flag("json") == true,
@@ -97,6 +104,10 @@ public static class CliLauncher {
             log.Error(ex.Message);
             if (log.Verbose) log.Trace(ex.ToString());
             return ExitCodes.Failure;
+        }
+        finally {
+            if (pauseAfterCommand)
+                ConsoleHost.WaitForExit(log, pauseEnabled);
         }
     }
 

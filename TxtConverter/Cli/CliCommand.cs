@@ -58,6 +58,11 @@ internal static class GlobalOptions {
             Category = Category
         },
         new() {
+            Name = "pause", Negatable = true,
+            Description = "Wait for a keypress when the command finished, so the console stays open (default: on)",
+            Category = Category
+        },
+        new() {
             Name = "help", Short = 'h',
             Description = "Show help for the command",
             Category = Category

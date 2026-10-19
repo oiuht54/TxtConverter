@@ -104,6 +104,9 @@ TxtConverter.exe ai select "C:\Projects\MyGame" --task "fix the player movement"
 *   **Compression mode:** per run (`--compression maximum`), for the AI context, or stored once
     (`config set compression maximum`) — shared with the GUI Conversion Settings.
 *   **CI friendly:** `--json` output, progress on stderr, meaningful exit codes, `--quiet`.
+*   **Interactive console:** after a command finishes the window stays open (`Press any key to return to
+    the command prompt...`); it is skipped automatically for redirected/piped output, `--json` and
+    `--quiet`, and can be disabled with `--no-pause`.
 *   **Shared settings:** presets, compression level, API keys and custom presets are identical in the GUI and in the CLI.
 *   📖 Full documentation: [docs/CLI.md](docs/CLI.md)
 

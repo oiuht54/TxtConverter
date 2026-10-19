@@ -76,6 +76,26 @@ internal static class ConsoleHost {
         catch { }
     }
 
+    /// <summary>
+    /// Keeps the console open after a command finished so the result stays readable instead of
+    /// the window closing on the last line. Only an interactive console is held: redirected or piped
+    /// runs, --json, --quiet and an explicit --no-pause return straight away, so scripts and CI never block.
+    /// </summary>
+    public static void WaitForExit(ConsoleLog log, bool enabled) {
+        if (!enabled || !IsInteractive || log.JsonMode || log.Quiet) return;
+
+        try {
+            Console.Error.WriteLine();
+            Console.Error.Write("Press any key to return to the command prompt...");
+            Console.Error.Flush();
+            Console.ReadKey(intercept: true);
+            Console.Error.WriteLine();
+        }
+        catch {
+            // No real console or closed input - never block the exit path.
+        }
+    }
+
     /// <summary>Asks the user for confirmation. Returns true automatically when there is no TTY and assumeYes is set.</summary>
     public static bool Confirm(string question, bool assumeYes) {
         if (assumeYes) return true;
