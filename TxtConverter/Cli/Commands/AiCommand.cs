@@ -26,6 +26,7 @@ internal sealed class AiCommand : CliCommand {
         new OptionDef { Name = "task", TakesValue = true, ValueName = "text", Description = "What the code should do (required for 'select')" },
         new OptionDef { Name = "model", TakesValue = true, ValueName = "name", Description = "Model to use for this call" },
         new OptionDef { Name = "budget", TakesValue = true, ValueName = "tokens", Description = "Thinking token budget (Gemini)" },
+        new OptionDef { Name = "compression", Short = 'c', TakesValue = true, ValueName = "none|smart|maximum", Description = "Compression mode used to pack the project context ('select')" },
         new OptionDef { Name = "system-prompt", TakesValue = true, ValueName = "file", Description = "Read the AI system prompt from a file" },
         new OptionDef { Name = "save", TakesValue = true, ValueName = "file", Description = "Write the selection as a reusable path list" }
     }).Concat(ProjectOptions.Common).ToList();
@@ -70,6 +71,8 @@ internal sealed class AiCommand : CliCommand {
                 { "root", project.RootPath },
                 { "provider", outcome.ProviderName },
                 { "model", outcome.Model },
+                { "compression", outcome.Compression },
+                { "contextLength", outcome.ContextLength },
                 { "filesScanned", project.FoundFiles.Count },
                 { "filesSelected", outcome.Files.Count },
                 { "savedTo", saveTo ?? "" },
@@ -78,6 +81,7 @@ internal sealed class AiCommand : CliCommand {
         }
         else {
             ctx.Log.Section($"AI selected {outcome.Files.Count} of {project.FoundFiles.Count} files");
+            ctx.Log.Detail($"Context packed with '{outcome.Compression}' compression: {outcome.ContextLength} characters.");
             foreach (string file in outcome.Files.OrderBy(project.Relative, StringComparer.OrdinalIgnoreCase))
                 ctx.Log.Line("  " + project.Relative(file));
         }

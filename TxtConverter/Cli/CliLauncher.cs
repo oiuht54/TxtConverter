@@ -21,7 +21,8 @@ public static class CliLauncher {
         new PresetsCommand(),
         new ConfigCommand(),
         new AiCommand(),
-        new UpdateCommand()
+        new UpdateCommand(),
+        new TestCommand()
     };
 
     /// <summary>No arguments (or an explicit "gui") keeps the classic windowed behaviour.</summary>

@@ -82,6 +82,7 @@ The application fully supports **English** and **Russian** languages.
 
 ```bat
 REM Full reference: docs/CLI.md
+TxtConverter.exe test                                              REM verify the installation
 TxtConverter.exe scan "C:\Projects\MyGame" --stats
 TxtConverter.exe convert "C:\Projects\MyGame" --preset "Godot Engine" -c maximum
 TxtConverter.exe convert "C:\Projects\MyGame" --include "scripts/**" --no-pdf --dry-run
@@ -97,8 +98,11 @@ TxtConverter.exe ai select "C:\Projects\MyGame" --task "fix the player movement"
 | `config` | Read and write the settings shared with the GUI |
 | `ai` | `select` / `models` / `test` — AI Smart Select and provider checks |
 | `update` | Check GitHub for a newer release |
+| `test` | Self test: builds a sample project and verifies the whole pipeline |
 
 *   **Scriptable selection:** globs (`--include "src/**"`), path lists (`--include-file`) or AI (`--ai-task`).
+*   **Compression mode:** per run (`--compression maximum`), for the AI context, or stored once
+    (`config set compression maximum`) — shared with the GUI Conversion Settings.
 *   **CI friendly:** `--json` output, progress on stderr, meaningful exit codes, `--quiet`.
 *   **Shared settings:** presets, compression level, API keys and custom presets are identical in the GUI and in the CLI.
 *   📖 Full documentation: [docs/CLI.md](docs/CLI.md)
@@ -178,6 +182,7 @@ TxtConverter.exe ai select "C:\Projects\MyGame" --task "fix the player movement"
 
 ```bat
 REM Полная справка: docs/CLI.md
+TxtConverter.exe test                                              REM проверить установку
 TxtConverter.exe scan "C:\Projects\MyGame" --stats
 TxtConverter.exe convert "C:\Projects\MyGame" --preset "Godot Engine" -c maximum
 TxtConverter.exe convert "C:\Projects\MyGame" --include "scripts/**" --no-pdf --dry-run
@@ -193,8 +198,11 @@ TxtConverter.exe ai select "C:\Projects\MyGame" --task "починить дви�
 | `config` | Просмотр и изменение настроек, общих с окном программы |
 | `ai` | `select` / `models` / `test` — ИИ-отбор файлов и проверка провайдера |
 | `update` | Проверка обновлений на GitHub |
+| `test` | Самопроверка: создаёт тестовый проект и проверяет весь конвейер |
 
 *   **Выбор файлов в скриптах:** маски (`--include "src/**"`), список путей (`--include-file`) или ИИ (`--ai-task`).
+*   **Режим сжатия:** на каждый запуск (`--compression maximum`), для контекста ИИ или сохранить один раз
+    (`config set compression maximum`) — общий с окном программы.
 *   **Для CI:** вывод `--json`, прогресс в stderr, понятные коды возврата, `--quiet`.
 *   **Общие настройки:** пресеты, уровень сжатия, API-ключи и свои пресеты одинаковы для окна и для консоли.
 *   📖 Полная документация: [docs/CLI.md](docs/CLI.md)

@@ -30,6 +30,7 @@ the command line, and both front ends share the same `settings.json`.
 - [`config`](#config)
 - [`ai`](#ai)
 - [`update`](#update)
+- [`test`](#test)
 - [Recipes](#recipes)
 - [Notes and troubleshooting](#notes-and-troubleshooting)
 
@@ -64,6 +65,7 @@ The result is always written to `<project>/_ConvertedToTxt` unless `--output` sa
 | `config <list\|get\|set\|path>` | Read/write the settings shared with the GUI |
 | `ai <select\|models\|test>` | AI Smart Select plus provider checks |
 | `update check` | Check GitHub for a newer release |
+| `test` | Self test: verifies the CLI and the whole conversion pipeline |
 | `gui` | Start the graphical interface explicitly |
 | `help [command]` | Show help (also `--help` on every command) |
 | `version` | Show version information (also `--version`) |
@@ -131,6 +133,10 @@ Files that are not selected are still listed in the report, but only as stubs, e
 | `--ignore <list>` | Extra ignored folders, comma separated (added to the preset list). Repeatable. |
 | `--exclude <list>` | Files/folders kept as stubs only (added to the preset list). Repeatable. |
 
+> Exclusions use the same syntax as the GUI "Exclusions / Stubs" box: an entry without a slash matches a
+> **file name** (`legacy_file.cs`), an entry with a slash matches a **path or folder**
+> (`vendor/`, `src/old_api/`). Add the trailing slash for folders.
+
 ### File selection (replaces the "Select Files..." window)
 
 | Option | Description |
@@ -159,7 +165,7 @@ List files contain one entry per line, `#` starts a comment, and entries may be 
 
 | Option | Description |
 |---|---|
-| `-c, --compression <none\|smart\|maximum>` | Token compression level (default: from settings) |
+| `-c, --compression <none\|smart\|maximum>` | Token compression mode for this run (default: the saved mode, see below) |
 | `--structure` / `--no-structure` | Embed the file structure map in the report |
 | `--compact-structure` / `--no-compact-structure` | Collapse stub entries in the structure map |
 | `--merged` / `--no-merged` | Generate the single merged source file |
@@ -171,6 +177,31 @@ List files contain one entry per line, `#` starts a comment, and entries may be 
 | `--ai-model <name>` | Override the AI model for this run |
 | `--ai-budget <tokens>` | Override the AI thinking budget |
 | `--ai-system-prompt <file>` | Read the AI system prompt from a file |
+
+### Compression modes
+
+| Mode | Effect |
+|---|---|
+| `none` | Original file contents, verbose report headers (`FILE: path`) |
+| `smart` | Removes excessive empty lines, normalizes line endings — safe for any project |
+| `maximum` | Removes comments and formatting, flattens indentation and applies engine specific optimizers (Godot `@Repeated(n)` + type aliases, Unity YAML, C# compaction) |
+
+**Three ways to select the mode**, from the most specific to the most general:
+
+```bat
+REM 1. per run (highest priority)
+TxtConverter.exe convert MyGame --compression maximum
+
+REM 2. for the context packed for the AI
+TxtConverter.exe ai select MyGame --task "..." --compression smart
+
+REM 3. stored default - shared with the GUI Conversion Settings dialog
+TxtConverter.exe config set compression maximum
+TxtConverter.exe config get compression
+```
+
+The stored value is only used when no `--compression` option is given, so scripts and one-off runs never
+change the global default.
 
 ### Examples
 
@@ -268,16 +299,24 @@ visible in the interface immediately.
 | `set <key> <value>` | Change one setting and save it |
 | `path` | Print the settings file location |
 
-Keys: `language`, `telemetry`, `global-ignored-folders`, `global-excluded-paths`, `last-source-dir`,
-`last-preset`, `ai.enabled`, `ai.provider`, `ai.api-key`, `ai.model`, `ai.system-prompt`,
-`ai.thinking-enabled`, `ai.thinking-budget`, `nvidia.api-key`, `nvidia.model`, `nvidia.max-tokens`,
-`nvidia.temperature`, `nvidia.top-p`, `nvidia.reasoning-enabled`, `custom.endpoint`, `custom.api-key`,
-`custom.model`, `custom.max-tokens`, `custom.temperature`, `custom.top-p`.
+Keys are grouped in `config list`:
+
+| Group | Keys |
+|---|---|
+| General | `language`, `telemetry`, `global-ignored-folders`, `global-excluded-paths`, `last-source-dir`, `last-preset`, `ai.enabled`, `ai.provider`, `ai.system-prompt` |
+| Conversion settings | `compression` (`none`/`smart`/`maximum`), `generate-structure`, `compact-mode`, `generate-merged`, `generate-pdf`, `pdf-mode` |
+| AI: Google Gemini | `ai.api-key`, `ai.model`, `ai.thinking-enabled`, `ai.thinking-budget` |
+| AI: NVIDIA NIM | `nvidia.api-key`, `nvidia.model`, `nvidia.max-tokens`, `nvidia.temperature`, `nvidia.top-p`, `nvidia.reasoning-enabled` |
+| AI: OpenAI compatible | `custom.endpoint`, `custom.api-key`, `custom.model`, `custom.max-tokens`, `custom.temperature`, `custom.top-p` |
+
+The **Conversion settings** group is the CLI equivalent of the GUI "Conversion Settings" dialog: change a
+value once and both front ends use it.
 
 ```bat
 TxtConverter.exe config set ai.provider GoogleGemini
 TxtConverter.exe config set ai.api-key "AIza..."
 TxtConverter.exe config set global-ignored-folders "bin, obj, .git, venv"
+TxtConverter.exe config set compression maximum
 TxtConverter.exe config set language ru
 ```
 
@@ -298,6 +337,7 @@ Describes a task, packs the project context and lets the configured provider pic
 | `--task <text>` | **Required.** What the code should do |
 | `--model <name>` | Model override for this call |
 | `--budget <tokens>` | Thinking token budget (Gemini) |
+| `-c, --compression <none\|smart\|maximum>` | Compression mode used to pack the project context |
 | `--system-prompt <file>` | Read the system prompt from a file instead of the saved one |
 | `--save <file>` | Write the selection as a reusable path list |
 | `-p, --preset`, `--ext`, `--ignore` | Same project options as `convert` |
@@ -328,6 +368,62 @@ TxtConverter.exe update check
 
 Queries the GitHub releases API (with the same fallbacks as the GUI) and prints the newest release.
 Nothing is downloaded automatically.
+
+---
+
+## `test`
+
+```
+TxtConverter.exe test [--keep] [--online]
+```
+
+Verifies the installation. The command builds a temporary sample Godot project in the temp folder and
+runs the **production code** against it, then checks the results:
+
+| Check | What it verifies |
+|---|---|
+| `runtime` | .NET runtime and version information |
+| `settings` | `settings.json` is readable and the saved language is valid |
+| `localization` | English **and** Russian resource dictionaries load (headless pack URIs) |
+| `presets` | Built-in and custom presets are loaded |
+| `auto-detect` | `project.godot` is detected as the `Godot Engine` preset |
+| `scan` | Extension filter, ignored folders (`_ConvertedToTxt`, `.godot`) and the black list |
+| `compression` | None/Smart/Maximum levels, including the Godot `@Repeated(n)` scene optimizer |
+| `compression-mode` | Selecting a mode really changes the report (`none` vs `maximum` size and format) |
+| `glob-matching` | `--include` patterns (`*.gd`, `scripts/**`, `**/*.tscn`, `vendor/`) |
+| `ai-path-matching` | AI suggested paths are resolved to real project files |
+| `convert-merged` | Structure map, full file contents and stub markers in the merged report |
+| `convert-pdf` | PDF is rendered and starts with the `%PDF` header |
+| `update-check` | GitHub release query (only with `--online`) |
+
+* The temporary project is deleted afterwards, use `--keep` to inspect it.
+* No telemetry is sent and no network request is made unless `--online` is used.
+* `--quiet` prints only failures (useful in CI), `--json` returns the full report as one document.
+* Exit code `0` means every check passed.
+
+```bat
+REM quick check
+TxtConverter.exe test
+
+REM what CI runs
+TxtConverter.exe test --quiet
+
+REM full report, including the GitHub release check
+TxtConverter.exe test --online --json
+```
+
+Typical output:
+
+```
+  [PASS] runtime           .NET 10.0.9 (win-x64)
+  [PASS] localization      en + ru resource dictionaries loaded
+  [PASS] compression       gd none 43B / smart 40B / max 39B, tscn 208B -> 50B
+  [PASS] compression-mode  none 2 KB vs maximum 1 KB (Godot optimizer applied)
+  [PASS] convert-merged    _SelfTest_Full_Source_code.txt (1927 B) + 8 txt files
+  [PASS] convert-pdf       _SelfTest_Report.pdf (99 KB)
+  [SKIP] update-check      network checks disabled (use --online)
+All 12 checks passed (1 skipped).
+```
 
 ---
 

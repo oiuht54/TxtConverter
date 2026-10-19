@@ -24,93 +24,124 @@ internal sealed class ConfigCommand : CliCommand {
 
     public override IReadOnlyList<OptionDef> Options => Array.Empty<OptionDef>();
 
+    private const string GroupGeneral = "General";
+    private const string GroupConversion = "Conversion settings";
+    private const string GroupGemini = "AI: Google Gemini";
+    private const string GroupNvidia = "AI: NVIDIA NIM";
+    private const string GroupCustom = "AI: OpenAI compatible";
+
+    /// <summary>Display order of the sections in 'config list'.</summary>
+    private static readonly string[] GroupOrder = { GroupGeneral, GroupConversion, GroupGemini, GroupNvidia, GroupCustom };
+
     private sealed record ConfigKeyDef(
         string Key,
+        string Group,
         string Description,
         Func<PreferenceManager, string> Get,
         Action<PreferenceManager, string> Set,
         bool Secret = false);
 
     private static readonly List<ConfigKeyDef> Keys = new() {
-        new("language", "Report/UI language (en, ru)",
+        new("language", GroupGeneral, "Report/UI language (en, ru)",
             p => p.GetLanguage(),
             (p, v) => p.SetLanguage(RequireEnum(v, "en", "ru"))),
-        new("telemetry", "Anonymous usage statistics",
+        new("telemetry", GroupGeneral, "Anonymous usage statistics",
             p => Bool(p.GetTelemetryEnabled()),
             (p, v) => p.SetTelemetryEnabled(ParseBool(v))),
-        new("global-ignored-folders", "Always ignored folders, comma separated",
+        new("global-ignored-folders", GroupGeneral, "Always ignored folders, comma separated",
             p => p.GetGlobalIgnoredFolders(),
             (p, v) => p.SetGlobalIgnoredFolders(v)),
-        new("global-excluded-paths", "Always excluded files/folders (stubs), comma separated",
+        new("global-excluded-paths", GroupGeneral, "Always excluded files/folders (stubs), comma separated",
             p => p.GetGlobalExcludedPaths(),
             (p, v) => p.SetGlobalExcludedPaths(v)),
-        new("last-source-dir", "Last converted folder",
+        new("last-source-dir", GroupGeneral, "Last converted folder",
             p => p.GetLastSourceDir(),
             (p, v) => p.SetLastSourceDir(v)),
-        new("last-preset", "Last used preset",
+        new("last-preset", GroupGeneral, "Last used preset",
             p => p.GetLastPreset(),
             (p, v) => {
                 if (!PresetManager.Instance.HasPreset(v)) throw CliException.NotFound($"Unknown preset '{v}'.");
                 p.SetLastPreset(v);
             }),
-        new("ai.enabled", "Enable the AI Smart Select feature",
+
+        // --- Conversion settings (the CLI twin of the "Conversion Settings" dialog) ---
+        new("compression", GroupConversion, "Token compression mode (none, smart, maximum)",
+            p => p.GetCompressionLevel().ToString(),
+            (p, v) => p.SetCompressionLevel(ParseEnum<CompressionLevel>(v))),
+        new("generate-structure", GroupConversion, "Embed the file structure map in the report",
+            p => Bool(p.GetGenerateStructure()),
+            (p, v) => p.SetGenerateStructure(ParseBool(v))),
+        new("compact-mode", GroupConversion, "Collapse stub entries in the structure map",
+            p => Bool(p.GetCompactMode()),
+            (p, v) => p.SetCompactMode(ParseBool(v))),
+        new("generate-merged", GroupConversion, "Generate the single merged source file",
+            p => Bool(p.GetGenerateMerged()),
+            (p, v) => p.SetGenerateMerged(ParseBool(v))),
+        new("generate-pdf", GroupConversion, "Generate the PDF report",
+            p => Bool(p.GetGeneratePdf()),
+            (p, v) => p.SetGeneratePdf(ParseBool(v))),
+        new("pdf-mode", GroupConversion, "PDF layout mode (standard, compact, extreme)",
+            p => p.GetPdfMode().ToString(),
+            (p, v) => p.SetPdfMode(ParseEnum<PdfMode>(v))),
+
+        new("ai.enabled", GroupGeneral, "Enable the AI Smart Select feature",
             p => Bool(p.GetAiEnabled()),
             (p, v) => p.SetAiEnabled(ParseBool(v))),
-        new("ai.provider", "AI provider (GoogleGemini, NvidiaNim, OpenAiCompatible)",
+        new("ai.provider", GroupGeneral, "AI provider (GoogleGemini, NvidiaNim, OpenAiCompatible)",
             p => p.GetAiProvider().ToString(),
             (p, v) => p.SetAiProvider(ParseEnum<AiProvider>(v))),
-        new("ai.api-key", "Gemini API key",
+        new("ai.api-key", GroupGemini, "Gemini API key",
             p => p.GetGeminiApiKey(),
             (p, v) => p.SetGeminiApiKey(v),
             true),
-        new("ai.model", "Gemini model",
+        new("ai.model", GroupGemini, "Gemini model",
             p => p.GetGeminiModel(),
             (p, v) => p.SetGeminiModel(v)),
-        new("ai.system-prompt", "System prompt used for AI file selection",
+        new("ai.system-prompt", GroupGeneral, "System prompt used for AI file selection",
             p => p.GetAiSystemPrompt(),
             (p, v) => p.SetAiSystemPrompt(v)),
-        new("ai.thinking-enabled", "Enable Gemini thinking mode",
+        new("ai.thinking-enabled", GroupGemini, "Enable Gemini thinking mode",
             p => Bool(p.GetAiThinkingEnabled()),
             (p, v) => p.SetAiThinkingEnabled(ParseBool(v))),
-        new("ai.thinking-budget", "Gemini thinking token budget",
+        new("ai.thinking-budget", GroupGemini, "Gemini thinking token budget",
             p => p.GetAiThinkingBudget().ToString(CultureInfo.InvariantCulture),
             (p, v) => p.SetAiThinkingBudget(ParseInt(v))),
-        new("nvidia.api-key", "NVIDIA NIM API key",
+        new("nvidia.api-key", GroupNvidia, "NVIDIA NIM API key",
             p => p.GetNvidiaApiKey(),
             (p, v) => p.SetNvidiaApiKey(v),
             true),
-        new("nvidia.model", "NVIDIA NIM model",
+        new("nvidia.model", GroupNvidia, "NVIDIA NIM model",
             p => p.GetNvidiaModel(),
             (p, v) => p.SetNvidiaModel(v)),
-        new("nvidia.max-tokens", "NVIDIA NIM max tokens",
+        new("nvidia.max-tokens", GroupNvidia, "NVIDIA NIM max tokens",
             p => p.GetNvidiaMaxTokens().ToString(CultureInfo.InvariantCulture),
             (p, v) => p.SetNvidiaMaxTokens(ParseInt(v))),
-        new("nvidia.temperature", "NVIDIA NIM temperature",
+        new("nvidia.temperature", GroupNvidia, "NVIDIA NIM temperature",
             p => p.GetNvidiaTemperature().ToString(CultureInfo.InvariantCulture),
             (p, v) => p.SetNvidiaTemperature(ParseDouble(v))),
-        new("nvidia.top-p", "NVIDIA NIM top-p",
+        new("nvidia.top-p", GroupNvidia, "NVIDIA NIM top-p",
             p => p.GetNvidiaTopP().ToString(CultureInfo.InvariantCulture),
             (p, v) => p.SetNvidiaTopP(ParseDouble(v))),
-        new("nvidia.reasoning-enabled", "Enable NVIDIA reasoning mode",
+        new("nvidia.reasoning-enabled", GroupNvidia, "Enable NVIDIA reasoning mode",
             p => Bool(p.GetNvidiaReasoningEnabled()),
             (p, v) => p.SetNvidiaReasoningEnabled(ParseBool(v))),
-        new("custom.endpoint", "OpenAI compatible endpoint",
+        new("custom.endpoint", GroupCustom, "OpenAI compatible endpoint",
             p => p.GetCustomOpenAiEndpoint(),
             (p, v) => p.SetCustomOpenAiEndpoint(v)),
-        new("custom.api-key", "OpenAI compatible API key",
+        new("custom.api-key", GroupCustom, "OpenAI compatible API key",
             p => p.GetCustomOpenAiApiKey(),
             (p, v) => p.SetCustomOpenAiApiKey(v),
             true),
-        new("custom.model", "OpenAI compatible model",
+        new("custom.model", GroupCustom, "OpenAI compatible model",
             p => p.GetCustomOpenAiModel(),
             (p, v) => p.SetCustomOpenAiModel(v)),
-        new("custom.max-tokens", "OpenAI compatible max tokens",
+        new("custom.max-tokens", GroupCustom, "OpenAI compatible max tokens",
             p => p.GetCustomOpenAiMaxTokens().ToString(CultureInfo.InvariantCulture),
             (p, v) => p.SetCustomOpenAiMaxTokens(ParseInt(v))),
-        new("custom.temperature", "OpenAI compatible temperature",
+        new("custom.temperature", GroupCustom, "OpenAI compatible temperature",
             p => p.GetCustomOpenAiTemperature().ToString(CultureInfo.InvariantCulture),
             (p, v) => p.SetCustomOpenAiTemperature(ParseDouble(v))),
-        new("custom.top-p", "OpenAI compatible top-p",
+        new("custom.top-p", GroupCustom, "OpenAI compatible top-p",
             p => p.GetCustomOpenAiTopP().ToString(CultureInfo.InvariantCulture),
             (p, v) => p.SetCustomOpenAiTopP(ParseDouble(v)))
     };
@@ -141,8 +172,15 @@ internal sealed class ConfigCommand : CliCommand {
 
         ctx.Log.Line("Settings file: " + PreferenceManager.Instance.SettingsPath);
         ctx.Log.Section($"Settings ({Keys.Count})");
-        foreach (ConfigKeyDef key in Keys)
-            ctx.Log.Line($"  {key.Key.PadRight(26)} {Compact(Mask(key, key.Get(ctx.Prefs))).PadRight(30)} {key.Description}");
+
+        foreach (string group in GroupOrder) {
+            var groupKeys = Keys.Where(k => k.Group == group).ToList();
+            if (groupKeys.Count == 0) continue;
+
+            ctx.Log.Line($"-- {group} --");
+            foreach (ConfigKeyDef key in groupKeys)
+                ctx.Log.Line($"  {key.Key.PadRight(26)} {Compact(Mask(key, key.Get(ctx.Prefs))).PadRight(30)} {key.Description}");
+        }
         return ExitCodes.Success;
     }
 

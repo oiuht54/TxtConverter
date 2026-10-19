@@ -36,6 +36,7 @@ internal static class HelpText {
         log.Line("  TxtConverter.exe scan . --stats");
         log.Line("  TxtConverter.exe ai select . --task \"player movement\" --save selection.txt");
         log.Line("  TxtConverter.exe convert . --include \"src/**\" --compression maximum --dry-run");
+        log.Line("  TxtConverter.exe test          " + "verify this installation");
         log.Line("");
         log.Line("Run 'TxtConverter.exe help <command>' for command specific options.");
     }

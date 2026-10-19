@@ -50,7 +50,7 @@ if errorlevel 1 goto :fail
 echo.
 
 echo ==========================================
-echo 5. CLI SMOKE TEST
+echo 5. CLI SMOKE TEST + SELF TEST
 echo ==========================================
 set "CLI=_ReleaseBuilds\Lite_NoRuntime\TxtConverter.exe"
 
@@ -68,14 +68,12 @@ if errorlevel 1 goto :fail
 "%CLI%" config path
 if errorlevel 1 goto :fail
 
-"%CLI%" detect "%CD%"
-if errorlevel 1 goto :fail
-
-"%CLI%" convert "%CD%" --dry-run --no-pdf
+REM Self test: sample project -> scan -> convert -> merged file -> PDF.
+"%CLI%" test
 if errorlevel 1 goto :fail
 
 echo.
-echo CLI smoke test passed.
+echo CLI smoke test and self test passed.
 echo.
 
 echo ==========================================
