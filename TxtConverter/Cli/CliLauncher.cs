@@ -86,6 +86,7 @@ public static class CliLauncher {
                 Json = parsed.Flag("json") == true,
                 Quiet = parsed.Flag("quiet") == true,
                 Verbose = parsed.Flag("verbose") == true,
+                Debug = parsed.Flag("debug") == true,
                 AssumeYes = parsed.Flag("yes") == true
             };
 
@@ -115,6 +116,7 @@ public static class CliLauncher {
         log.JsonMode = parsed.Flag("json") == true;
         log.Quiet = parsed.Flag("quiet") == true;
         log.Verbose = parsed.Flag("verbose") == true;
+        log.DebugEnabled = parsed.Flag("debug") == true;
     }
 
     private static void InitializeHeadless(ParsedArgs parsed, CliContext ctx) {
@@ -127,11 +129,13 @@ public static class CliLauncher {
                 case "false":
                 case "0":
                     TelemetryService.Instance.Suppress = true;
+                    TelemetryService.Instance.EnabledOverride = false;
                     break;
                 case "on":
                 case "true":
                 case "1":
                     TelemetryService.Instance.Suppress = false;
+                    TelemetryService.Instance.EnabledOverride = true;
                     break;
                 default:
                     throw CliException.Usage($"Invalid value '{telemetry}' for --telemetry. Allowed: on, off.");

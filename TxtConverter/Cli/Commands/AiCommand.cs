@@ -25,16 +25,18 @@ internal sealed class AiCommand : CliCommand {
     public override IReadOnlyList<OptionDef> Options => AiOptions.Common.Concat(new List<OptionDef> {
         new OptionDef { Name = "task", TakesValue = true, ValueName = "text", Description = "What the code should do (required for 'select')" },
         new OptionDef { Name = "model", TakesValue = true, ValueName = "name", Description = "Model to use for this call" },
-        new OptionDef { Name = "budget", TakesValue = true, ValueName = "tokens", Description = "Thinking token budget (Gemini)" },
+        new OptionDef { Name = "budget", TakesValue = true, ValueName = "tokens", Description = "Thinking token budget (Gemini only)" },
         new OptionDef { Name = "compression", Short = 'c', TakesValue = true, ValueName = "none|smart|maximum", Description = "Compression mode used to pack the project context ('select')" },
         new OptionDef { Name = "system-prompt", TakesValue = true, ValueName = "file", Description = "Read the AI system prompt from a file" },
-        new OptionDef { Name = "save", TakesValue = true, ValueName = "file", Description = "Write the selection as a reusable path list" }
+        new OptionDef { Name = "save", TakesValue = true, ValueName = "file", Description = "Write the selection as a reusable path list" },
+        new OptionDef { Name = "debug", TakesValue = false, Description = "Print the AI request JSON and raw response JSON on stderr (also included in --json output)" }
     }).Concat(ProjectOptions.Common).ToList();
 
     public override async Task<int> ExecuteAsync(ParsedArgs args, CliContext ctx) {
         string action = args.Positional.Count > 0 ? args.Positional[0].ToLowerInvariant() : "select";
         if (args.Positional.Count > 0) args.Positional.RemoveAt(0);
         EnsureNoExtraArgs(args, action == "select" ? 1 : 0);
+        EnsureActionOptions(args, action);
 
         return action switch {
             "select" => await SelectAsync(args, ctx),
@@ -44,10 +46,28 @@ internal sealed class AiCommand : CliCommand {
         };
     }
 
+    /// <summary>
+    /// The AI command shares one option table for all actions. Reject the options that would
+    /// otherwise be accepted and ignored by 'models' and 'test'.
+    /// </summary>
+    private static void EnsureActionOptions(ParsedArgs args, string action) {
+        if (action is not ("models" or "test")) return;
+
+        string[] selectOnly = { "task", "save", "compression", "system-prompt", "budget", "debug" };
+        var used = selectOnly.Where(args.Has).Select(name => "--" + name).ToList();
+        if (used.Count > 0)
+            throw CliException.Usage(used.Count == 1
+                ? $"Option {used[0]} only applies to 'ai select'."
+                : $"Options {string.Join(", ", used)} only apply to 'ai select'.");
+    }
+
     private static async Task<int> SelectAsync(ParsedArgs args, CliContext ctx) {
         string? task = args.Value("task");
         if (string.IsNullOrWhiteSpace(task))
             throw CliException.Usage("Missing task description. Usage: TxtConverter.exe ai select [path] --task \"what the code should do\"");
+
+        // Validate the AI options before scanning so bad input fails fast.
+        AiRequestOptions aiOptions = AiRequestOptions.Resolve(args, ctx.Prefs);
 
         var project = await ProjectResolver.ResolveAsync(args, ctx);
         if (project.FoundFiles.Count == 0)
@@ -55,7 +75,7 @@ internal sealed class AiCommand : CliCommand {
                 $"No files matched preset '{project.PresetName}'. Use --ext to override the extension list.",
                 ExitCodes.NothingToConvert);
 
-        var outcome = await AiSelectionService.RunAsync(project, args, ctx, task);
+        var outcome = await AiSelectionService.RunAsync(project, args, ctx, task, aiOptions);
 
         string? saveTo = args.Value("save");
         if (!string.IsNullOrWhiteSpace(saveTo)) {
@@ -65,19 +85,7 @@ internal sealed class AiCommand : CliCommand {
         }
 
         if (ctx.Json) {
-            ctx.Log.EmitJson(new Dictionary<string, object?> {
-                { "ok", true },
-                { "command", "ai select" },
-                { "root", project.RootPath },
-                { "provider", outcome.ProviderName },
-                { "model", outcome.Model },
-                { "compression", outcome.Compression },
-                { "contextLength", outcome.ContextLength },
-                { "filesScanned", project.FoundFiles.Count },
-                { "filesSelected", outcome.Files.Count },
-                { "savedTo", saveTo ?? "" },
-                { "files", outcome.Files.Select(project.Relative).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList() }
-            });
+            ctx.Log.EmitJson(BuildSelectJson(project, outcome, saveTo, includeDebug: ctx.Debug));
         }
         else {
             ctx.Log.Section($"AI selected {outcome.Files.Count} of {project.FoundFiles.Count} files");
@@ -94,6 +102,37 @@ internal sealed class AiCommand : CliCommand {
         });
 
         return ExitCodes.Success;
+    }
+
+    /// <summary>
+    /// Builds the single JSON document of 'ai select'. The debug payloads are only included
+    /// with --debug, so the normal output stays unchanged.
+    /// </summary>
+    internal static Dictionary<string, object?> BuildSelectJson(
+        ResolvedProject project,
+        AiSelectionOutcome outcome,
+        string? saveTo,
+        bool includeDebug) {
+        var payload = new Dictionary<string, object?> {
+            { "ok", true },
+            { "command", "ai select" },
+            { "root", project.RootPath },
+            { "provider", outcome.ProviderName },
+            { "model", outcome.Model },
+            { "compression", outcome.Compression },
+            { "contextLength", outcome.ContextLength },
+            { "filesScanned", project.FoundFiles.Count },
+            { "filesSelected", outcome.Files.Count },
+            { "savedTo", saveTo ?? "" },
+            { "files", outcome.Files.Select(project.Relative).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList() }
+        };
+
+        if (includeDebug) {
+            payload["request"] = outcome.RequestJson;
+            payload["response"] = outcome.ResponseText;
+            payload["rawResponse"] = outcome.RawResponse;
+        }
+        return payload;
     }
 
     private static async Task<int> ModelsAsync(ParsedArgs args, CliContext ctx) {
@@ -145,36 +184,14 @@ internal sealed class AiCommand : CliCommand {
     }
 
     private static (IAiClient client, string providerName, string model) CreateClient(ParsedArgs args, CliContext ctx) {
-        var prefs = ctx.Prefs;
-        AiProvider provider = prefs.GetAiProvider();
-        string? overrideProvider = args.Value("provider");
-        if (!string.IsNullOrWhiteSpace(overrideProvider)) provider = AiOptions.ParseProvider(overrideProvider);
+        AiRequestOptions options = AiRequestOptions.Resolve(args, ctx.Prefs);
 
-        string apiKey = args.Value("api-key") ?? provider switch {
-            AiProvider.NvidiaNim => prefs.GetNvidiaApiKey(),
-            AiProvider.OpenAiCompatible => prefs.GetCustomOpenAiApiKey(),
-            _ => prefs.GetGeminiApiKey()
-        };
+        if (string.IsNullOrWhiteSpace(options.ApiKey) && options.Provider != AiProvider.OpenAiCompatible)
+            throw CliException.NotFound(
+                $"No API key configured for {options.Provider}. " +
+                $"Set it with: config set {AiOptions.KeyFor(options.Provider, "api-key")} <key>");
 
-        if (string.IsNullOrWhiteSpace(apiKey) && provider != AiProvider.OpenAiCompatible)
-            throw CliException.NotFound($"No API key configured for {provider}. Set it with: config set {KeyFor(provider, "api-key")} <key>");
-
-        string model = args.Value("model") ?? provider switch {
-            AiProvider.NvidiaNim => prefs.GetNvidiaModel(),
-            AiProvider.OpenAiCompatible => prefs.GetCustomOpenAiModel(),
-            _ => prefs.GetGeminiModel()
-        };
-        if (string.IsNullOrWhiteSpace(model))
-            throw CliException.NotFound("No model configured. Pass --model or store one in the settings.");
-
-        string? endpoint = args.Value("endpoint") ?? (provider == AiProvider.OpenAiCompatible ? prefs.GetCustomOpenAiEndpoint() : null);
-
-        return (AiClientFactory.CreateSpecific(provider, apiKey, model, endpoint), provider.ToString(), model);
+        IAiClient client = AiClientFactory.CreateSpecific(options.Provider, options.ApiKey, options.Model, options.Endpoint);
+        return (client, options.Provider.ToString(), options.Model);
     }
-
-    private static string KeyFor(AiProvider provider, string suffix) => provider switch {
-        AiProvider.NvidiaNim => "nvidia." + suffix,
-        AiProvider.OpenAiCompatible => "custom." + suffix,
-        _ => "ai." + suffix
-    };
 }

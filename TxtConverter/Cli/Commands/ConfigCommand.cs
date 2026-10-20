@@ -11,14 +11,15 @@ namespace TxtConverter.Cli.Commands;
 /// <summary>Reads and writes the settings file that is shared with the GUI.</summary>
 internal sealed class ConfigCommand : CliCommand {
     public override string Name => "config";
-    public override string Summary => "list | get | set | path of the shared settings";
-    public override string Usage => "config <list|get|set|path> [key] [value]";
+    public override string Summary => "list | get | set | reset | path of the shared settings";
+    public override string Usage => "config <list|get|set|reset|path> [key] [value]";
 
     public override string Description =>
         "Actions:\n" +
         "  list               Print every setting (secrets are masked)\n" +
         "  get <key>          Print one setting\n" +
         "  set <key> <value>  Change one setting and save it to settings.json\n" +
+        "  reset <key>        Restore a setting to its factory default (currently: ai.system-prompt)\n" +
         "  path               Print the settings file location\n\n" +
         "The CLI and the GUI share the same file, so a change here is visible in the interface too.";
 
@@ -154,8 +155,9 @@ internal sealed class ConfigCommand : CliCommand {
             "list" => List(ctx),
             "get" => Get(args, ctx),
             "set" => Set(args, ctx),
+            "reset" => Reset(args, ctx),
             "path" => Path(ctx),
-            _ => throw CliException.Usage($"Unknown action '{action}'. Allowed: list, get, set, path.")
+            _ => throw CliException.Usage($"Unknown action '{action}'. Allowed: list, get, set, reset, path.")
         });
     }
 
@@ -217,6 +219,37 @@ internal sealed class ConfigCommand : CliCommand {
         else
             ctx.Log.Success($"{key.Key} = {stored}");
         return ExitCodes.Success;
+    }
+
+    private static int Reset(ParsedArgs args, CliContext ctx) {
+        ConfigKeyDef key = RequireKey(args);
+        if (args.Positional.Count > 1)
+            throw CliException.Usage($"Unexpected argument '{args.Positional[1]}'.");
+
+        string value = ResetValue(ctx.Prefs, key.Key, persist: true);
+
+        if (ctx.Json)
+            ctx.Log.EmitJson(new Dictionary<string, object?> {
+                { "ok", true }, { "command", "config reset" }, { "key", key.Key }, { "value", value }
+            });
+        else {
+            ctx.Log.Success($"{key.Key} reset to the factory default.");
+            ctx.Log.Result(value);
+        }
+        return ExitCodes.Success;
+    }
+
+    /// <summary>
+    /// Resets a setting to its factory default. 'persist: false' lets the self test verify
+    /// the command logic without rewriting the settings file.
+    /// </summary>
+    internal static string ResetValue(PreferenceManager prefs, string keyName, bool persist) {
+        if (!keyName.Equals("ai.system-prompt", StringComparison.OrdinalIgnoreCase))
+            throw CliException.Usage(
+                $"Only 'ai.system-prompt' can be reset. Change other keys with: config set {keyName} <value>");
+
+        prefs.ResetAiSystemPrompt(persist);
+        return prefs.GetAiSystemPrompt();
     }
 
     private static int Path(CliContext ctx) {

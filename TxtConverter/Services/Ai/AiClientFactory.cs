@@ -65,4 +65,45 @@ public static class AiClientFactory {
                 return new GeminiClient(apiKey, model, false, 0);
         }
     }
+
+    /// <summary>
+    /// Client for an AI Smart Select run. Unlike <see cref="CreateSpecific"/> it keeps the
+    /// configured thinking/reasoning/temperature/top-p values of the selected provider,
+    /// while the per-call key, model and endpoint take precedence.
+    /// </summary>
+    public static IAiClient CreateForSelection(
+        AiProvider provider,
+        string apiKey,
+        string model,
+        string? endpoint,
+        bool thinkingEnabled,
+        int thinkingBudget) {
+        var prefs = PreferenceManager.Instance;
+        switch (provider) {
+            case AiProvider.OpenAiCompatible:
+                string resolvedEndpoint = !string.IsNullOrWhiteSpace(endpoint)
+                    ? endpoint
+                    : prefs.GetCustomOpenAiEndpoint();
+                return new OpenAiCompatibleClient(
+                    resolvedEndpoint,
+                    apiKey,
+                    model,
+                    prefs.GetCustomOpenAiMaxTokens(),
+                    prefs.GetCustomOpenAiTemperature(),
+                    prefs.GetCustomOpenAiTopP()
+                );
+            case AiProvider.NvidiaNim:
+                return new NvidiaClient(
+                    apiKey,
+                    model,
+                    prefs.GetNvidiaMaxTokens(),
+                    prefs.GetNvidiaTemperature(),
+                    prefs.GetNvidiaTopP(),
+                    prefs.GetNvidiaReasoningEnabled()
+                );
+            case AiProvider.GoogleGemini:
+            default:
+                return new GeminiClient(apiKey, model, thinkingEnabled, thinkingBudget);
+        }
+    }
 }

@@ -12,6 +12,7 @@ internal sealed class CliContext {
     public bool Json { get; init; }
     public bool Quiet { get; init; }
     public bool Verbose { get; init; }
+    public bool Debug { get; init; }
     public bool AssumeYes { get; init; }
 
     public Services.PreferenceManager Prefs => Services.PreferenceManager.Instance;

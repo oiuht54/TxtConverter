@@ -61,6 +61,8 @@ internal sealed class PresetsCommand : CliCommand {
 
     private static int Show(ParsedArgs args, CliContext ctx) {
         string preset = RequireName(args, "show");
+        if (!PresetManager.Instance.HasPreset(preset))
+            throw CliException.NotFound($"Unknown preset '{preset}'.");
         var data = Describe(preset);
 
         if (ctx.Json) {

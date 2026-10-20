@@ -240,9 +240,9 @@ public class PreferenceManager {
         Save();
     }
 
-    public void ResetAiSystemPrompt() {
+    public void ResetAiSystemPrompt(bool persist = true) {
         _settings.AiSystemPrompt = ProjectConstants.DefaultAiSystemPrompt;
-        Save();
+        if (persist) Save();
     }
 
     public string GetAiApiKey() {

@@ -84,4 +84,11 @@ internal static class AiOptions {
             _ => throw CliException.Usage($"Invalid provider '{raw}'. Allowed: gemini, nvidia, openai.")
         };
     }
+
+    /// <summary>Config key that stores a value of the given provider, e.g. nvidia.api-key.</summary>
+    public static string KeyFor(Core.Enums.AiProvider provider, string suffix) => provider switch {
+        Core.Enums.AiProvider.NvidiaNim => "nvidia." + suffix,
+        Core.Enums.AiProvider.OpenAiCompatible => "custom." + suffix,
+        _ => "ai." + suffix
+    };
 }

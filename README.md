@@ -78,7 +78,7 @@ The application fully supports **English** and **Russian** languages.
 
 ## 🖥️ CLI Version (Automation & CI)
 
-`TxtConverter.exe` is **dual-mode**: launch it without arguments and the graphical window opens, pass a command and it runs in the console. Same file, same features, nothing extra to download.
+`TxtConverter.exe` is **dual-mode**: launch it without arguments and the graphical window opens, pass a command and it runs in the console. Same file, same conversion pipeline, nothing extra to download. A few interactions are intentionally GUI-only (see [docs/CLI.md](docs/CLI.md#intentional-cli-differences)).
 
 ```bat
 REM Full reference: docs/CLI.md
@@ -87,6 +87,8 @@ TxtConverter.exe scan "C:\Projects\MyGame" --stats
 TxtConverter.exe convert "C:\Projects\MyGame" --preset "Godot Engine" -c maximum
 TxtConverter.exe convert "C:\Projects\MyGame" --include "scripts/**" --no-pdf --dry-run
 TxtConverter.exe ai select "C:\Projects\MyGame" --task "fix the player movement" --save selection.txt
+TxtConverter.exe ai select "C:\Projects\MyGame" --task "fix the player movement" --debug
+TxtConverter.exe update check --open
 ```
 
 | Command | What it does |
@@ -95,12 +97,16 @@ TxtConverter.exe ai select "C:\Projects\MyGame" --task "fix the player movement"
 | `scan` | List and count the files a conversion would pick up |
 | `detect` | Show the auto-detected preset |
 | `presets` | `list` / `show` / `save` / `delete` preset definitions |
-| `config` | Read and write the settings shared with the GUI |
+| `config` | `list` / `get` / `set` / `reset` / `path` — settings shared with the GUI |
 | `ai` | `select` / `models` / `test` — AI Smart Select and provider checks |
-| `update` | Check GitHub for a newer release |
+| `update` | Check GitHub for a newer release (`--open` opens the release page) |
 | `test` | Self test: builds a sample project and verifies the whole pipeline |
 
 *   **Scriptable selection:** globs (`--include "src/**"`), path lists (`--include-file`) or AI (`--ai-task`).
+*   **Per-call AI overrides:** `--provider`, `--api-key`, `--endpoint`, `--model`, `--budget` and
+    `--system-prompt` apply to one `ai select` run without changing the saved settings.
+*   **AI debug output:** `--debug` prints the request and raw API response (the same data as the GUI
+    debug tabs); with `--json` they are added to the document.
 *   **Compression mode:** per run (`--compression maximum`), for the AI context, or stored once
     (`config set compression maximum`) — shared with the GUI Conversion Settings.
 *   **CI friendly:** `--json` output, progress on stderr, meaningful exit codes, `--quiet`.
@@ -181,7 +187,7 @@ TxtConverter.exe ai select "C:\Projects\MyGame" --task "fix the player movement"
 
 ## 🖥️ CLI версия (автоматизация и CI)
 
-`TxtConverter.exe` **два в одном**: запустите его без аргументов — откроется окно, добавьте команду — запустится консоль. Тот же файл, те же возможности, ничего дополнительно скачивать не нужно.
+`TxtConverter.exe` **два в одном**: запустите его без аргументов — откроется окно, добавьте команду — запустится консоль. Тот же файл, тот же конвейер конвертации, ничего дополнительно скачивать не нужно. Несколько взаимодействий намеренно доступны только в окне (см. [docs/CLI.md](docs/CLI.md#intentional-cli-differences)).
 
 ```bat
 REM Полная справка: docs/CLI.md
@@ -190,6 +196,8 @@ TxtConverter.exe scan "C:\Projects\MyGame" --stats
 TxtConverter.exe convert "C:\Projects\MyGame" --preset "Godot Engine" -c maximum
 TxtConverter.exe convert "C:\Projects\MyGame" --include "scripts/**" --no-pdf --dry-run
 TxtConverter.exe ai select "C:\Projects\MyGame" --task "починить движение игрока" --save selection.txt
+TxtConverter.exe ai select "C:\Projects\MyGame" --task "починить движение игрока" --debug
+TxtConverter.exe update check --open
 ```
 
 | Команда | Что делает |
@@ -198,12 +206,16 @@ TxtConverter.exe ai select "C:\Projects\MyGame" --task "починить дви�
 | `scan` | Показывает список файлов, которые попадут в конвертацию |
 | `detect` | Показывает автоматически определённый пресет |
 | `presets` | `list` / `show` / `save` / `delete` — работа с пресетами |
-| `config` | Просмотр и изменение настроек, общих с окном программы |
+| `config` | `list` / `get` / `set` / `reset` / `path` — настройки, общие с окном программы |
 | `ai` | `select` / `models` / `test` — ИИ-отбор файлов и проверка провайдера |
-| `update` | Проверка обновлений на GitHub |
+| `update` | Проверка обновлений на GitHub (`--open` открывает страницу релиза) |
 | `test` | Самопроверка: создаёт тестовый проект и проверяет весь конвейер |
 
 *   **Выбор файлов в скриптах:** маски (`--include "src/**"`), список путей (`--include-file`) или ИИ (`--ai-task`).
+*   **Разовые параметры ИИ:** `--provider`, `--api-key`, `--endpoint`, `--model`, `--budget` и
+    `--system-prompt` действуют только на один запуск `ai select` и не меняют сохранённые настройки.
+*   **Отладка ИИ:** `--debug` печатает запрос и сырой ответ API (те же данные, что во вкладках окна
+    ИИ); вместе с `--json` они добавляются в документ.
 *   **Режим сжатия:** на каждый запуск (`--compression maximum`), для контекста ИИ или сохранить один раз
     (`config set compression maximum`) — общий с окном программы.
 *   **Для CI:** вывод `--json`, прогресс в stderr, понятные коды возврата, `--quiet`.

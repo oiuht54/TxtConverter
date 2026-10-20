@@ -24,8 +24,16 @@ internal static class HelpText {
         log.Line("  TxtConverter.exe            launches the graphical interface");
         log.Line("");
         log.Section("Commands:");
-        int width = CliLauncher.Commands.Max(e => e.Usage.Length);
-        foreach (var entry in CliLauncher.Commands)
+
+        var entries = CliLauncher.Commands
+            .Select(c => (Usage: c.Usage, Summary: c.Summary))
+            .ToList();
+        entries.Add(("gui", "Start the graphical interface explicitly"));
+        entries.Add(("help [command]", "Show help (also --help on every command)"));
+        entries.Add(("version", "Show version information (also --version)"));
+
+        int width = entries.Max(e => e.Usage.Length);
+        foreach (var entry in entries)
             log.Line("  " + entry.Usage.PadRight(width) + "  " + entry.Summary);
         log.Line("");
         log.Section("Global options:");

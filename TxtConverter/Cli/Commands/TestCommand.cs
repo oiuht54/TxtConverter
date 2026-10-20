@@ -70,8 +70,14 @@ internal sealed class TestCommand : CliCommand {
             results.Add(CheckCompression(fixtureRoot));
             results.Add(CheckGlobs());
             results.Add(CheckAiMatcher(fixtureRoot));
+            results.Add(CheckAiOptions(fixtureRoot));
+            results.Add(CheckExclusions());
+            results.Add(CheckPresetsShow(ctx));
+            results.Add(CheckConfigResetPrompt());
+            results.Add(CheckUpdateOptions());
 
             var project = ResolveFixture(fixtureRoot, ctx);
+            results.Add(CheckDebugOutput(project));
             var convert = RunConversion(project, ctx, CompressionLevel.Smart);
             results.Add(CheckMerged(convert));
             results.Add(CheckPdf(convert));
@@ -248,6 +254,183 @@ internal sealed class TestCommand : CliCommand {
             return new CheckResult("ai-path-matching", StatusFail, $"only matched {matched.Count} of the suggested files");
 
         return new CheckResult("ai-path-matching", StatusPass, $"{matched.Count} of {suggestions.Count} suggestions resolved");
+    }
+
+    /// <summary>
+    /// The AI flags of 'ai select' and 'convert --ai-task' must reach the request options
+    /// instead of being accepted and ignored.
+    /// </summary>
+    private static CheckResult CheckAiOptions(string root) {
+        string promptFile = Path.Combine(root, "self_test_system_prompt.txt");
+        File.WriteAllText(promptFile, "SELF_TEST_SYSTEM_PROMPT");
+
+        var prefs = PreferenceManager.Instance;
+        var aiCommand = new AiCommand();
+
+        if (!aiCommand.BuildOptionSet().TryGet("debug", out _))
+            return new CheckResult("ai-options", StatusFail, "'ai select' does not declare --debug");
+
+        ParsedArgs selectArgs = CommandLineParser.Parse(new[] {
+            "select", root,
+            "--task", "self test",
+            "--provider", "gemini",
+            "--api-key", "self-test-key",
+            "--model", "self-test-model",
+            "--budget", "1234",
+            "--compression", "maximum",
+            "--system-prompt", promptFile
+        }, aiCommand.BuildOptionSet());
+
+        AiRequestOptions selected = AiRequestOptions.Resolve(selectArgs, prefs);
+        if (selected.Provider != AiProvider.GoogleGemini)
+            return new CheckResult("ai-options", StatusFail, $"--provider was ignored ({selected.Provider})");
+        if (selected.ApiKey != "self-test-key")
+            return new CheckResult("ai-options", StatusFail, "--api-key was ignored");
+        if (selected.Model != "self-test-model")
+            return new CheckResult("ai-options", StatusFail, $"--model was ignored ({selected.Model})");
+        if (selected.ThinkingBudget != 1234)
+            return new CheckResult("ai-options", StatusFail, $"--budget was ignored ({selected.ThinkingBudget})");
+        if (selected.Compression != CompressionLevel.Maximum)
+            return new CheckResult("ai-options", StatusFail, $"--compression was ignored ({selected.Compression})");
+        if (selected.SystemPrompt != "SELF_TEST_SYSTEM_PROMPT")
+            return new CheckResult("ai-options", StatusFail, "--system-prompt was ignored");
+
+        ParsedArgs nvidiaArgs = CommandLineParser.Parse(new[] {
+            "select", root,
+            "--task", "self test",
+            "--provider", "nvidia",
+            "--api-key", "nvidia-self-test-key",
+            "--model", "nvidia-self-test-model"
+        }, aiCommand.BuildOptionSet());
+
+        AiRequestOptions nvidia = AiRequestOptions.Resolve(nvidiaArgs, prefs);
+        if (nvidia.Provider != AiProvider.NvidiaNim || nvidia.ApiKey != "nvidia-self-test-key" ||
+            nvidia.Model != "nvidia-self-test-model")
+            return new CheckResult("ai-options", StatusFail, "provider/key/model overrides were not resolved together");
+
+        var convertCommand = new ConvertCommand();
+        ParsedArgs convertArgs = CommandLineParser.Parse(new[] {
+            root,
+            "--ai-model", "convert-self-test-model",
+            "--ai-system-prompt", promptFile
+        }, convertCommand.BuildOptionSet());
+
+        AiRequestOptions converted = AiRequestOptions.Resolve(convertArgs, prefs);
+        if (converted.Model != "convert-self-test-model")
+            return new CheckResult("ai-options", StatusFail, "--ai-model was ignored");
+        if (converted.SystemPrompt != "SELF_TEST_SYSTEM_PROMPT")
+            return new CheckResult("ai-options", StatusFail, "--ai-system-prompt was ignored");
+
+        // Select-only options must be rejected for the other actions instead of being ignored.
+        var modelsArgs = CommandLineParser.Parse(new[] { "models", "--task", "self test" }, aiCommand.BuildOptionSet());
+        var quietCtx = new CliContext { Log = new ConsoleLog { Quiet = true } };
+        try {
+            aiCommand.ExecuteAsync(modelsArgs, quietCtx).GetAwaiter().GetResult();
+            return new CheckResult("ai-options", StatusFail, "'ai models --task' was accepted");
+        }
+        catch (CliException ex) when (ex.ExitCode == ExitCodes.UsageError) {
+            // expected
+        }
+
+        return new CheckResult("ai-options", StatusPass,
+            "model, budget, prompt, provider, key and convert aliases resolved; select-only flags rejected");
+    }
+
+    /// <summary>Preset exclusions, --exclude values and global exclusions must be additive.</summary>
+    private static CheckResult CheckExclusions() {
+        string merged = ProjectResolver.MergeExclusions(
+            "preset_file.cs,vendor/",
+            new[] { "src/old_api/", "vendor/" },
+            "global_stub.cs");
+
+        var values = merged.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(v => v.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        string[] expected = { "preset_file.cs", "vendor/", "src/old_api/", "global_stub.cs" };
+        var missing = expected.Where(e => !values.Contains(e)).ToList();
+        if (missing.Count > 0)
+            return new CheckResult("exclusions", StatusFail, "missing: " + string.Join(", ", missing));
+        if (values.Count != expected.Length)
+            return new CheckResult("exclusions", StatusFail, $"unexpected duplicate entries ({merged})");
+
+        return new CheckResult("exclusions", StatusPass, "preset + --exclude + global rules merged");
+    }
+
+    private static CheckResult CheckPresetsShow(CliContext ctx) {
+        var command = new PresetsCommand();
+        ParsedArgs args = CommandLineParser.Parse(
+            new[] { "show", "__self_test_missing_preset__" },
+            command.BuildOptionSet());
+
+        bool previousQuiet = ctx.Log.Quiet;
+        ctx.Log.Quiet = true;
+        try {
+            command.ExecuteAsync(args, ctx).GetAwaiter().GetResult();
+            return new CheckResult("presets-show", StatusFail, "unknown preset was accepted");
+        }
+        catch (CliException ex) when (ex.ExitCode == ExitCodes.NotFound) {
+            return new CheckResult("presets-show", StatusPass, "unknown preset returns exit code 4");
+        }
+        catch (Exception ex) {
+            return new CheckResult("presets-show", StatusFail, ex.Message);
+        }
+        finally {
+            ctx.Log.Quiet = previousQuiet;
+        }
+    }
+
+    private static CheckResult CheckConfigResetPrompt() {
+        string value = ConfigCommand.ResetValue(PreferenceManager.Instance, "ai.system-prompt", persist: false);
+        if (value != ProjectConstants.DefaultAiSystemPrompt)
+            return new CheckResult("config-reset-prompt", StatusFail, "reset did not return the factory default");
+
+        try {
+            ConfigCommand.ResetValue(PreferenceManager.Instance, "compression", persist: false);
+            return new CheckResult("config-reset-prompt", StatusFail, "a non-resettable key was accepted");
+        }
+        catch (CliException ex) when (ex.ExitCode == ExitCodes.UsageError) {
+            // expected
+        }
+
+        return new CheckResult("config-reset-prompt", StatusPass, "ai.system-prompt resets to the factory default");
+    }
+
+    private static CheckResult CheckDebugOutput(ResolvedProject project) {
+        var outcome = new AiSelectionOutcome {
+            Files = project.FoundFiles.Take(1).ToList(),
+            ProviderName = "Self Test",
+            Model = "self-test-model",
+            RequestJson = "{\"request\":true}",
+            ResponseText = "[\"player.gd\"]",
+            RawResponse = "{\"ok\":true}",
+            Compression = CompressionLevel.Smart,
+            ContextLength = 42
+        };
+
+        var normal = AiCommand.BuildSelectJson(project, outcome, null, includeDebug: false);
+        if (normal.ContainsKey("request") || normal.ContainsKey("rawResponse"))
+            return new CheckResult("debug-output", StatusFail, "debug payload leaked into the normal JSON output");
+
+        var debug = AiCommand.BuildSelectJson(project, outcome, "selection.txt", includeDebug: true);
+        if (!debug.TryGetValue("request", out object? request) || (string?)request != outcome.RequestJson)
+            return new CheckResult("debug-output", StatusFail, "request JSON is missing from the --debug output");
+        if (!debug.TryGetValue("rawResponse", out object? raw) || (string?)raw != outcome.RawResponse)
+            return new CheckResult("debug-output", StatusFail, "raw response JSON is missing from the --debug output");
+        if (!debug.ContainsKey("response"))
+            return new CheckResult("debug-output", StatusFail, "text response is missing from the --debug output");
+
+        return new CheckResult("debug-output", StatusPass, "request and raw response included with --debug only");
+    }
+
+    private static CheckResult CheckUpdateOptions() {
+        var command = new UpdateCommand();
+        ParsedArgs args = CommandLineParser.Parse(new[] { "check", "--open" }, command.BuildOptionSet());
+
+        if (args.Flag("open") != true)
+            return new CheckResult("update-options", StatusFail, "--open was not parsed");
+
+        return new CheckResult("update-options", StatusPass, "update check --open is accepted");
     }
 
     private static ResolvedProject ResolveFixture(string root, CliContext ctx) {

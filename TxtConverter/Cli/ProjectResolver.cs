@@ -51,11 +51,10 @@ internal static class ProjectResolver {
             .Union(CliCommand.SplitCsv(ctx.Prefs.GetGlobalIgnoredFolders()), StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        string localExclusions = args.Has("exclude")
-            ? string.Join(",", args.CsvValues("exclude"))
-            : PresetManager.Instance.GetExclusionsFor(project.PresetName);
-        project.ExclusionsCsv = string.Join(",",
-            CliCommand.SplitCsv(localExclusions).Union(CliCommand.SplitCsv(ctx.Prefs.GetGlobalExcludedPaths()), StringComparer.OrdinalIgnoreCase));
+        project.ExclusionsCsv = MergeExclusions(
+            PresetManager.Instance.GetExclusionsFor(project.PresetName),
+            args.CsvValues("exclude"),
+            ctx.Prefs.GetGlobalExcludedPaths());
 
         ctx.Log.Detail($"Scanning: {root}");
         var scanner = new FileScanner(project.Extensions, project.IgnoredFolders);
@@ -67,6 +66,17 @@ internal static class ProjectResolver {
             StringComparer.OrdinalIgnoreCase);
 
         return project;
+    }
+
+    /// <summary>
+    /// Exclusion rules are additive, exactly like the GUI: preset entries, the --exclude
+    /// values of this run and the global excluded paths are all applied together.
+    /// </summary>
+    internal static string MergeExclusions(string presetCsv, IEnumerable<string> commandLineValues, string globalCsv) {
+        return string.Join(",",
+            CliCommand.SplitCsv(presetCsv)
+                .Union(commandLineValues, StringComparer.OrdinalIgnoreCase)
+                .Union(CliCommand.SplitCsv(globalCsv), StringComparer.OrdinalIgnoreCase));
     }
 
     private static void ResolvePreset(ParsedArgs args, CliContext ctx, ResolvedProject project) {

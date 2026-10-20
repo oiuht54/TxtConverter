@@ -11,9 +11,10 @@ TxtConverter.exe gui             -> graphical interface (explicit)
 ```
 
 The CLI is built from the same project and shipped in the same file as the GUI, so there is nothing extra
-to download, install or keep in sync. Everything the GUI can do (presets, compression, structure maps,
+to download, install or keep in sync. The whole conversion pipeline (presets, compression, structure maps,
 merged files, PDF reports, custom presets, AI Smart Select, settings, update checks) is available from
-the command line, and both front ends share the same `settings.json`.
+the command line, and both front ends share the same `settings.json`. A few interactions are intentionally
+GUI-only; see [Intentional CLI differences](#intentional-cli-differences).
 
 ---
 
@@ -32,6 +33,7 @@ the command line, and both front ends share the same `settings.json`.
 - [`update`](#update)
 - [`test`](#test)
 - [Recipes](#recipes)
+- [Intentional CLI differences](#intentional-cli-differences)
 - [Notes and troubleshooting](#notes-and-troubleshooting)
 
 ---
@@ -62,9 +64,9 @@ The result is always written to `<project>/_ConvertedToTxt` unless `--output` sa
 | `scan [path]` | List (and count) the files a conversion would pick up |
 | `detect [path]` | Show the preset the auto detection selects |
 | `presets <list\|show\|save\|delete>` | Manage built-in and custom presets |
-| `config <list\|get\|set\|path>` | Read/write the settings shared with the GUI |
+| `config <list\|get\|set\|reset\|path>` | Read/write the settings shared with the GUI |
 | `ai <select\|models\|test>` | AI Smart Select plus provider checks |
-| `update check` | Check GitHub for a newer release |
+| `update check [--open]` | Check GitHub for a newer release, optionally opening the release page |
 | `test` | Self test: verifies the CLI and the whole conversion pipeline |
 | `gui` | Start the graphical interface explicitly |
 | `help [command]` | Show help (also `--help` on every command) |
@@ -82,7 +84,7 @@ Accepted by every command:
 | Option | Description |
 |---|---|
 | `-l, --language <en\|ru>` | Language of the **generated report** for this run. The saved GUI language is never overwritten. |
-| `--telemetry <on\|off>` | Enable/disable anonymous usage statistics for this run |
+| `--telemetry <on\|off>` | Enable/disable anonymous usage statistics for this run. `on` also overrides a saved `off` for this run. |
 | `-y, --yes` | Answer yes to confirmation prompts (required for non-interactive use) |
 | `--json` | Print one JSON document on stdout instead of text |
 | `-q, --quiet` | Print results and errors only (no progress output) |
@@ -153,6 +155,9 @@ Files that are not selected are still listed in the report, but only as stubs, e
 > Exclusions use the same syntax as the GUI "Exclusions / Stubs" box: an entry without a slash matches a
 > **file name** (`legacy_file.cs`), an entry with a slash matches a **path or folder**
 > (`vendor/`, `src/old_api/`). Add the trailing slash for folders.
+>
+> `--exclude` is **additive**: the values are added to the preset exclusions and the global excluded
+> paths, they never replace them.
 
 ### File selection (replaces the "Select Files..." window)
 
@@ -192,7 +197,7 @@ List files contain one entry per line, `#` starts a comment, and entries may be 
 | `--dry-run` | Print what would be converted and where, write nothing |
 | `--ai-task <text>` | Let the AI pick the relevant files before converting |
 | `--ai-model <name>` | Override the AI model for this run |
-| `--ai-budget <tokens>` | Override the AI thinking budget |
+| `--ai-budget <tokens>` | Override the AI thinking budget (Gemini only) |
 | `--ai-system-prompt <file>` | Read the AI system prompt from a file |
 
 ### Compression modes
@@ -253,10 +258,15 @@ All project and selection options of `convert` are supported, plus:
 |---|---|
 | `--stats` | Print a summary grouped by extension |
 | `--limit <n>` | Print at most `n` paths |
+| `--ai-task <text>` | Preview the file set AI Smart Select would choose |
+| `--ai-model <name>` | Override the AI model for this preview |
+| `--ai-budget <tokens>` | Override the AI thinking budget (Gemini only) |
+| `--ai-system-prompt <file>` | Read the AI system prompt from a file |
 
 ```bat
 TxtConverter.exe scan . --stats
 TxtConverter.exe scan . --select none --include "**/*.gd" --quiet
+TxtConverter.exe scan . --ai-task "fix player movement"
 ```
 
 ---
@@ -303,7 +313,7 @@ TxtConverter.exe presets delete "My Godot" --yes
 ## `config`
 
 ```
-TxtConverter.exe config <list|get|set|path> [key] [value]
+TxtConverter.exe config <list|get|set|reset|path> [key] [value]
 ```
 
 The CLI and the GUI share `%LOCALAPPDATA%\oiuht54\TxtConverter\settings.json`, so a change made here is
@@ -314,6 +324,7 @@ visible in the interface immediately.
 | `list` | Print every setting (API keys are masked) |
 | `get <key>` | Print one setting |
 | `set <key> <value>` | Change one setting and save it |
+| `reset <key>` | Restore a setting to its factory default (currently `ai.system-prompt`) |
 | `path` | Print the settings file location |
 
 Keys are grouped in `config list`:
@@ -335,7 +346,11 @@ TxtConverter.exe config set ai.api-key "AIza..."
 TxtConverter.exe config set global-ignored-folders "bin, obj, .git, venv"
 TxtConverter.exe config set compression maximum
 TxtConverter.exe config set language ru
+TxtConverter.exe config reset ai.system-prompt
 ```
+
+`config reset ai.system-prompt` is the CLI twin of the **Reset** button in the AI window: it restores the
+factory prompt and prints it. Only `ai.system-prompt` can be reset; other keys are changed with `set`.
 
 ---
 
@@ -352,17 +367,35 @@ Describes a task, packs the project context and lets the configured provider pic
 | Option | Description |
 |---|---|
 | `--task <text>` | **Required.** What the code should do |
+| `--provider <gemini\|nvidia\|openai>` | Provider override for this call |
+| `--api-key <key>` | API key override for this call |
+| `--endpoint <url>` | Endpoint override (OpenAI compatible provider only) |
 | `--model <name>` | Model override for this call |
-| `--budget <tokens>` | Thinking token budget (Gemini) |
+| `--budget <tokens>` | Thinking token budget (Gemini only) |
 | `-c, --compression <none\|smart\|maximum>` | Compression mode used to pack the project context |
 | `--system-prompt <file>` | Read the system prompt from a file instead of the saved one |
 | `--save <file>` | Write the selection as a reusable path list |
-| `-p, --preset`, `--ext`, `--ignore` | Same project options as `convert` |
+| `--debug` | Print the request JSON and raw API response JSON (stderr), or include them in `--json` output |
+| `-p, --preset`, `--ext`, `--ignore`, `--exclude` | Same project options as `convert` |
+
+Every override applies to **this call only** and never changes the saved settings. Precedence is always:
+command line option, then the stored value for the selected provider, then the built-in default.
+`--budget` and `--endpoint` are rejected with a usage error when they do not apply to the selected provider.
 
 ```bat
 TxtConverter.exe ai select "C:\Projects\MyGame" --task "fix the player movement and collisions" --save selection.txt
 TxtConverter.exe convert "C:\Projects\MyGame" --select none --include-file selection.txt
+
+REM One-off provider/model override without touching settings.json
+TxtConverter.exe ai select . --task "add multiplayer" --provider nvidia --api-key "nvapi-..." --model "meta/llama-3.1-70b-instruct"
+
+REM Inspect the same request/response payloads the GUI debug tabs show
+TxtConverter.exe ai select . --task "add multiplayer" --debug
+TxtConverter.exe ai select . --task "add multiplayer" --debug --json
 ```
+
+With `--debug --json` the single JSON document additionally contains `request`, `response` (the model's
+text answer) and `rawResponse`. API keys are masked in the request debug text.
 
 ### `ai models` / `ai test`
 
@@ -373,18 +406,30 @@ TxtConverter.exe ai models --provider openai --endpoint http://localhost:11434/v
 ```
 
 Both accept `--provider <gemini|nvidia|openai>`, `--api-key`, `--endpoint`, `--model` to override the
-stored configuration for a single call. `ai test` sends a tiny "Hi" request and prints the answer.
+stored configuration for a single call. `--endpoint` applies to the OpenAI compatible provider only.
+Options that belong to `select` (`--task`, `--save`, `--compression`, `--system-prompt`, `--budget`,
+`--debug`) are rejected for these actions. `ai test` sends a tiny "Hi" request and prints the answer.
 
 ---
 
 ## `update`
 
 ```
-TxtConverter.exe update check
+TxtConverter.exe update check [--open]
 ```
 
 Queries the GitHub releases API (with the same fallbacks as the GUI) and prints the newest release.
-Nothing is downloaded automatically.
+Nothing is downloaded automatically. With `--open` the release page is opened in the default browser
+when an update is available; when the installed version is already the latest, nothing is opened.
+
+```bat
+TxtConverter.exe update check
+TxtConverter.exe update check --open
+TxtConverter.exe update check --open --json
+```
+
+In JSON mode the document is still emitted; `--open` additionally reports `opened` (and `openError` when
+the browser could not be started).
 
 ---
 
@@ -409,6 +454,12 @@ runs the **production code** against it, then checks the results:
 | `compression-mode` | Selecting a mode really changes the report (`none` vs `maximum` size and format) |
 | `glob-matching` | `--include` patterns (`*.gd`, `scripts/**`, `**/*.tscn`, `vendor/`) |
 | `ai-path-matching` | AI suggested paths are resolved to real project files |
+| `ai-options` | AI overrides (`--model`, `--budget`, `--system-prompt`, provider, key) and the `convert` aliases are resolved; select-only flags are rejected for `models`/`test` |
+| `exclusions` | Preset exclusions, `--exclude` and global exclusions are merged (never replaced) |
+| `presets-show` | `presets show <unknown>` returns exit code 4 |
+| `config-reset-prompt` | `config reset ai.system-prompt` returns the factory prompt |
+| `debug-output` | `--debug` JSON contains `request`/`rawResponse`, the normal output does not |
+| `update-options` | `update check --open` is accepted |
 | `convert-merged` | Structure map, full file contents and stub markers in the merged report |
 | `convert-pdf` | PDF is rendered and starts with the `%PDF` header |
 | `update-check` | GitHub release query (only with `--online`) |
@@ -439,7 +490,7 @@ Typical output:
   [PASS] convert-merged    _SelfTest_Full_Source_code.txt (1927 B) + 8 txt files
   [PASS] convert-pdf       _SelfTest_Report.pdf (99 KB)
   [SKIP] update-check      network checks disabled (use --online)
-All 12 checks passed (1 skipped).
+All 18 checks passed (1 skipped).
 ```
 
 ---
@@ -487,6 +538,28 @@ goto loop
 
 ---
 
+## Intentional CLI differences
+
+These GUI interactions are deliberately not ported to the command line:
+
+* **Folder picker, drag & drop, window chrome, themes** — the CLI takes a path argument.
+* **Interactive file-selection tree** — use `--select`, `--include`, `--include-file` and
+  `--exclude-file`; they are scriptable and deterministic.
+* **Automatic update check on startup / update notification dialog** — automation calls
+  `update check` (optionally with `--open`) explicitly.
+* **Prewarming files and QuestPDF on app start** — a GUI startup optimization, not a conversion
+  feature.
+* **GUI UI language switching** — `--language` and `config set language` control the generated
+  report; CLI console messages stay English by design.
+* **Secret display** — `config list` / `config get` mask API keys; the GUI shows them in password
+  fields. This is a deliberate security choice.
+* **Window position, log panel, progress bar** — GUI presentation only.
+* **`ai.enabled=false`** — the GUI hides AI selection; the CLI only warns and still runs an explicit
+  `ai select` / `convert --ai-task` command. The explicit command is treated as the user's consent.
+* **`help` and `version`** — always print human readable text, independent of `--json`.
+
+---
+
 ## Notes and troubleshooting
 
 * **Nothing is printed?** Results go to stdout, progress to stderr. Use `--quiet` to drop the progress
@@ -501,7 +574,7 @@ goto loop
 * **Report language** follows the GUI setting; override for one run with `--language ru`.
   CLI messages themselves are always English.
 * **Telemetry** follows the same anonymous statistics setting as the GUI; use `--telemetry off`
-  to mute a single run.
+  to mute a single run, or `--telemetry on` to record a single run even when the saved setting is off.
 * **The console waits after a command?** That is the default: the CLI holds the window open with
   `Press any key to return to the command prompt...` so the result stays readable. Pass `--no-pause`,
   or redirect the output, to get an immediate return to the prompt.

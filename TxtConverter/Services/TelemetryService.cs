@@ -24,6 +24,12 @@ public class TelemetryService {
     /// <summary>Set by the CLI (--telemetry off) to mute all events for the current run.</summary>
     public bool Suppress { get; set; }
 
+    /// <summary>
+    /// Per-run override set by the CLI (--telemetry on|off). null means "use the saved setting".
+    /// This lets --telemetry on record events for one run even when the saved setting is off.
+    /// </summary>
+    public bool? EnabledOverride { get; set; }
+
     private TelemetryService() {
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromSeconds(5);
@@ -47,7 +53,7 @@ public class TelemetryService {
     public void TrackEvent(string eventName, Dictionary<string, object>? parameters = null) {
         if (!_isConfigured) return;
         if (Suppress) return;
-        if (!PreferenceManager.Instance.GetTelemetryEnabled()) return;
+        if (!(EnabledOverride ?? PreferenceManager.Instance.GetTelemetryEnabled())) return;
         
         string clientId = PreferenceManager.Instance.GetInstallationId();
         string language = PreferenceManager.Instance.GetLanguage();

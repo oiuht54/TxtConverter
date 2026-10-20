@@ -32,7 +32,7 @@ internal sealed class ConvertCommand : CliCommand {
         new OptionDef { Name = "dry-run", TakesValue = false, Description = "Show what would be converted and where, write nothing" },
         new OptionDef { Name = "ai-task", TakesValue = true, ValueName = "text", Description = "Let the AI pick the relevant files before converting" },
         new OptionDef { Name = "ai-model", TakesValue = true, ValueName = "name", Description = "Override the AI model for this run" },
-        new OptionDef { Name = "ai-budget", TakesValue = true, ValueName = "tokens", Description = "Override the AI thinking budget" },
+        new OptionDef { Name = "ai-budget", TakesValue = true, ValueName = "tokens", Description = "Override the AI thinking budget (Gemini only)" },
         new OptionDef { Name = "ai-system-prompt", TakesValue = true, ValueName = "file", Description = "Read the AI system prompt from a file" }
     );
 
@@ -44,13 +44,22 @@ internal sealed class ConvertCommand : CliCommand {
         CompressionLevel compression = args.EnumValue<CompressionLevel>("compression") ?? prefs.GetCompressionLevel();
         PdfMode pdfMode = args.EnumValue<PdfMode>("pdf-mode") ?? prefs.GetPdfMode();
 
+        string? aiTask = args.Value("ai-task");
+        AiRequestOptions? aiOptions = null;
+        if (!string.IsNullOrWhiteSpace(aiTask)) {
+            // Validate the AI options before scanning so bad input fails fast.
+            aiOptions = AiRequestOptions.Resolve(args, prefs);
+        }
+        else if (args.Has("ai-model") || args.Has("ai-budget") || args.Has("ai-system-prompt")) {
+            ctx.Log.Warn("--ai-model, --ai-budget and --ai-system-prompt have no effect without --ai-task.");
+        }
+
         var project = await ProjectResolver.ResolveAsync(args, ctx);
         ProjectResolver.ApplySelectionFlags(args, project, ctx);
 
-        string? aiTask = args.Value("ai-task");
         if (!string.IsNullOrWhiteSpace(aiTask)) {
             ctx.Log.Detail("Running AI Smart Select...");
-            var outcome = await AiSelectionService.RunAsync(project, args, ctx, aiTask);
+            var outcome = await AiSelectionService.RunAsync(project, args, ctx, aiTask, aiOptions);
             project.SelectedForMerge = new HashSet<string>(outcome.Files, StringComparer.OrdinalIgnoreCase);
             ctx.Log.Detail($"AI selected {project.SelectedForMerge.Count} files.");
         }

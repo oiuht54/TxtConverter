@@ -16,6 +16,7 @@ internal sealed class ConsoleLog {
     public bool JsonMode { get; set; }
     public bool Quiet { get; set; }
     public bool Verbose { get; set; }
+    public bool DebugEnabled { get; set; }
     public bool UseColor { get; set; }
 
     /// <summary>Primary result line (stdout).</summary>
@@ -39,6 +40,16 @@ internal sealed class ConsoleLog {
     /// <summary>Extra information shown only with --verbose (stderr).</summary>
     public void Trace(string message) {
         if (JsonMode || Quiet || !Verbose) return;
+        Write(Console.Error, message, ConsoleColor.DarkGray);
+    }
+
+    /// <summary>
+    /// Debug block shown with --debug even in quiet mode, and with --verbose.
+    /// Kept out of JSON mode; commands add the payloads to their JSON document instead.
+    /// </summary>
+    public void Debug(string message) {
+        if (JsonMode) return;
+        if (!DebugEnabled && (!Verbose || Quiet)) return;
         Write(Console.Error, message, ConsoleColor.DarkGray);
     }
 
